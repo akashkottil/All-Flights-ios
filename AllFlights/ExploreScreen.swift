@@ -66,6 +66,9 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
+    @Published var fromLocation = "Mumbai"  // Default to Mumbai
+    @Published var toLocation = "Anywhere"
+    @Published var selectedCity: ExploreDestination? = nil
     
     private var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
@@ -106,8 +109,15 @@ class ExploreViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    func selectCity(city: ExploreDestination) {
+        selectedCity = city
+        toLocation = city.location.name
+    }
+    
     func goBackToCountries() {
         selectedCountryName = nil
+        selectedCity = nil
+        toLocation = "Anywhere"
         showingCities = false
         fetchCountries()
     }
@@ -163,19 +173,32 @@ struct ExploreScreen: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
                 
-                // Search card
-                SearchCard()
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                // Search card with dynamic values
+                SearchCard(
+                    fromLocation: viewModel.fromLocation,
+                    toLocation: viewModel.toLocation
+                )
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             }
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.orange, lineWidth: 1)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemBackground)))
+                ZStack {
+                    // Background fill
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                    
+                    // Animated or static stroke based on loading state
+                    if viewModel.isLoading {
+                        LoadingBorderView()
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange, lineWidth: 1)
+                    }
+                }
             )
             .padding()
             
-            // Main content
+            // Rest of the view remains the same
             ScrollView {
                 VStack(alignment: .center, spacing: 16) {
                     // Title with dynamic text based on view state
@@ -201,13 +224,16 @@ struct ExploreScreen: View {
                         }
                     }
                     
-                    // Loading state
+                    // Loading, error, and destination cards sections remain the same
                     if viewModel.isLoading {
-                        ProgressView()
-                            .padding()
+                        VStack(spacing: 12) {
+                            ForEach(0..<5, id: \.self) { _ in
+                                SkeletonDestinationCard()
+                            }
+                        }
+                        .padding(.bottom, 16)
                     }
                     
-                    // Error state
                     if let errorMessage = viewModel.errorMessage {
                         VStack {
                             Text("Error loading destinations")
@@ -230,7 +256,7 @@ struct ExploreScreen: View {
                         .padding()
                     }
                     
-                    // Destination cards
+                    // Updated destination cards with city selection
                     if !viewModel.isLoading && viewModel.errorMessage == nil {
                         VStack(spacing: 12) {
                             ForEach(viewModel.destinations) { destination in
@@ -243,6 +269,9 @@ struct ExploreScreen: View {
                                                 countryId: destination.location.entityId,
                                                 countryName: destination.location.name
                                             )
+                                        } else {
+                                            // Update selected city when tapped
+                                            viewModel.selectCity(city: destination)
                                         }
                                     }
                                 )
@@ -264,6 +293,9 @@ struct ExploreScreen: View {
 
 // MARK: - Search Card Component
 struct SearchCard: View {
+    let fromLocation: String
+    let toLocation: String
+    
     var body: some View {
         VStack(spacing: 5) {
             Divider()
@@ -271,11 +303,10 @@ struct SearchCard: View {
             HStack {
                 Image(systemName: "airplane.departure")
                     .foregroundColor(.blue)
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("From")
+
+                    Text(fromLocation)
                         .font(.system(size: 14, weight: .medium))
-                }
+                
                 
                 Spacer()
                 
@@ -295,10 +326,10 @@ struct SearchCard: View {
                 Image(systemName: "airplane.arrival")
                     .foregroundColor(.blue)
                 
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Anywhere")
+
+                    Text(toLocation)
                         .font(.system(size: 14, weight: .medium))
-                }
+                
             }
             
             Divider()
@@ -426,9 +457,95 @@ struct DestinationItem: Identifiable {
     let image: String
 }
 
+
+// MARK: - Loading Border View
+struct LoadingBorderView: View {
+    @State private var trimStart: CGFloat = 0.0
+    @State private var trimEnd: CGFloat = 0.20
+    
+    var body: some View {
+        ZStack {
+            // Base orange stroke
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 2.5)
+            
+            // Animated darker section
+            RoundedRectangle(cornerRadius: 12)
+                .trim(from: trimStart, to: trimStart + trimEnd)
+                .stroke(Color.orange, lineWidth: 1.5)
+                .onAppear {
+                    withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                        trimStart = 1.0
+                    }
+                }
+        }
+    }
+}
+
 // MARK: - Preview
 struct ExploreScreenView_Previews: PreviewProvider {
     static var previews: some View {
         ExploreScreen()
+    }
+}
+
+// MARK: - Skeleton Destination Card
+struct SkeletonDestinationCard: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Placeholder image
+            Rectangle()
+                .fill(Color(UIColor.systemGray5))
+                .frame(width: 80, height: 80)
+                .cornerRadius(8)
+            
+            // Placeholder text
+            VStack(alignment: .leading, spacing: 8) {
+                // "Flights from" placeholder
+                Rectangle()
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(height: 12)
+                    .frame(width: 70)
+                    .cornerRadius(4)
+                
+                // Location name placeholder
+                Rectangle()
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(height: 18)
+                    .frame(width: 120)
+                    .cornerRadius(4)
+                
+                // "Direct/Connecting" placeholder
+                Rectangle()
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(height: 12)
+                    .frame(width: 60)
+                    .cornerRadius(4)
+            }
+            
+            Spacer()
+            
+            // Price placeholder
+            Rectangle()
+                .fill(Color(UIColor.systemGray5))
+                .frame(height: 24)
+                .frame(width: 70)
+                .cornerRadius(4)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white)
+        )
+        .padding(.horizontal)
+        .redacted(reason: .placeholder) // Apply the redacted modifier
+        .opacity(isAnimating ? 0.7 : 1.0) // Animate opacity for shimmer effect
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
+                isAnimating.toggle()
+            }
+        }
     }
 }
