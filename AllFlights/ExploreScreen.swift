@@ -1,22 +1,126 @@
 import SwiftUI
+import Alamofire
+import Combine
 
-struct ExploreScreen: View {
+// MARK: - API Models
+struct ExploreLocation: Decodable {
+    let entityId: String
+    let name: String
+    let iata: String
+}
+
+struct ExploreDestination: Decodable, Identifiable {
+    let price: Int
+    let location: ExploreLocation
+    let is_direct: Bool
     
+    var id: String {
+        return location.entityId
+    }
+}
+
+// MARK: - API Service
+class ExploreAPIService {
+    static let shared = ExploreAPIService()
+    
+    private let baseURL = "https://staging.plane.lascade.com/api/explore/"
+    
+    func fetchDestinations(country: String = "IN",
+                          currency: String = "INR",
+                          departure: String = "LAX",
+                          language: String = "en-GB",
+                          arrivalType: String = "country",
+                          arrivalId: String? = nil) -> AnyPublisher<[ExploreDestination], Error> {
+        
+        var parameters: [String: Any] = [
+            "country": country,
+            "currency": currency,
+            "departure": departure,
+            "language": language,
+            "arrival_type": arrivalType
+        ]
+        
+        if let arrivalId = arrivalId {
+            parameters["arrival_id"] = arrivalId
+        }
+        
+        return Future<[ExploreDestination], Error> { promise in
+            AF.request(self.baseURL, parameters: parameters)
+                .validate()
+                .responseDecodable(of: [ExploreDestination].self) { response in
+                    switch response.result {
+                    case .success(let destinations):
+                        promise(.success(destinations))
+                    case .failure(let error):
+                        promise(.failure(error))
+                    }
+                }
+        }.eraseToAnyPublisher()
+    }
+}
+
+// MARK: - View Model
+class ExploreViewModel: ObservableObject {
+    @Published var destinations: [ExploreDestination] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String? = nil
+    @Published var showingCities = false
+    @Published var selectedCountryName: String? = nil
+    
+    private var cancellables = Set<AnyCancellable>()
+    private let service = ExploreAPIService.shared
+    
+    func fetchCountries() {
+        isLoading = true
+        errorMessage = nil
+        
+        service.fetchDestinations()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoading = false
+                if case .failure(let error) = completion {
+                    self?.errorMessage = error.localizedDescription
+                }
+            }, receiveValue: { [weak self] destinations in
+                self?.destinations = destinations
+            })
+            .store(in: &cancellables)
+    }
+    
+    func fetchCitiesFor(countryId: String, countryName: String) {
+        isLoading = true
+        errorMessage = nil
+        selectedCountryName = countryName
+        
+        service.fetchDestinations(arrivalType: "city", arrivalId: countryId)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoading = false
+                if case .failure(let error) = completion {
+                    self?.errorMessage = error.localizedDescription
+                }
+                self?.showingCities = true
+            }, receiveValue: { [weak self] destinations in
+                self?.destinations = destinations
+            })
+            .store(in: &cancellables)
+    }
+    
+    func goBackToCountries() {
+        selectedCountryName = nil
+        showingCities = false
+        fetchCountries()
+    }
+}
+
+// MARK: - Main View
+struct ExploreScreen: View {
     // MARK: - Properties
+    @StateObject private var viewModel = ExploreViewModel()
     @State private var selectedTab = 0
     @State private var selectedFilterTab = 0
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
-    
-    // Sample destination data
-    let destinations = [
-        DestinationItem(country: "India", price: "₹110", image: "india"),
-        DestinationItem(country: "Japan", price: "₹150", image: "japan"),
-        DestinationItem(country: "Germany", price: "₹200", image: "germany"),
-        DestinationItem(country: "Brazil", price: "₹180", image: "brazil"),
-        DestinationItem(country: "Australia", price: "₹220", image: "australia"),
-        DestinationItem(country: "Canada", price: "$170", image: "canada")
-    ]
     
     // MARK: - Body
     var body: some View {
@@ -24,7 +128,12 @@ struct ExploreScreen: View {
             // Custom navigation bar
             VStack(spacing: 0) {
                 HStack {
-                    Button(action: {}) {
+                    // Back button
+                    Button(action: {
+                        if viewModel.showingCities {
+                            viewModel.goBackToCountries()
+                        }
+                    }) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.primary)
                             .font(.system(size: 18, weight: .semibold))
@@ -50,7 +159,6 @@ struct ExploreScreen: View {
                     .padding(.trailing)
                     
                     Spacer()
-                    
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
@@ -63,47 +171,94 @@ struct ExploreScreen: View {
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.orange, lineWidth: 1)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemBackground)))
             )
             .padding()
-            
             
             // Main content
             ScrollView {
                 VStack(alignment: .center, spacing: 16) {
-                    Text("Explore everywhere")
+                    // Title with dynamic text based on view state
+                    Text(viewModel.showingCities ? "Cities in \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
                         .font(.system(size: 24, weight: .bold))
                         .padding(.horizontal)
                         .padding(.top, 16)
                     
-                    // Filter tabs
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(0..<filterOptions.count, id: \.self) { index in
-                                FilterTabButton(
-                                    title: filterOptions[index],
-                                    isSelected: selectedFilterTab == index
-                                ) {
-                                    selectedFilterTab = index
+                    // Filter tabs (only shown in country view)
+                    if !viewModel.showingCities {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(0..<filterOptions.count, id: \.self) { index in
+                                    FilterTabButton(
+                                        title: filterOptions[index],
+                                        isSelected: selectedFilterTab == index
+                                    ) {
+                                        selectedFilterTab = index
+                                    }
                                 }
                             }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
+                    }
+                    
+                    // Loading state
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .padding()
+                    }
+                    
+                    // Error state
+                    if let errorMessage = viewModel.errorMessage {
+                        VStack {
+                            Text("Error loading destinations")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                            
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                            
+                            Button("Try Again") {
+                                viewModel.fetchCountries()
+                            }
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                        }
+                        .padding()
                     }
                     
                     // Destination cards
-                    VStack(spacing: 12) {
-                        ForEach(destinations) { destination in
-                            DestinationCard(item: destination)
+                    if !viewModel.isLoading && viewModel.errorMessage == nil {
+                        VStack(spacing: 12) {
+                            ForEach(viewModel.destinations) { destination in
+                                APIDestinationCard(
+                                    item: destination,
+                                    currencySymbol: "₹",
+                                    onTap: {
+                                        if !viewModel.showingCities {
+                                            viewModel.fetchCitiesFor(
+                                                countryId: destination.location.entityId,
+                                                countryName: destination.location.name
+                                            )
+                                        }
+                                    }
+                                )
                                 .padding(.horizontal)
+                            }
                         }
+                        .padding(.bottom, 16)
                     }
-                    .padding(.bottom, 16)
                 }
             }
             .background(Color(UIColor.systemGray6))
         }
         .ignoresSafeArea(edges: .bottom)
+        .onAppear {
+            viewModel.fetchCountries()
+        }
     }
 }
 
@@ -146,7 +301,6 @@ struct SearchCard: View {
                 }
             }
             
-            
             Divider()
             
             // Date and passengers row
@@ -167,8 +321,55 @@ struct SearchCard: View {
             }
             .padding(.vertical, 10)
         }
-       
-       
+    }
+}
+
+// MARK: - API Destination Card
+struct APIDestinationCard: View {
+    let item: ExploreDestination
+    let currencySymbol: String
+    let onTap: () -> Void
+    
+    
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Destination image (using placeholder from assets)
+                Image("sampleimage")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 80, height: 80)
+                    .clipped()
+                    .cornerRadius(8)
+                
+                // Destination information
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Flights from")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                    
+                    Text(item.location.name)
+                        .font(.system(size: 18, weight: .bold))
+                    
+                    Text(item.is_direct ? "Direct" : "Connecting")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                // Price
+                Text("\(currencySymbol)\(item.price)")
+                    .font(.system(size: 20, weight: .bold))
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -217,54 +418,12 @@ struct FilterTabButton: View {
     }
 }
 
-// MARK: - Destination Item Model
+// MARK: - Other model kept for reference
 struct DestinationItem: Identifiable {
     let id = UUID()
     let country: String
     let price: String
     let image: String
-}
-
-// MARK: - Destination Card Component
-struct DestinationCard: View {
-    let item: DestinationItem
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Destination image
-            Image(item.image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 80, height: 80)
-                .clipped()
-                .cornerRadius(8)
-            
-            // Destination information
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Flights from")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                
-                Text(item.country)
-                    .font(.system(size: 18, weight: .bold))
-                
-                Text("Direct")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-            }
-            
-            Spacer()
-            
-            // Price
-            Text(item.price)
-                .font(.system(size: 20, weight: .bold))
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
-        )
-    }
 }
 
 // MARK: - Preview
