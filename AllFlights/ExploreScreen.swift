@@ -70,6 +70,9 @@ struct ExploreDestination: Codable, Identifiable {
 class ExploreAPIService {
     static let shared = ExploreAPIService()
     
+    let currency:String = "INR"
+    let country:String = "IN"
+    
     private let baseURL = "https://staging.plane.lascade.com/api/explore/"
     private let flightsURL = "https://staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
     private var currentFlightSearchRequest: DataRequest?
@@ -156,6 +159,9 @@ class ExploreViewModel: ObservableObject {
     @Published var toLocation = "Anywhere"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
     
+    @Published var availableMonths: [Date] = []
+    @Published var selectedMonthIndex: Int = 0
+    
     // Updated flight results properties
     @Published var flightSearchResponse: FlightSearchResponse?
     @Published var flightResults: [FlightResult] = []
@@ -168,6 +174,10 @@ class ExploreViewModel: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
+    
+    init() {
+        setupAvailableMonths()
+    }
     
     func fetchCountries() {
         isLoading = true
@@ -213,18 +223,50 @@ class ExploreViewModel: ObservableObject {
         fetchFlightDetails(destination: city.location.iata)
     }
     
+    func setupAvailableMonths() {
+        // Generate next 6 months starting from current month
+        let calendar = Calendar.current
+        let currentDate = Date()
+        
+        var months: [Date] = []
+        for i in 0..<12 {
+            if let date = calendar.date(byAdding: .month, value: i, to: currentDate) {
+                // Get the first day of each month
+                let components = calendar.dateComponents([.year, .month], from: date)
+                if let firstDayOfMonth = calendar.date(from: components) {
+                    months.append(firstDayOfMonth)
+                }
+            }
+        }
+        
+        availableMonths = months
+        selectedMonthIndex = 0 // Default to current month
+    }
+    
     func fetchFlightDetails(destination: String) {
         isLoadingFlights = true
         errorMessage = nil
         hasSearchedFlights = true
+        flightResults = [] // Clear previous results when starting a new search
         
-        // Format current date as required (DD-MM-YYYY)
+        // Format date based on selected month
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "dd-MM-yyyy"
-        let departureDate = dateFormatter.string(from: Date())
+        
+        let dateToUse: Date
+        
+        if selectedMonthIndex == 0 {
+            // If current month, use current date
+            dateToUse = Date()
+        } else {
+            // Otherwise use the first day of the selected month
+            dateToUse = availableMonths[selectedMonthIndex]
+        }
+        
+        let departureDate = dateFormatter.string(from: dateToUse)
         
         service.fetchFlightDetails(
-            origin: "DEL", // Using Kochi as origin
+            origin: "DEL",
             destination: destination,
             departure: departureDate
         )
@@ -233,12 +275,30 @@ class ExploreViewModel: ObservableObject {
             self?.isLoadingFlights = false
             if case .failure(let error) = completion {
                 self?.errorMessage = error.localizedDescription
+                self?.flightResults = [] // Ensure results are cleared on error
             }
         }, receiveValue: { [weak self] response in
             self?.flightSearchResponse = response
             self?.flightResults = response.results
+            // If we got an empty array but no error, set a custom error message
+                   if response.results.isEmpty {
+                       self?.errorMessage = "No flights available"
+                   } else {
+                       self?.errorMessage = nil
+                   }
         })
         .store(in: &cancellables)
+    }
+    
+    func selectMonth(at index: Int) {
+        if index >= 0 && index < availableMonths.count {
+            selectedMonthIndex = index
+            
+            // Re-fetch flight details with the new month if a city is selected
+            if let city = selectedCity {
+                fetchFlightDetails(destination: city.location.iata)
+            }
+        }
     }
     
     func goBackToCountries() {
@@ -340,7 +400,7 @@ struct ExploreScreen: View {
                         .fill(Color(.systemBackground))
                     
                     // Animated or static stroke based on loading state
-                    if viewModel.isLoading {
+                    if viewModel.isLoading || viewModel.isLoadingFlights {
                         LoadingBorderView()
                     } else {
                         RoundedRectangle(cornerRadius: 12)
@@ -363,8 +423,7 @@ struct ExploreScreen: View {
                             .padding(.horizontal)
                             .padding(.top, 16)
                         
-                        // Filter tabs (only shown in country view)
-                        if !viewModel.showingCities {
+                       
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
                                     ForEach(0..<filterOptions.count, id: \.self) { index in
@@ -378,7 +437,7 @@ struct ExploreScreen: View {
                                 }
                                 .padding(.horizontal)
                             }
-                        }
+                        
                         
                         // Destination cards (destinations/cities)
                         if !viewModel.isLoading && viewModel.errorMessage == nil {
@@ -412,6 +471,14 @@ struct ExploreScreen: View {
                                 .font(.system(size: 24, weight: .bold))
                                 .padding(.horizontal)
                                 .padding(.top, 16)
+                            MonthSelectorView(
+                                months: viewModel.availableMonths,
+                                selectedIndex: viewModel.selectedMonthIndex,
+                                onSelect: { index in
+                                    viewModel.selectMonth(at: index)
+                                }
+                            )
+                            .padding(.top, 8)
                             
                             if viewModel.isLoadingFlights {
                                 // Show loading skeleton for flights
@@ -419,30 +486,14 @@ struct ExploreScreen: View {
                                     SkeletonFlightResultCard()
                                         .padding(.bottom, 12)
                                 }
-                            } else if viewModel.flightResults.isEmpty && viewModel.errorMessage == nil {
-                                // No results found
-                                VStack(spacing: 8) {
+                            } else if viewModel.errorMessage != nil || viewModel.flightResults.isEmpty{
+
+                               
                                     Text("No flights found")
-                                        .font(.headline)
-                                    
-                                    Text("Try adjusting your search criteria")
                                         .font(.subheadline)
                                         .foregroundColor(.gray)
-                                    
-                                    Button("Go back") {
-                                        viewModel.goBackToCountries()
-                                    }
-                                    .padding()
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(8)
-                                    .padding(.top, 8)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.white)
-                                .cornerRadius(12)
-                                .padding(.horizontal)
+
+
                             } else {
                                 // Display flight results
                                 ForEach(viewModel.flightResults) { result in
@@ -471,19 +522,6 @@ struct ExploreScreen: View {
                         }
                         .padding(.bottom, 16)
                     }
-                    
-                    if viewModel.errorMessage != nil {
-                        
-                        VStack {
-                            Text("No Flights on that route and date")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-
-                            
-                          
-                        }
-                        .padding()
-                    }
                 }
                 .background(
                     Color("scroll")
@@ -497,6 +535,7 @@ struct ExploreScreen: View {
             if !viewModel.hasSearchedFlights {
                 viewModel.fetchCountries()
             }
+            viewModel.setupAvailableMonths()
         }
     }
 }
@@ -993,6 +1032,73 @@ struct SkeletonFlightResultCard: View {
                 isAnimating.toggle()
             }
         }
+    }
+}
+
+// Add this new component:
+
+struct MonthSelectorView: View {
+    let months: [Date]
+    let selectedIndex: Int
+    let onSelect: (Int) -> Void
+    
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(0..<months.count, id: \.self) { index in
+                    MonthButton(
+                        month: months[index],
+                        isSelected: selectedIndex == index,
+                        action: {
+                            onSelect(index)
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+struct MonthButton: View {
+    let month: Date
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(monthName(from: month))
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .blue : .black)
+                
+                Text(year(from: month))
+                    .font(.system(size: 12))
+                    .foregroundColor(isSelected ? .blue : .gray)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
+            )
+        }
+    }
+    
+    private func monthName(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: date)
+    }
+    
+    private func year(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        return formatter.string(from: date)
     }
 }
 
