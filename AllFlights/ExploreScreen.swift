@@ -316,7 +316,7 @@ class ExploreViewModel: ObservableObject {
     func formatDate(_ timestamp: Int) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.dateFormat = "EEE, d MMM"
         return formatter.string(from: date)
     }
     
@@ -484,7 +484,7 @@ struct ExploreScreen: View {
                                 // Show loading skeleton for flights
                                 ForEach(0..<3, id: \.self) { _ in
                                     SkeletonFlightResultCard()
-                                        .padding(.bottom, 12)
+                                        .padding(.bottom, 8)
                                 }
                             } else if viewModel.errorMessage != nil || viewModel.flightResults.isEmpty{
 
@@ -507,7 +507,7 @@ struct ExploreScreen: View {
                                         isDirect: result.outbound.direct && (result.inbound?.direct ?? true),
                                         tripDuration: viewModel.calculateTripDuration(result)
                                     )
-                                    .padding(.bottom, 12)
+                                    .padding(.bottom, 8)
                                 }
                             }
                         }
@@ -705,7 +705,7 @@ struct FlightResultCard: View {
                     // View details action
                 }) {
                     Text("View these dates")
-                        .font(.headline)
+                        .font(.subheadline)
                         .foregroundColor(.white)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 16)
