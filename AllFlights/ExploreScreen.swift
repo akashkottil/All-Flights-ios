@@ -667,6 +667,218 @@
         }
     }
 
+
+//Last Flight view
+struct LastFlightCard: View {
+    // Flight tags
+    let tags: [FlightTag]
+    
+    // Outbound flight
+    let departureTime: String
+    let departureCode: String
+    let departureDate: String
+    
+    let arrivalTime: String
+    let arrivalCode: String
+    let arrivalDate: String
+    
+    let duration: String
+    let isOutboundDirect: Bool
+    
+    // Return flight
+    let returnDepartureTime: String
+    let returnDepartureCode: String
+    let returnDepartureDate: String
+    
+    let returnArrivalTime: String
+    let returnArrivalCode: String
+    let returnArrivalDate: String
+    
+    let returnDuration: String
+    let isReturnDirect: Bool
+    
+    // Price and airline info
+    let airline: String
+    let price: String
+    let priceDetail: String
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tags at top
+            if !tags.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(tags) { tag in
+                        Text(tag.title)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(tag.color)
+                            .cornerRadius(4)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+            }
+            
+            // Outbound flight
+            HStack(alignment: .top, spacing: 0) {
+                // Departure
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(departureTime)
+                        .font(.system(size: 18, weight: .bold))
+                    Text(departureCode)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(departureDate)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 70, alignment: .leading)
+                
+                // Flight path
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.gray)
+                        
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundColor(.gray)
+                        
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Text(duration)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                    
+                    Text(isOutboundDirect ? "Direct" : "1 Stop")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(isOutboundDirect ? .green : .primary)
+                }
+                .frame(maxWidth: .infinity)
+                
+                // Arrival
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(arrivalTime)
+                        .font(.system(size: 18, weight: .bold))
+                    Text(arrivalCode)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(arrivalDate)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 70, alignment: .trailing)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            
+            Divider()
+                .padding(.horizontal, 16)
+            
+            // Return flight
+            HStack(alignment: .top, spacing: 0) {
+                // Departure
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(returnDepartureTime)
+                        .font(.system(size: 18, weight: .bold))
+                    Text(returnDepartureCode)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(returnDepartureDate)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 70, alignment: .leading)
+                
+                // Flight path
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.gray)
+                        
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundColor(.gray)
+                        
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Text(returnDuration)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                    
+                    Text(isReturnDirect ? "Direct" : "1 Stop")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(isReturnDirect ? .green : .primary)
+                }
+                .frame(maxWidth: .infinity)
+                
+                // Arrival
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(returnArrivalTime)
+                        .font(.system(size: 18, weight: .bold))
+                    Text(returnArrivalCode)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(returnArrivalDate)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 70, alignment: .trailing)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            
+            Divider()
+                .padding(.horizontal, 16)
+            
+            // Airline and price
+            HStack {
+                Text(airline)
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price)
+                        .font(.system(size: 20, weight: .bold))
+                    
+                    Text(priceDetail)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+    }
+}
+
+struct FlightTag: Identifiable {
+    let id = UUID()
+    let title: String
+    let color: Color
+    
+    static let best = FlightTag(title: "Best", color: Color.blue)
+    static let cheapest = FlightTag(title: "Cheapest", color: Color.green)
+    static let fastest = FlightTag(title: "Fastest", color: Color.purple)
+}
+
     // MARK: - Flight Result Card (matching screenshot)
     struct FlightResultCard: View {
         let departureDate: String
