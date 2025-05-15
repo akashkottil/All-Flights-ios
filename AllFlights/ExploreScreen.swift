@@ -2,6 +2,32 @@ import SwiftUI
 import Alamofire
 import Combine
 
+
+
+// MARK: - Autocomplete Models
+struct AutocompleteCoordinates: Codable {
+    let latitude: String
+    let longitude: String
+}
+
+struct AutocompleteResult: Codable, Identifiable {
+    let iataCode: String
+    let airportName: String
+    let type: String
+    let displayName: String
+    let cityName: String
+    let countryName: String
+    let countryCode: String
+    let imageUrl: String
+    let coordinates: AutocompleteCoordinates
+    
+    var id: String { iataCode }
+}
+
+struct AutocompleteResponse: Codable {
+    let data: [AutocompleteResult]
+    let language: String
+}
 // MARK: - Flight API Response Models
 struct Location: Codable {
     let iata: String
@@ -77,6 +103,29 @@ class ExploreAPIService {
     private let flightsURL = "https://staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
     private var currentFlightSearchRequest: DataRequest?
     private let session = Session()
+    
+    func fetchAutocomplete(query: String, country: String = "IN", language: String = "en-GB") -> AnyPublisher<[AutocompleteResult], Error> {
+        let baseURL = "https://staging.plane.lascade.com/api/autocomplete"
+        
+        let parameters: [String: String] = [
+            "search": query,
+            "country": country,
+            "language": language
+        ]
+        
+        return Future<[AutocompleteResult], Error> { promise in
+            AF.request(baseURL, parameters: parameters)
+                .validate()
+                .responseDecodable(of: AutocompleteResponse.self) { response in
+                    switch response.result {
+                    case .success(let autocompleteResponse):
+                        promise(.success(autocompleteResponse.data))
+                    case .failure(let error):
+                        promise(.failure(error))
+                    }
+                }
+        }.eraseToAnyPublisher()
+    }
     
     func fetchDestinations(country: String = "IN",
                           currency: String = "INR",
@@ -155,7 +204,7 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
-    @Published var fromLocation = "Mumbai"  // Default to Kochi
+    @Published var fromLocation = "From"  // Default to Kochi
     @Published var toLocation = "Anywhere"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
     
@@ -172,7 +221,10 @@ class ExploreViewModel: ObservableObject {
    
     @Published var hasSearchedFlights = false
     
-    private var cancellables = Set<AnyCancellable>()
+    @Published var fromIataCode: String = ""
+    @Published var toIataCode: String = ""
+    
+     var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
     init() {
@@ -386,12 +438,9 @@ struct ExploreScreen: View {
                 .padding(.top, 8)
                 
                 // Search card with dynamic values
-                SearchCard(
-                    fromLocation: viewModel.fromLocation,
-                    toLocation: viewModel.toLocation
-                )
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                SearchCard(viewModel: viewModel)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
             }
             .background(
                 ZStack {
@@ -542,8 +591,9 @@ struct ExploreScreen: View {
 
 // MARK: - Search Card Component
 struct SearchCard: View {
-    let fromLocation: String
-    let toLocation: String
+    @ObservedObject var viewModel: ExploreViewModel
+    @State private var showingFromSearch = false
+    @State private var showingToSearch = false
     
     var body: some View {
         VStack(spacing: 5) {
@@ -553,19 +603,24 @@ struct SearchCard: View {
                 Image(systemName: "airplane.departure")
                     .foregroundColor(.blue)
 
-                Text(fromLocation)
-                    .font(.system(size: 14, weight: .medium))
+                Button(action: {
+                    showingFromSearch = true
+                }) {
+                    Text(viewModel.fromLocation)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.black)
+                }
                 
                 Spacer()
                 
                 ZStack {
                     Circle()
                         .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                        .frame(width: 25, height: 25)
+                        .frame(width: 20, height: 20)
                     Image(systemName: "arrow.left.arrow.right")
                         .fontWeight(.bold)
                         .foregroundColor(.blue)
-                        .font(.system(size: 10))
+                        .font(.system(size: 8))
                 }
                 
                 Spacer()
@@ -573,18 +628,24 @@ struct SearchCard: View {
                 Image(systemName: "airplane.arrival")
                     .foregroundColor(.blue)
                 
-                Text(toLocation)
-                    .font(.system(size: 14, weight: .medium))
+                Button(action: {
+                    showingToSearch = true
+                }) {
+                    Text(viewModel.toLocation)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.black)
+                }
             }
+            .padding(4)
             
             Divider()
-            
+
             // Date and passengers row
             HStack {
                 Image(systemName: "calendar")
                     .foregroundColor(.blue)
                 
-                Text("Sat, 7 Jun -Anytime")
+                Text("Anytime")
                     .font(.system(size: 14, weight: .medium))
                 
                 Spacer()
@@ -595,7 +656,15 @@ struct SearchCard: View {
                 Text("1, Economy")
                     .font(.system(size: 14, weight: .medium))
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 4)
+        }
+        .sheet(isPresented: $showingFromSearch) {
+            LocationSearchSheet(viewModel: viewModel, isFromSearch: true)
+                .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showingToSearch) {
+            LocationSearchSheet(viewModel: viewModel, isFromSearch: false)
+                .presentationDetents([.large])
         }
     }
 }
@@ -1099,6 +1168,271 @@ struct MonthButton: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy"
         return formatter.string(from: date)
+    }
+}
+
+
+
+struct LocationSearchSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: ExploreViewModel
+    @State private var searchTextOrigin = ""
+    @State private var searchTextDestination = ""
+    @State private var results: [AutocompleteResult] = []
+    @State private var isSearching = false
+    @State private var searchError: String? = nil
+    
+    var isFromSearch: Bool
+    
+    private let debouncer = Debouncer(delay: 0.3)
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                }
+                
+                Spacer()
+                
+                Text(isFromSearch ? "From Where?" : "To Where?")
+                    .font(.headline)
+                
+                Spacer()
+                
+                // Empty space to balance the X button
+                Image(systemName: "xmark")
+                    .font(.system(size: 18))
+                    .foregroundColor(.clear)
+            }
+            .padding()
+            
+            // Search bar of from
+            HStack {
+                TextField("", text: $searchTextOrigin)
+                    .placeholder(when: searchTextOrigin.isEmpty) {
+                        Text("Origin City, Airport or place")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .background(Color(.systemBackground))
+                    .overlay(
+                           RoundedRectangle(cornerRadius: 8)
+                               .stroke(Color.gray, lineWidth: 1)
+                       )
+                       .cornerRadius(8)
+                    .onChange(of: searchTextOrigin) { newValue in
+                        if !newValue.isEmpty {
+                            debouncer.debounce {
+                                searchLocations(query: newValue)
+                            }
+                        } else {
+                            results = []
+                        }
+                    }
+                
+                if !searchTextOrigin.isEmpty {
+                    Button(action: {
+                        searchTextOrigin = ""
+                        results = []
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding()
+            
+            
+            // Search bar of to
+            HStack {
+                TextField("", text: $searchTextDestination)
+                    .placeholder(when: searchTextDestination.isEmpty) {
+                        Text("Destination City, Airport or place")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .background(Color(.white))
+                    .overlay(
+                           RoundedRectangle(cornerRadius: 8)
+                               .stroke(Color.gray, lineWidth: 1)
+                       )
+                       .cornerRadius(8)
+                    .onChange(of: searchTextDestination) { newValue in
+                        if !newValue.isEmpty {
+                            debouncer.debounce {
+                                searchLocations(query: newValue)
+                            }
+                        } else {
+                            results = []
+                        }
+                    }
+                
+                if !searchTextDestination.isEmpty {
+                    Button(action: {
+                        searchTextDestination = ""
+                        results = []
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(.horizontal)
+
+            
+            // Use current location button
+            Button(action: {
+                // Would implement location permissions and fetching here
+                if isFromSearch {
+                    viewModel.fromLocation = "Current Location"
+                    viewModel.fromIataCode = ""
+                }
+                dismiss()
+            }) {
+                HStack {
+                    Image(systemName: "location.fill")
+                        .foregroundColor(.blue)
+                    
+                    Text("Use Current Location")
+                        .foregroundColor(.blue)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            
+            Divider()
+            
+            // Results list
+            if isSearching {
+                VStack {
+                    ProgressView()
+                    Text("Searching...")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .padding()
+            } else if let error = searchError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+            } else if results.isEmpty && !searchTextDestination.isEmpty {
+                Text("No results found")
+                    .foregroundColor(.gray)
+                    .padding()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(results) { result in
+                            LocationResultRow(result: result)
+                                .onTapGesture {
+                                    if isFromSearch {
+                                        viewModel.fromLocation = result.cityName
+                                        viewModel.fromIataCode = result.iataCode
+                                    } else {
+                                        viewModel.toLocation = result.cityName
+                                        viewModel.toIataCode = result.iataCode
+                                    }
+                                    dismiss()
+                                }
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .background(Color.white)
+    }
+    
+    private func searchLocations(query: String) {
+        guard !query.isEmpty else {
+            results = []
+            return
+        }
+        
+        isSearching = true
+        searchError = nil
+        
+        ExploreAPIService.shared.fetchAutocomplete(query: query)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                isSearching = false
+                if case .failure(let error) = completion {
+                    searchError = error.localizedDescription
+                }
+            }, receiveValue: { results in
+                self.results = results
+            })
+            .store(in: &viewModel.cancellables)
+    }
+}
+
+// Helper view for placeholder text in TextField
+extension View {
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .leading,
+        @ViewBuilder placeholder: () -> Content) -> some View {
+        
+        ZStack(alignment: alignment) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
+        }
+    }
+}
+
+// Row view for displaying search results
+struct LocationResultRow: View {
+    let result: AutocompleteResult
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Text(result.iataCode)
+                .font(.system(size: 16, weight: .medium))
+                .frame(width: 40, height: 40)
+                .background(Color(UIColor.systemGray6))
+                .cornerRadius(4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(result.cityName), \(result.countryName)")
+                    .font(.system(size: 16, weight: .medium))
+                
+                Text(result.type == "airport" ? result.airportName : "All Airports")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .contentShape(Rectangle())
+    }
+}
+
+// Simple debouncer to avoid excessive API calls
+class Debouncer {
+    private let delay: TimeInterval
+    private var workItem: DispatchWorkItem?
+    
+    init(delay: TimeInterval) {
+        self.delay = delay
+    }
+    
+    func debounce(action: @escaping () -> Void) {
+        workItem?.cancel()
+        
+        let workItem = DispatchWorkItem(block: action)
+        self.workItem = workItem
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 }
 
