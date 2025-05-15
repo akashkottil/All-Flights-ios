@@ -2,6 +2,53 @@ import SwiftUI
 import Alamofire
 import Combine
 
+// MARK: - Flight API Response Models
+struct Location: Codable {
+    let iata: String
+    let name: String
+    let country: String
+}
+
+struct Airline: Codable {
+    let iata: String
+    let name: String
+    let logo: String
+}
+
+struct FlightLeg: Codable {
+    let origin: Location
+    let destination: Location
+    let airline: Airline
+    let departure: Int
+    let departure_datetime: String
+    let direct: Bool
+}
+
+struct PriceStats: Codable {
+    let mean: Double
+    let std_dev: Double
+    let lower_threshold: Double
+    let upper_threshold: Double
+}
+
+struct FlightResult: Codable, Identifiable {
+    let date: Int
+    let price: Int
+    let currency: String
+    let outbound: FlightLeg
+    let inbound: FlightLeg?
+    let price_category: String
+    
+    var id: String {
+        return UUID().uuidString
+    }
+}
+
+struct FlightSearchResponse: Codable {
+    let price_stats: PriceStats
+    let results: [FlightResult]
+}
+
 // MARK: - API Models
 struct ExploreLocation: Codable {
     let entityId: String
@@ -19,14 +66,12 @@ struct ExploreDestination: Codable, Identifiable {
     }
 }
 
-
-
-
 // MARK: - API Service
 class ExploreAPIService {
     static let shared = ExploreAPIService()
     
     private let baseURL = "https://staging.plane.lascade.com/api/explore/"
+    private let flightsURL = "https://staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
     private var currentFlightSearchRequest: DataRequest?
     private let session = Session()
     
@@ -63,7 +108,41 @@ class ExploreAPIService {
         }.eraseToAnyPublisher()
     }
     
-   
+    func fetchFlightDetails(
+        origin: String = "MOB", // Using Mumbai as default
+        destination: String,
+        departure: String,
+        roundTrip: Bool = true,
+        currency: String = "INR",
+        country: String = "IN"
+    ) -> AnyPublisher<FlightSearchResponse, Error> {
+        
+        // Create request parameters according to requirements
+        let parameters: [String: Any] = [
+            "origin": origin,
+            "destination": destination,
+            "departure": departure,
+            "round_trip": roundTrip,
+            "currency": currency,
+            "country": country
+        ]
+        
+        return Future<FlightSearchResponse, Error> { promise in
+            AF.request(self.flightsURL,
+                      method: .post,
+                      parameters: parameters,
+                      encoding: JSONEncoding.default)
+                .validate()
+                .responseDecodable(of: FlightSearchResponse.self) { response in
+                    switch response.result {
+                    case .success(let searchResponse):
+                        promise(.success(searchResponse))
+                    case .failure(let error):
+                        promise(.failure(error))
+                    }
+                }
+        }.eraseToAnyPublisher()
+    }
 }
 
 // MARK: - View Model
@@ -73,12 +152,14 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
-    @Published var fromLocation = "Kochi"  // Default to Kochi
-    @Published var toLocation = "Chennai"  // Default to Chennai
+    @Published var fromLocation = "Mumbai"  // Default to Kochi
+    @Published var toLocation = "Anywhere"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
     
- 
-   
+    // Updated flight results properties
+    @Published var flightSearchResponse: FlightSearchResponse?
+    @Published var flightResults: [FlightResult] = []
+    @Published var isLoadingFlights = false
 
     @Published var selectedDepartureDate = Date()
     @Published var selectedReturnDate: Date?
@@ -87,8 +168,6 @@ class ExploreViewModel: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
-    
-    
     
     func fetchCountries() {
         isLoading = true
@@ -130,7 +209,36 @@ class ExploreViewModel: ObservableObject {
         selectedCity = city
         toLocation = city.location.name
         
-
+        // Fetch flight details when a city is selected
+        fetchFlightDetails(destination: city.location.iata)
+    }
+    
+    func fetchFlightDetails(destination: String) {
+        isLoadingFlights = true
+        errorMessage = nil
+        hasSearchedFlights = true
+        
+        // Format current date as required (DD-MM-YYYY)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd-MM-yyyy"
+        let departureDate = dateFormatter.string(from: Date())
+        
+        service.fetchFlightDetails(
+            origin: "DEL", // Using Kochi as origin
+            destination: destination,
+            departure: departureDate
+        )
+        .receive(on: DispatchQueue.main)
+        .sink(receiveCompletion: { [weak self] completion in
+            self?.isLoadingFlights = false
+            if case .failure(let error) = completion {
+                self?.errorMessage = error.localizedDescription
+            }
+        }, receiveValue: { [weak self] response in
+            self?.flightSearchResponse = response
+            self?.flightResults = response.results
+        })
+        .store(in: &cancellables)
     }
     
     func goBackToCountries() {
@@ -139,10 +247,30 @@ class ExploreViewModel: ObservableObject {
         toLocation = "Anywhere"
         showingCities = false
         hasSearchedFlights = false
+        flightResults = []
+        flightSearchResponse = nil
         fetchCountries()
     }
     
-
+    // Helper function to format timestamp to readable date
+    func formatDate(_ timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: date)
+    }
+    
+    // Helper function to calculate trip duration
+    func calculateTripDuration(_ result: FlightResult) -> String {
+        if let inbound = result.inbound {
+            let outboundDate = Date(timeIntervalSince1970: TimeInterval(result.outbound.departure))
+            let inboundDate = Date(timeIntervalSince1970: TimeInterval(inbound.departure))
+            let days = Calendar.current.dateComponents([.day], from: outboundDate, to: inboundDate).day ?? 0
+            return "\(days) days trip"
+        } else {
+            return "One way trip"
+        }
+    }
 }
 
 // MARK: - Main View
@@ -175,15 +303,7 @@ struct ExploreScreen: View {
                     
                     Spacer()
                     
-                    // Title
-                    if viewModel.hasSearchedFlights {
-                        Text("Explore \(viewModel.toLocation)")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                    }
-                    
-                    Spacer()
-                    
+
                     // Trip type tabs
                     HStack(spacing: 0) {
                         TabButton(title: "Return", isSelected: selectedTab == 0) {
@@ -200,6 +320,7 @@ struct ExploreScreen: View {
                     }
                     .background(Capsule().fill(Color(UIColor.systemGray6)))
                     .padding(.trailing)
+                    Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
@@ -237,7 +358,7 @@ struct ExploreScreen: View {
                     if !viewModel.hasSearchedFlights {
                         // Original explore view content
                         // Title with dynamic text based on view state
-                        Text(viewModel.showingCities ? "Cities in \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
+                        Text(viewModel.showingCities ? "Explore \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
                             .font(.system(size: 24, weight: .bold))
                             .padding(.horizontal)
                             .padding(.top, 16)
@@ -284,6 +405,62 @@ struct ExploreScreen: View {
                             .padding(.bottom, 16)
                         }
                     }
+                    else {
+                        // Flight search results view
+                        VStack(alignment: .center, spacing: 16) {
+                             Text("Explore \(viewModel.toLocation)")
+                                .font(.system(size: 24, weight: .bold))
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                            
+                            if viewModel.isLoadingFlights {
+                                // Show loading skeleton for flights
+                                ForEach(0..<3, id: \.self) { _ in
+                                    SkeletonFlightResultCard()
+                                        .padding(.bottom, 12)
+                                }
+                            } else if viewModel.flightResults.isEmpty && viewModel.errorMessage == nil {
+                                // No results found
+                                VStack(spacing: 8) {
+                                    Text("No flights found")
+                                        .font(.headline)
+                                    
+                                    Text("Try adjusting your search criteria")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                    
+                                    Button("Go back") {
+                                        viewModel.goBackToCountries()
+                                    }
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                                    .padding(.top, 8)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                            } else {
+                                // Display flight results
+                                ForEach(viewModel.flightResults) { result in
+                                    // Create a FlightResultCard for each result
+                                    FlightResultCard(
+                                        departureDate: viewModel.formatDate(result.outbound.departure),
+                                        returnDate: result.inbound != nil ? viewModel.formatDate(result.inbound!.departure) : "No return",
+                                        origin: result.outbound.origin.iata,
+                                        destination: result.outbound.destination.iata,
+                                        price: "₹\(result.price)",
+                                        isDirect: result.outbound.direct && (result.inbound?.direct ?? true),
+                                        tripDuration: viewModel.calculateTripDuration(result)
+                                    )
+                                    .padding(.bottom, 12)
+                                }
+                            }
+                        }
+                    }
                     
                     // Loading and error displays
                     if viewModel.isLoading {
@@ -295,32 +472,25 @@ struct ExploreScreen: View {
                         .padding(.bottom, 16)
                     }
                     
-                    if let errorMessage = viewModel.errorMessage {
+                    if viewModel.errorMessage != nil {
+                        
                         VStack {
-                            Text("Error loading data")
-                                .font(.headline)
-                                .foregroundColor(.red)
-                            
-                            Text(errorMessage)
+                            Text("No Flights on that route and date")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
-                                .multilineTextAlignment(.center)
+
                             
-                            Button("Try Again") {
-                              
-                                    viewModel.fetchCountries()
-                                
-                            }
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
+                          
                         }
                         .padding()
                     }
                 }
+                .background(
+                    Color("scroll")
+                )
+                
             }
-            .background(Color(UIColor.systemGray6))
+            .background(Color(.systemBackground))
         }
         .ignoresSafeArea(edges: .bottom)
         .onAppear {
@@ -329,8 +499,6 @@ struct ExploreScreen: View {
             }
         }
     }
-    
-   
 }
 
 // MARK: - Search Card Component
@@ -432,13 +600,13 @@ struct FlightResultCard: View {
                     
                     Text(isDirect ? "Direct" : "Connecting")
                         .font(.subheadline)
+                        .fontWeight(.bold)
                         .foregroundColor(.green)
                 }
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
             
-            Divider()
             
             // Return section
             VStack(alignment: .leading, spacing: 8) {
@@ -468,6 +636,7 @@ struct FlightResultCard: View {
                     Text(isDirect ? "Direct" : "Connecting")
                         .font(.subheadline)
                         .foregroundColor(.green)
+                        .fontWeight(.bold)
                 }
             }
             .padding(.horizontal)
@@ -501,9 +670,10 @@ struct FlightResultCard: View {
                         .foregroundColor(.white)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 16)
-                        .background(Color.blue)
+                        .background(Color("primarycolor"))
                         .cornerRadius(8)
                 }
+               
             }
             .padding()
         }
@@ -513,8 +683,6 @@ struct FlightResultCard: View {
         .padding(.horizontal)
     }
 }
-
-
 
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
@@ -545,6 +713,8 @@ struct APIDestinationCard: View {
                     Text(item.is_direct ? "Direct" : "Connecting")
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
+                        
+                        
                 }
                 
                 Spacer()
@@ -693,6 +863,131 @@ struct SkeletonDestinationCard: View {
         .padding(.horizontal)
         .redacted(reason: .placeholder) // Apply the redacted modifier
         .opacity(isAnimating ? 0.7 : 1.0) // Animate opacity for shimmer effect
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
+                isAnimating.toggle()
+            }
+        }
+    }
+}
+
+// MARK: - Skeleton Flight Result Card
+struct SkeletonFlightResultCard: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Departure section
+            VStack(alignment: .leading, spacing: 8) {
+                Rectangle()
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(height: 16)
+                    .frame(width: 80)
+                    .cornerRadius(4)
+                
+                HStack {
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 18)
+                        .frame(width: 100)
+                        .cornerRadius(4)
+                    
+                    Spacer()
+                    
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 18)
+                        .frame(width: 120)
+                        .cornerRadius(4)
+                    
+                    Spacer()
+                    
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 16)
+                        .frame(width: 60)
+                        .cornerRadius(4)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            
+            Divider()
+            
+            // Return section
+            VStack(alignment: .leading, spacing: 8) {
+                Rectangle()
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(height: 16)
+                    .frame(width: 60)
+                    .cornerRadius(4)
+                
+                HStack {
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 18)
+                        .frame(width: 100)
+                        .cornerRadius(4)
+                    
+                    Spacer()
+                    
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 18)
+                        .frame(width: 120)
+                        .cornerRadius(4)
+                    
+                    Spacer()
+                    
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 16)
+                        .frame(width: 60)
+                        .cornerRadius(4)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            
+            Divider()
+            
+            // Price section
+            HStack {
+                VStack(alignment: .leading, spacing: 8) {
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 16)
+                        .frame(width: 80)
+                        .cornerRadius(4)
+                    
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 24)
+                        .frame(width: 100)
+                        .cornerRadius(4)
+                    
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 16)
+                        .frame(width: 120)
+                        .cornerRadius(4)
+                }
+                
+                Spacer()
+                
+                Rectangle()
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(height: 40)
+                    .frame(width: 140)
+                    .cornerRadius(8)
+            }
+            .padding()
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .padding(.horizontal)
+        .opacity(isAnimating ? 0.7 : 1.0)
         .onAppear {
             withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
                 isAnimating.toggle()
