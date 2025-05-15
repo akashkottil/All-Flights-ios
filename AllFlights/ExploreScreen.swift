@@ -3,13 +3,13 @@ import Alamofire
 import Combine
 
 // MARK: - API Models
-struct ExploreLocation: Decodable {
+struct ExploreLocation: Codable {
     let entityId: String
     let name: String
     let iata: String
 }
 
-struct ExploreDestination: Decodable, Identifiable {
+struct ExploreDestination: Codable, Identifiable {
     let price: Int
     let location: ExploreLocation
     let is_direct: Bool
@@ -19,15 +19,20 @@ struct ExploreDestination: Decodable, Identifiable {
     }
 }
 
+
+
+
 // MARK: - API Service
 class ExploreAPIService {
     static let shared = ExploreAPIService()
     
     private let baseURL = "https://staging.plane.lascade.com/api/explore/"
+    private var currentFlightSearchRequest: DataRequest?
+    private let session = Session()
     
     func fetchDestinations(country: String = "IN",
                           currency: String = "INR",
-                          departure: String = "LAX",
+                          departure: String = "COK",
                           language: String = "en-GB",
                           arrivalType: String = "country",
                           arrivalId: String? = nil) -> AnyPublisher<[ExploreDestination], Error> {
@@ -57,6 +62,8 @@ class ExploreAPIService {
                 }
         }.eraseToAnyPublisher()
     }
+    
+   
 }
 
 // MARK: - View Model
@@ -66,12 +73,22 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
-    @Published var fromLocation = "Mumbai"  // Default to Mumbai
-    @Published var toLocation = "Anywhere"
+    @Published var fromLocation = "Kochi"  // Default to Kochi
+    @Published var toLocation = "Chennai"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
+    
+ 
+   
+
+    @Published var selectedDepartureDate = Date()
+    @Published var selectedReturnDate: Date?
+   
+    @Published var hasSearchedFlights = false
     
     private var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
+    
+    
     
     func fetchCountries() {
         isLoading = true
@@ -112,6 +129,8 @@ class ExploreViewModel: ObservableObject {
     func selectCity(city: ExploreDestination) {
         selectedCity = city
         toLocation = city.location.name
+        
+
     }
     
     func goBackToCountries() {
@@ -119,8 +138,11 @@ class ExploreViewModel: ObservableObject {
         selectedCity = nil
         toLocation = "Anywhere"
         showingCities = false
+        hasSearchedFlights = false
         fetchCountries()
     }
+    
+
 }
 
 // MARK: - Main View
@@ -129,8 +151,10 @@ struct ExploreScreen: View {
     @StateObject private var viewModel = ExploreViewModel()
     @State private var selectedTab = 0
     @State private var selectedFilterTab = 0
+    @State private var selectedMonthTab = 0
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
+
     
     // MARK: - Body
     var body: some View {
@@ -140,13 +164,22 @@ struct ExploreScreen: View {
                 HStack {
                     // Back button
                     Button(action: {
-                        if viewModel.showingCities {
+                        if viewModel.showingCities || viewModel.hasSearchedFlights {
                             viewModel.goBackToCountries()
                         }
                     }) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.primary)
                             .font(.system(size: 18, weight: .semibold))
+                    }
+                    
+                    Spacer()
+                    
+                    // Title
+                    if viewModel.hasSearchedFlights {
+                        Text("Explore \(viewModel.toLocation)")
+                            .font(.headline)
+                            .fontWeight(.bold)
                     }
                     
                     Spacer()
@@ -167,8 +200,6 @@ struct ExploreScreen: View {
                     }
                     .background(Capsule().fill(Color(UIColor.systemGray6)))
                     .padding(.trailing)
-                    
-                    Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
@@ -198,33 +229,63 @@ struct ExploreScreen: View {
             )
             .padding()
             
-            // Rest of the view remains the same
+           
+            
             ScrollView {
                 VStack(alignment: .center, spacing: 16) {
-                    // Title with dynamic text based on view state
-                    Text(viewModel.showingCities ? "Cities in \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
-                        .font(.system(size: 24, weight: .bold))
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                    
-                    // Filter tabs (only shown in country view)
-                    if !viewModel.showingCities {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(0..<filterOptions.count, id: \.self) { index in
-                                    FilterTabButton(
-                                        title: filterOptions[index],
-                                        isSelected: selectedFilterTab == index
-                                    ) {
-                                        selectedFilterTab = index
+                    // Main content
+                    if !viewModel.hasSearchedFlights {
+                        // Original explore view content
+                        // Title with dynamic text based on view state
+                        Text(viewModel.showingCities ? "Cities in \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
+                            .font(.system(size: 24, weight: .bold))
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                        
+                        // Filter tabs (only shown in country view)
+                        if !viewModel.showingCities {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(0..<filterOptions.count, id: \.self) { index in
+                                        FilterTabButton(
+                                            title: filterOptions[index],
+                                            isSelected: selectedFilterTab == index
+                                        ) {
+                                            selectedFilterTab = index
+                                        }
                                     }
                                 }
+                                .padding(.horizontal)
                             }
-                            .padding(.horizontal)
+                        }
+                        
+                        // Destination cards (destinations/cities)
+                        if !viewModel.isLoading && viewModel.errorMessage == nil {
+                            VStack(spacing: 12) {
+                                ForEach(viewModel.destinations) { destination in
+                                    APIDestinationCard(
+                                        item: destination,
+                                        currencySymbol: "₹",
+                                        onTap: {
+                                            if !viewModel.showingCities {
+                                                viewModel.fetchCitiesFor(
+                                                    countryId: destination.location.entityId,
+                                                    countryName: destination.location.name
+                                                )
+                                            } else {
+                                                // Update selected city when tapped
+                                                viewModel.selectCity(city: destination)
+                                            }
+                                        }
+                                    )
+                                    .padding(.horizontal)
+                                }
+                            }
+                            .padding(.bottom, 16)
                         }
                     }
                     
-                    // Loading, error, and destination cards sections remain the same
+                    // Loading and error displays
                     if viewModel.isLoading {
                         VStack(spacing: 12) {
                             ForEach(0..<5, id: \.self) { _ in
@@ -236,7 +297,7 @@ struct ExploreScreen: View {
                     
                     if let errorMessage = viewModel.errorMessage {
                         VStack {
-                            Text("Error loading destinations")
+                            Text("Error loading data")
                                 .font(.headline)
                                 .foregroundColor(.red)
                             
@@ -246,7 +307,9 @@ struct ExploreScreen: View {
                                 .multilineTextAlignment(.center)
                             
                             Button("Try Again") {
-                                viewModel.fetchCountries()
+                              
+                                    viewModel.fetchCountries()
+                                
                             }
                             .padding()
                             .background(Color.blue)
@@ -255,40 +318,19 @@ struct ExploreScreen: View {
                         }
                         .padding()
                     }
-                    
-                    // Updated destination cards with city selection
-                    if !viewModel.isLoading && viewModel.errorMessage == nil {
-                        VStack(spacing: 12) {
-                            ForEach(viewModel.destinations) { destination in
-                                APIDestinationCard(
-                                    item: destination,
-                                    currencySymbol: "₹",
-                                    onTap: {
-                                        if !viewModel.showingCities {
-                                            viewModel.fetchCitiesFor(
-                                                countryId: destination.location.entityId,
-                                                countryName: destination.location.name
-                                            )
-                                        } else {
-                                            // Update selected city when tapped
-                                            viewModel.selectCity(city: destination)
-                                        }
-                                    }
-                                )
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.bottom, 16)
-                    }
                 }
             }
             .background(Color(UIColor.systemGray6))
         }
         .ignoresSafeArea(edges: .bottom)
         .onAppear {
-            viewModel.fetchCountries()
+            if !viewModel.hasSearchedFlights {
+                viewModel.fetchCountries()
+            }
         }
     }
+    
+   
 }
 
 // MARK: - Search Card Component
@@ -304,32 +346,28 @@ struct SearchCard: View {
                 Image(systemName: "airplane.departure")
                     .foregroundColor(.blue)
 
-                    Text(fromLocation)
-                        .font(.system(size: 14, weight: .medium))
-                
+                Text(fromLocation)
+                    .font(.system(size: 14, weight: .medium))
                 
                 Spacer()
                 
                 ZStack {
                     Circle()
                         .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                        .frame(width: 25, height: 40)
+                        .frame(width: 25, height: 25)
                     Image(systemName: "arrow.left.arrow.right")
                         .fontWeight(.bold)
                         .foregroundColor(.blue)
                         .font(.system(size: 10))
                 }
-                .padding(.leading,30)
                 
                 Spacer()
                 
                 Image(systemName: "airplane.arrival")
                     .foregroundColor(.blue)
                 
-
-                    Text(toLocation)
-                        .font(.system(size: 14, weight: .medium))
-                
+                Text(toLocation)
+                    .font(.system(size: 14, weight: .medium))
             }
             
             Divider()
@@ -355,18 +393,139 @@ struct SearchCard: View {
     }
 }
 
+// MARK: - Flight Result Card (matching screenshot)
+struct FlightResultCard: View {
+    let departureDate: String
+    let returnDate: String
+    let origin: String
+    let destination: String
+    let price: String
+    let isDirect: Bool
+    let tripDuration: String
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Departure section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Departure")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                HStack {
+                    Text(departureDate)
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        Text(origin)
+                            .font(.headline)
+                        
+                        Image(systemName: "arrow.right")
+                            .font(.caption)
+                        
+                        Text(destination)
+                            .font(.headline)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(isDirect ? "Direct" : "Connecting")
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            
+            Divider()
+            
+            // Return section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Return")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                HStack {
+                    Text(returnDate)
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        Text(destination)
+                            .font(.headline)
+                        
+                        Image(systemName: "arrow.right")
+                            .font(.caption)
+                        
+                        Text(origin)
+                            .font(.headline)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(isDirect ? "Direct" : "Connecting")
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            
+            Divider()
+            
+            // Price section
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Flights from")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    
+                    Text(price)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text(tripDuration)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    // View details action
+                }) {
+                    Text("View these dates")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 16)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                }
+            }
+            .padding()
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .padding(.horizontal)
+    }
+}
+
+
+
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
     let item: ExploreDestination
     let currencySymbol: String
     let onTap: () -> Void
     
-    
-    
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Destination image (using placeholder from assets)
+                // Destination image placeholder
                 Image("sampleimage")
                     .resizable()
                     .scaledToFill()
@@ -449,43 +608,35 @@ struct FilterTabButton: View {
     }
 }
 
-// MARK: - Other model kept for reference
-struct DestinationItem: Identifiable {
-    let id = UUID()
-    let country: String
-    let price: String
-    let image: String
-}
-
-
 // MARK: - Loading Border View
 struct LoadingBorderView: View {
-    @State private var trimStart: CGFloat = 0.0
-    @State private var trimEnd: CGFloat = 0.20
+    @State private var progressValue: CGFloat = 0.0
+    @State private var isAnimating: Bool = false
     
     var body: some View {
         ZStack {
-            // Base orange stroke
+            // Base light stroke (background track)
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.orange.opacity(0.3), lineWidth: 2.5)
             
-            // Animated darker section
+            // Main progress section (darker) - just this single element now
             RoundedRectangle(cornerRadius: 12)
-                .trim(from: trimStart, to: trimStart + trimEnd)
-                .stroke(Color.orange, lineWidth: 1.5)
-                .onAppear {
-                    withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                        trimStart = 1.0
-                    }
-                }
+                .trim(from: 0, to: progressValue)
+                .stroke(Color.orange, lineWidth: 2.5)
+                .animation(.linear(duration: 0.4), value: progressValue)
         }
-    }
-}
-
-// MARK: - Preview
-struct ExploreScreenView_Previews: PreviewProvider {
-    static var previews: some View {
-        ExploreScreen()
+        .onAppear {
+            // Slowed down main animation
+            withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
+                progressValue = 1.0
+            }
+            
+            // Keeping the subtle pulse for interest (can be removed if desired)
+            withAnimation(Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
+        .scaleEffect(isAnimating ? 1.02 : 1.0)
     }
 }
 
@@ -547,5 +698,11 @@ struct SkeletonDestinationCard: View {
                 isAnimating.toggle()
             }
         }
+    }
+}
+
+struct ExploreScreenPreview: PreviewProvider {
+    static var previews: some View {
+        ExploreScreen()
     }
 }
