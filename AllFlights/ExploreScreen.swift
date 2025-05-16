@@ -598,7 +598,7 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
-    @Published var fromLocation = "From"  // Default to Kochi
+    @Published var fromLocation = "Mumbai"  // Default to Kochi
     @Published var toLocation = "Anywhere"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
     
@@ -1674,251 +1674,281 @@ struct MonthButton: View {
 
 
 struct LocationSearchSheet: View {
-@Environment(\.dismiss) private var dismiss
-@ObservedObject var viewModel: ExploreViewModel
-@State private var originSearchText = ""
-@State private var destinationSearchText = ""
-@State private var results: [AutocompleteResult] = []
-@State private var isSearching = false
-@State private var searchError: String? = nil
-@State private var activeSearchBar: SearchBarType = .origin
-// Add FocusState to manage keyboard focus
-@FocusState private var focusedField: SearchBarType?
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: ExploreViewModel
+    @State private var originSearchText = ""
+    @State private var destinationSearchText = ""
+    @State private var results: [AutocompleteResult] = []
+    @State private var isSearching = false
+    @State private var searchError: String? = nil
+    @State private var activeSearchBar: SearchBarType = .origin
+    @FocusState private var focusedField: SearchBarType?
 
-enum SearchBarType {
-    case origin
-    case destination
-}
+    enum SearchBarType {
+        case origin
+        case destination
+    }
 
-var initialFocus: SearchBarType
+    var initialFocus: SearchBarType
 
-private let debouncer = Debouncer(delay: 0.3)
+    private let debouncer = Debouncer(delay: 0.3)
 
-var body: some View {
-    VStack(spacing: 0) {
-        // Header
-        HStack {
-            Button(action: {
-                dismiss()
-            }) {
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                }
+                
+                Spacer()
+                
+                Text(activeSearchBar == .origin ? "From Where?" : "Where to?")
+                    .font(.headline)
+                
+                Spacer()
+                
+                // Empty space to balance the X button
                 Image(systemName: "xmark")
                     .font(.system(size: 18))
-                    .foregroundColor(.black)
-            }
-            
-            Spacer()
-            
-            Text(activeSearchBar == .origin ? "From Where?" : "Where to?")
-                .font(.headline)
-            
-            Spacer()
-            
-            // Empty space to balance the X button
-            Image(systemName: "xmark")
-                .font(.system(size: 18))
-                .foregroundColor(.clear)
-        }
-        .padding()
-        
-        // Origin search bar
-        HStack {
-            TextField("", text: $originSearchText)
-                .placeholder(when: originSearchText.isEmpty) {
-                    Text("Origin City, Airport or place")
-                        .foregroundColor(.gray)
-                }
-                .padding(12)
-                .background(Color(.systemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(activeSearchBar == .origin ? Color.orange : Color.gray, lineWidth: 2)
-                )
-                .cornerRadius(8)
-                .focused($focusedField, equals: .origin) // Add focused modifier
-                .onChange(of: originSearchText) {
-                    activeSearchBar = .origin
-                    if !originSearchText.isEmpty {
-                        debouncer.debounce {
-                            searchLocations(query: originSearchText)
-                        }
-                    } else {
-                        results = []
-                    }
-                }
-                .onTapGesture {
-                    activeSearchBar = .origin
-                    focusedField = .origin // Update focus state
-                }
-            
-            if !originSearchText.isEmpty {
-                Button(action: {
-                    originSearchText = ""
-                    if activeSearchBar == .origin {
-                        results = []
-                    }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                }
-            }
-        }
-        .padding()
-        
-        // Destination search bar
-        HStack {
-            TextField("", text: $destinationSearchText)
-                .placeholder(when: destinationSearchText.isEmpty) {
-                    Text("Destination City, Airport or place")
-                        .foregroundColor(.gray)
-                }
-                .padding(12)
-                .background(Color(.systemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(activeSearchBar == .destination ? Color.orange : Color.gray, lineWidth: 2)
-                )
-                .cornerRadius(8)
-                .focused($focusedField, equals: .destination) // Add focused modifier
-                .onChange(of: destinationSearchText) {
-                    activeSearchBar = .destination
-                    if !destinationSearchText.isEmpty {
-                        debouncer.debounce {
-                            searchLocations(query: destinationSearchText)
-                        }
-                    } else {
-                        results = []
-                    }
-                }
-                .onTapGesture {
-                    activeSearchBar = .destination
-                    focusedField = .destination // Update focus state
-                }
-            
-            if !destinationSearchText.isEmpty {
-                Button(action: {
-                    destinationSearchText = ""
-                    if activeSearchBar == .destination {
-                        results = []
-                    }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                }
-            }
-        }
-        .padding(.horizontal)
-        
-        // Use current location button (only available for origin)
-        if activeSearchBar == .origin {
-            Button(action: {
-                viewModel.fromLocation = "Current Location"
-                viewModel.fromIataCode = ""
-                originSearchText = "Current Location" // Update the search text field
-                
-                // Move focus to destination field
-                activeSearchBar = .destination
-                focusedField = .destination
-                
-                // If destination is set, close the sheet
-                if !viewModel.toLocation.isEmpty && viewModel.toLocation != "Anywhere" {
-                    dismiss()
-                }
-            }) {
-                HStack {
-                    Image(systemName: "location.fill")
-                        .foregroundColor(.blue)
-                    
-                    Text("Use Current Location")
-                        .foregroundColor(.blue)
-                        .fontWeight(.medium)
-                    
-                    Spacer()
-                }
-                .padding()
-            }
-        }
-        
-        Divider()
-        
-        // Results list
-        if isSearching {
-            VStack {
-                ProgressView()
-                Text("Searching...")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.clear)
             }
             .padding()
-        } else if let error = searchError {
-            Text(error)
-                .foregroundColor(.red)
-                .padding()
-        } else if results.isEmpty && ((activeSearchBar == .origin && !originSearchText.isEmpty) ||
-                                      (activeSearchBar == .destination && !destinationSearchText.isEmpty)) {
-            Text("No results found")
-                .foregroundColor(.gray)
-                .padding()
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(results) { result in
-                        LocationResultRow(result: result)
-                            .onTapGesture {
-                                if activeSearchBar == .origin {
-                                    viewModel.fromLocation = result.cityName
-                                    viewModel.fromIataCode = result.iataCode
-                                    originSearchText = result.cityName // Update the search text field
-                                    
-                                    // Auto-focus the destination field
-                                    activeSearchBar = .destination
-                                    focusedField = .destination
-                                } else {
-                                    viewModel.toLocation = result.cityName
-                                    viewModel.toIataCode = result.iataCode
-                                    destinationSearchText = result.cityName // Update the search text field
-                                    
-                                    // If origin is already set, dismiss the sheet
-                                    if !viewModel.fromLocation.isEmpty && viewModel.fromLocation != "From" {
-                                        dismiss()
-                                    }
-                                }
+            
+            // Origin search bar
+            HStack {
+                TextField("", text: $originSearchText)
+                    .placeholder(when: originSearchText.isEmpty) {
+                        Text("Origin City, Airport or place")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .background(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(activeSearchBar == .origin ? Color.orange : Color.gray, lineWidth: 2)
+                    )
+                    .cornerRadius(8)
+                    .focused($focusedField, equals: .origin)
+                    .onChange(of: originSearchText) {
+                        activeSearchBar = .origin
+                        if !originSearchText.isEmpty {
+                            debouncer.debounce {
+                                searchLocations(query: originSearchText)
                             }
+                        } else {
+                            results = []
+                        }
+                    }
+                    .onTapGesture {
+                        activeSearchBar = .origin
+                        focusedField = .origin
+                    }
+                
+                if !originSearchText.isEmpty {
+                    Button(action: {
+                        originSearchText = ""
+                        if activeSearchBar == .origin {
+                            results = []
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
                     }
                 }
             }
+            .padding()
+            
+            // Destination search bar
+            HStack {
+                TextField("", text: $destinationSearchText)
+                    .placeholder(when: destinationSearchText.isEmpty) {
+                        Text("Destination City, Airport or place")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .background(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(activeSearchBar == .destination ? Color.orange : Color.gray, lineWidth: 2)
+                    )
+                    .cornerRadius(8)
+                    .focused($focusedField, equals: .destination)
+                    .onChange(of: destinationSearchText) {
+                        activeSearchBar = .destination
+                        if !destinationSearchText.isEmpty {
+                            debouncer.debounce {
+                                searchLocations(query: destinationSearchText)
+                            }
+                        } else {
+                            results = []
+                        }
+                    }
+                    .onTapGesture {
+                        activeSearchBar = .destination
+                        focusedField = .destination
+                    }
+                
+                if !destinationSearchText.isEmpty {
+                    Button(action: {
+                        destinationSearchText = ""
+                        if activeSearchBar == .destination {
+                            results = []
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            
+            // Use current location button
+            if activeSearchBar == .origin {
+                Button(action: {
+                    viewModel.fromLocation = "Current Location"
+                    viewModel.fromIataCode = "DEL" // Using Delhi as default
+                    originSearchText = "Current Location"
+                    
+                    activeSearchBar = .destination
+                    focusedField = .destination
+                }) {
+                    HStack {
+                        Image(systemName: "location.fill")
+                            .foregroundColor(.blue)
+                        
+                        Text("Use Current Location")
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                        
+                        Spacer()
+                    }
+                    .padding()
+                }
+            }
+            
+            Divider()
+            
+            // Results list
+            if isSearching {
+                VStack {
+                    ProgressView()
+                    Text("Searching...")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .padding()
+            } else if let error = searchError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+            } else if results.isEmpty && ((activeSearchBar == .origin && !originSearchText.isEmpty) ||
+                                          (activeSearchBar == .destination && !destinationSearchText.isEmpty)) {
+                Text("No results found")
+                    .foregroundColor(.gray)
+                    .padding()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(results) { result in
+                            LocationResultRow(result: result)
+                                .onTapGesture {
+                                    if activeSearchBar == .origin {
+                                        viewModel.fromLocation = result.cityName
+                                        viewModel.fromIataCode = result.iataCode
+                                        originSearchText = result.cityName
+                                        
+                                        // Auto-focus the destination field
+                                        activeSearchBar = .destination
+                                        focusedField = .destination
+                                    } else {
+                                        // Selected destination - initiate search
+                                        viewModel.toLocation = result.cityName
+                                        viewModel.toIataCode = result.iataCode
+                                        
+                                        // Only proceed if we have both origin and destination
+                                        if !viewModel.fromIataCode.isEmpty {
+                                            // Dismiss the sheet
+                                            dismiss()
+                                            
+                                            // Use fixed dates and initiate flight search
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                viewModel.searchFlightsForDates(
+                                                    origin: viewModel.fromIataCode,
+                                                    destination: result.iataCode
+                                                    // The function internally uses fixed dates:
+                                                    // selectedDepartureDatee = "2025-12-29"
+                                                    // selectedReturnDatee = "2025-12-30"
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
+            
+            // Add search button at the bottom for better UX
+            if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                Button(action: {
+                    // Dismiss the sheet
+                    dismiss()
+                    
+                    // Initiate flight search with fixed dates
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        viewModel.searchFlightsForDates(
+                            origin: viewModel.fromIataCode,
+                            destination: viewModel.toIataCode
+                        )
+                    }
+                }) {
+                    Text("Search Flights")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                }
+                .padding()
+            }
+            
+            Spacer()
+        }
+        .background(Color.white)
+        .onAppear {
+            // Set the initial focus
+            activeSearchBar = initialFocus
+            focusedField = initialFocus
+        }
+    }
+
+    private func searchLocations(query: String) {
+        guard !query.isEmpty else {
+            results = []
+            return
         }
         
-        Spacer()
+        isSearching = true
+        searchError = nil
+        
+        ExploreAPIService.shared.fetchAutocomplete(query: query)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                isSearching = false
+                if case .failure(let error) = completion {
+                    searchError = error.localizedDescription
+                }
+            }, receiveValue: { results in
+                self.results = results
+            })
+            .store(in: &viewModel.cancellables)
     }
-    .background(Color.white)
-    .onAppear {
-        // Set the initial focus from props
-        activeSearchBar = initialFocus
-        focusedField = initialFocus
-    }
-}
-
-private func searchLocations(query: String) {
-    guard !query.isEmpty else {
-        results = []
-        return
-    }
-    
-    isSearching = true
-    searchError = nil
-    
-    ExploreAPIService.shared.fetchAutocomplete(query: query)
-        .receive(on: DispatchQueue.main)
-        .sink(receiveCompletion: { completion in
-            isSearching = false
-            if case .failure(let error) = completion {
-                searchError = error.localizedDescription
-            }
-        }, receiveValue: { results in
-            self.results = results
-        })
-        .store(in: &viewModel.cancellables)
-}
 }
 
 // Helper view for placeholder text in TextField
