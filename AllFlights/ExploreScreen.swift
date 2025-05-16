@@ -1000,7 +1000,7 @@ struct ExploreScreen: View {
                     }
                    
                     else if viewModel.showingDetailedFlightList {
-                                    DetailedFlightListView(viewModel: viewModel)
+                                    ModifiedDetailedFlightListView(viewModel: viewModel)
                                         .transition(.move(edge: .trailing))
                                         .zIndex(1) // Make sure it's above the main content
                                         .edgesIgnoringSafeArea(.all)
@@ -2213,93 +2213,11 @@ static let cheapest = FlightTag(title: "Cheapest", color: Color.green)
 static let fastest = FlightTag(title: "Fastest", color: Color.purple)
 }
 
-struct DetailedFlightListView: View {
-    @ObservedObject var viewModel: ExploreViewModel
-    
-    var body: some View {
-        VStack {
-            // Header
-            HStack {
-                Button(action: {
-                    viewModel.showingDetailedFlightList = false
-                }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(.primary)
-                        .font(.system(size: 18, weight: .semibold))
-                }
-                
-                Spacer()
-                
-                Text("\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
-                    .font(.headline)
-                
-                Spacer()
-                
-              
 
-                // Changed from the previous dynamic dates to use the fixed ones
-                Text("Dec 29 - Dec 30, 2025")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-            }
-            .padding()
-            
-            // Content
-            if viewModel.detailedFlightResults.isEmpty {
-            if viewModel.isLoadingDetailedFlights {
-                Spacer()
-                ProgressView()
-                Text("Loading flights...")
-                    .foregroundColor(.gray)
-                    .padding(.top, 8)
-                Spacer()
-            } else if let error = viewModel.detailedFlightError {
-                Spacer()
-                Text("Error: \(error)")
-                    .foregroundColor(.red)
-                    .padding()
-                Spacer()
-            } else if viewModel.detailedFlightResults.isEmpty {
-                Spacer()
-                Text("No flights found for these dates")
-                    .foregroundColor(.gray)
-                    .padding()
-                Spacer()
-            }
-            } else {
-                VStack {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(viewModel.detailedFlightResults, id: \.id) { result in
-                                DetailedFlightCardWrapper(result: result)
-                                    .padding(.horizontal)
-                            }
-                        }
-                        .padding(.vertical)
-                    }
-                    // Show loading indicator at the bottom if still loading more
-                    if viewModel.isLoadingDetailedFlights {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                            Text("Loading more flights...")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding(.leading, 8)
-                            Spacer()
-                        }
-                        .padding()
-                        .background(Color(.systemBackground))
-                    }
-                }
-            }
-        }
-        .background(Color(.systemBackground))
-    }
-}
 
 struct DetailedFlightCardWrapper: View {
     let result: FlightDetailResult
+    var onTap: () -> Void
     
     var body: some View {
         if result.legs.count >= 2,
@@ -2311,39 +2229,56 @@ struct DetailedFlightCardWrapper: View {
             let outboundSegment = outboundLeg.segments.first!
             let returnSegment = returnLeg.segments.first!
             
-            // Create tags
-
-            
             // Format time and dates
             let outboundDepartureTime = formatTime(from: outboundSegment.departureTimeAirport)
             let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
             let returnDepartureTime = formatTime(from: returnSegment.departureTimeAirport)
             let returnArrivalTime = formatTime(from: returnSegment.arriveTimeAirport)
             
-            LastFlightCard(
-             
-                 departureTime: outboundDepartureTime,
-                departureCode: outboundSegment.originCode,
-                departureDate: formatDate(from: outboundSegment.departureTimeAirport),
-                arrivalTime: outboundArrivalTime,
-                arrivalCode: outboundSegment.destinationCode,
-                arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
-                duration: formatDuration(minutes: outboundLeg.duration),
-                isOutboundDirect: outboundLeg.stopCount == 0,
-                
-                returnDepartureTime: returnDepartureTime,
-                returnDepartureCode: returnSegment.originCode,
-                returnDepartureDate: formatDate(from: returnSegment.departureTimeAirport),
-                returnArrivalTime: returnArrivalTime,
-                returnArrivalCode: returnSegment.destinationCode,
-                returnArrivalDate: formatDate(from: returnSegment.arriveTimeAirport),
-                returnDuration: formatDuration(minutes: returnLeg.duration),
-                isReturnDirect: returnLeg.stopCount == 0,
-                
-                airline: outboundSegment.airlineName,
-                price: "₹\(Int(result.minPrice))",
-                priceDetail: "per person"
-            )
+            Button(action: onTap) {
+                HStack {
+                    // Flight tags - display them in a row at the left side
+                    VStack(spacing: 4) {
+                        if result.isBest {
+                            FlightTagView(tag: FlightTag.best)
+                        }
+                        if result.isCheapest {
+                            FlightTagView(tag: FlightTag.cheapest)
+                        }
+                        if result.isFastest {
+                            FlightTagView(tag: FlightTag.fastest)
+                        }
+                    }
+                    .frame(width: 80, alignment: .leading)
+                    .padding(.trailing, -40) // Move tags closer to the card
+                    .zIndex(1) // Make sure tags appear over the card
+                    
+                    LastFlightCard(
+                        departureTime: outboundDepartureTime,
+                        departureCode: outboundSegment.originCode,
+                        departureDate: formatDate(from: outboundSegment.departureTimeAirport),
+                        arrivalTime: outboundArrivalTime,
+                        arrivalCode: outboundSegment.destinationCode,
+                        arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
+                        duration: formatDuration(minutes: outboundLeg.duration),
+                        isOutboundDirect: outboundLeg.stopCount == 0,
+                        
+                        returnDepartureTime: returnDepartureTime,
+                        returnDepartureCode: returnSegment.originCode,
+                        returnDepartureDate: formatDate(from: returnSegment.departureTimeAirport),
+                        returnArrivalTime: returnArrivalTime,
+                        returnArrivalCode: returnSegment.destinationCode,
+                        returnArrivalDate: formatDate(from: returnSegment.arriveTimeAirport),
+                        returnDuration: formatDuration(minutes: returnLeg.duration),
+                        isReturnDirect: returnLeg.stopCount == 0,
+                        
+                        airline: outboundSegment.airlineName,
+                        price: "₹\(Int(result.minPrice))",
+                        priceDetail: "per person"
+                    )
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
         } else {
             Text("Incomplete flight details")
                 .foregroundColor(.gray)
@@ -2370,5 +2305,809 @@ struct DetailedFlightCardWrapper: View {
         let hours = minutes / 60
         let mins = minutes % 60
         return "\(hours)h \(mins)m"
+    }
+}
+
+struct FlightDetailCard: View {
+    let destination: String
+    let isDirectFlight: Bool
+    let flightDuration: String
+    let flightClass: String
+    
+    // For direct flights
+    let departureDate: String
+    let departureTime: String? // Added time separately
+    let departureAirportCode: String
+    let departureAirportName: String
+    let departureTerminal: String
+    
+    let airline: String
+    let flightNumber: String
+    
+    let arrivalDate: String
+    let arrivalTime: String? // Added time separately
+    let arrivalAirportCode: String
+    let arrivalAirportName: String
+    let arrivalTerminal: String
+    let arrivalNextDay: Bool // Flag to show "You will reach the next day"
+    
+    // For connecting flights
+    let connectionSegments: [ConnectionSegment]?
+    
+    // Initialize for direct flights
+    init(
+        destination: String,
+        isDirectFlight: Bool,
+        flightDuration: String,
+        flightClass: String,
+        departureDate: String,
+        departureTime: String? = nil,
+        departureAirportCode: String,
+        departureAirportName: String,
+        departureTerminal: String,
+        airline: String,
+        flightNumber: String,
+        arrivalDate: String,
+        arrivalTime: String? = nil,
+        arrivalAirportCode: String,
+        arrivalAirportName: String,
+        arrivalTerminal: String,
+        arrivalNextDay: Bool = false
+    ) {
+        self.destination = destination
+        self.isDirectFlight = isDirectFlight
+        self.flightDuration = flightDuration
+        self.flightClass = flightClass
+        self.departureDate = departureDate
+        self.departureTime = departureTime
+        self.departureAirportCode = departureAirportCode
+        self.departureAirportName = departureAirportName
+        self.departureTerminal = departureTerminal
+        self.airline = airline
+        self.flightNumber = flightNumber
+        self.arrivalDate = arrivalDate
+        self.arrivalTime = arrivalTime
+        self.arrivalAirportCode = arrivalAirportCode
+        self.arrivalAirportName = arrivalAirportName
+        self.arrivalTerminal = arrivalTerminal
+        self.arrivalNextDay = arrivalNextDay
+        self.connectionSegments = nil
+    }
+    
+    // Initialize for connecting flights
+    init(
+        destination: String,
+        flightDuration: String,
+        flightClass: String,
+        connectionSegments: [ConnectionSegment]
+    ) {
+        self.destination = destination
+        self.isDirectFlight = false
+        self.flightDuration = flightDuration
+        self.flightClass = flightClass
+        self.departureDate = ""
+        self.departureTime = nil
+        self.departureAirportCode = ""
+        self.departureAirportName = ""
+        self.departureTerminal = ""
+        self.airline = ""
+        self.flightNumber = ""
+        self.arrivalDate = ""
+        self.arrivalTime = nil
+        self.arrivalAirportCode = ""
+        self.arrivalAirportName = ""
+        self.arrivalTerminal = ""
+        self.arrivalNextDay = false
+        self.connectionSegments = connectionSegments
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Flight to \(destination)")
+                    .font(.system(size: 18, weight: .bold))
+                
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Text(isDirectFlight ? "Direct" : "\(connectionSegments?.count ?? 1) Stop")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(isDirectFlight ? .green : .primary)
+                    }
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        Text(flightDuration)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "seat")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        Text(flightClass)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            .padding(.horizontal, 16)
+            
+            if isDirectFlight {
+                // Direct flight path visualization
+                DirectFlightView(
+                    departureDate: departureDate,
+                    departureTime: departureTime,
+                    departureAirportCode: departureAirportCode,
+                    departureAirportName: departureAirportName,
+                    departureTerminal: departureTerminal,
+                    airline: airline,
+                    flightNumber: flightNumber,
+                    arrivalDate: arrivalDate,
+                    arrivalTime: arrivalTime,
+                    arrivalAirportCode: arrivalAirportCode,
+                    arrivalAirportName: arrivalAirportName,
+                    arrivalTerminal: arrivalTerminal,
+                    arrivalNextDay: arrivalNextDay
+                )
+            } else if let segments = connectionSegments {
+                // Connecting flight path visualization
+                ConnectingFlightView(segments: segments)
+            }
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
+
+struct DirectFlightView: View {
+    let departureDate: String
+    let departureTime: String?
+    let departureAirportCode: String
+    let departureAirportName: String
+    let departureTerminal: String
+    
+    let airline: String
+    let flightNumber: String
+    
+    let arrivalDate: String
+    let arrivalTime: String?
+    let arrivalAirportCode: String
+    let arrivalAirportName: String
+    let arrivalTerminal: String
+    let arrivalNextDay: Bool
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Timeline
+            VStack(spacing: 0) {
+                Circle()
+                    .frame(width: 8, height: 8)
+                    .foregroundColor(.blue)
+                
+                Rectangle()
+                    .frame(width: 2)
+                    .foregroundColor(.blue)
+                    .padding(.top, -1)
+                    .padding(.bottom, -1)
+                
+                Circle()
+                    .frame(width: 8, height: 8)
+                    .foregroundColor(.blue)
+            }
+            .padding(.top, 5)
+            
+            // Flight details
+            VStack(alignment: .leading, spacing: 24) {
+                // Departure
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(departureDate)
+                            .font(.system(size: 14))
+                            .foregroundColor(.black)
+                            
+                        if let time = departureTime {
+                            Text(time)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                    }
+                    
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(departureAirportCode)
+                            .font(.system(size: 16, weight: .semibold))
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(departureAirportName)
+                                .font(.system(size: 14, weight: .medium))
+                            Text("Terminal \(departureTerminal)")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    
+                    // Airline info
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.blue.opacity(0.1))
+                                .frame(width: 32, height: 32)
+                                .cornerRadius(4)
+                            
+                            Text(String(airline.prefix(2)))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.blue)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(airline)
+                                .font(.system(size: 14))
+                            Text(flightNumber)
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        HStack {
+                            Text("More info")
+                                .font(.system(size: 14))
+                                .foregroundColor(.blue)
+                            
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12))
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+                
+                // Arrival
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(arrivalDate)
+                            .font(.system(size: 14))
+                            .foregroundColor(.black)
+                            
+                        if let time = arrivalTime {
+                            Text(time)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                        
+                        if arrivalNextDay {
+                            Text("You will reach the next day")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(arrivalAirportCode)
+                            .font(.system(size: 16, weight: .semibold))
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(arrivalAirportName)
+                                .font(.system(size: 14, weight: .medium))
+                            Text("Terminal \(arrivalTerminal)")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 16)
+        }
+        .padding(.leading, 16)
+    }
+}
+
+// Model for connection segments
+struct ConnectionSegment: Identifiable {
+    let id = UUID()
+    
+    // Departure info
+    let departureDate: String
+    let departureTime: String
+    let departureAirportCode: String
+    let departureAirportName: String
+    let departureTerminal: String
+    
+    // Arrival info
+    let arrivalDate: String
+    let arrivalTime: String
+    let arrivalAirportCode: String
+    let arrivalAirportName: String
+    let arrivalTerminal: String
+    let arrivalNextDay: Bool
+    
+    // Flight info
+    let airline: String
+    let flightNumber: String
+    
+    // Connection info (if not the last segment)
+    let connectionDuration: String? // e.g. "2h 50m connection"
+}
+
+struct ConnectingFlightView: View {
+    let segments: [ConnectionSegment]
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Timeline with connection points
+            VStack(spacing: 0) {
+                // First point
+                Circle()
+                    .frame(width: 8, height: 8)
+                    .foregroundColor(.blue)
+                
+                // For each segment, create a line and dot
+                ForEach(0..<segments.count, id: \.self) { index in
+                    // Line to next point
+                    if index < segments.count {
+                        Rectangle()
+                            .frame(width: 2)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    // Connection point (if not the last segment)
+                    if index < segments.count - 1 {
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                // Final point
+                Circle()
+                    .frame(width: 8, height: 8)
+                    .foregroundColor(.blue)
+            }
+            .padding(.top, 5)
+            
+            // Flight segments
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(segments) { segment in
+                    // First departure
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(segment.departureDate)
+                                .font(.system(size: 14))
+                                .foregroundColor(.black)
+                            
+                            Text(segment.departureTime)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                        
+                        HStack(alignment: .center, spacing: 12) {
+                            Text(segment.departureAirportCode)
+                                .font(.system(size: 16, weight: .semibold))
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(segment.departureAirportName)
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("Terminal \(segment.departureTerminal)")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                        // Airline info
+                        HStack(spacing: 10) {
+                            ZStack {
+                                Rectangle()
+                                    .fill(Color.blue.opacity(0.1))
+                                    .frame(width: 32, height: 32)
+                                    .cornerRadius(4)
+                                
+                                Text(String(segment.airline.prefix(2)))
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(segment.airline)
+                                    .font(.system(size: 14))
+                                Text(segment.flightNumber)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            HStack {
+                                Text("More info")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.blue)
+                                
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding(.top, 6)
+                    }
+                    
+                    // Flight arrival
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(segment.arrivalDate)
+                                .font(.system(size: 14))
+                                .foregroundColor(.black)
+                            
+                            Text(segment.arrivalTime)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.black)
+                            
+                            if segment.arrivalNextDay {
+                                Text("You will reach the next day")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        
+                        HStack(alignment: .center, spacing: 12) {
+                            Text(segment.arrivalAirportCode)
+                                .font(.system(size: 16, weight: .semibold))
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(segment.arrivalAirportName)
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("Terminal \(segment.arrivalTerminal)")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    
+                    // Show connection info if there is a next segment
+                    if let connectionDuration = segment.connectionDuration {
+                        HStack {
+                            Spacer()
+                                .frame(width: 40)
+                            
+                            Text(connectionDuration)
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(Color.red, lineWidth: 1)
+                                        .background(Color.red.opacity(0.1))
+                                )
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+            .padding(.bottom, 16)
+        }
+        .padding(.leading, 16)
+    }
+}
+
+
+struct ModifiedDetailedFlightListView: View {
+    @ObservedObject var viewModel: ExploreViewModel
+    @State private var selectedFlightId: String? = nil
+    
+    var body: some View {
+        VStack {
+            // Header
+            HStack {
+                Button(action: {
+                    selectedFlightId = nil
+                    viewModel.showingDetailedFlightList = false
+                }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.primary)
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                
+                Spacer()
+                
+                Text("\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
+                    .font(.headline)
+                
+                Spacer()
+                
+                // Fixed dates
+                Text("Dec 29 - Dec 30, 2025")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            
+            // Content
+            if viewModel.detailedFlightResults.isEmpty {
+                if viewModel.isLoadingDetailedFlights {
+                    Spacer()
+                    ProgressView()
+                    Text("Loading flights...")
+                        .foregroundColor(.gray)
+                        .padding(.top, 8)
+                    Spacer()
+                } else if let error = viewModel.detailedFlightError {
+                    Spacer()
+                    Text("Error: \(error)")
+                        .foregroundColor(.red)
+                        .padding()
+                    Spacer()
+                } else {
+                    Spacer()
+                    Text("No flights found for these dates")
+                        .foregroundColor(.gray)
+                        .padding()
+                    Spacer()
+                }
+            } else {
+                VStack {
+                    // If we have a selected flight, show the FlightDetailCard for it
+                    if let selectedId = selectedFlightId,
+                       let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
+                        
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                // Back button at the top
+                                HStack {
+                                    Button(action: {
+                                        selectedFlightId = nil // Deselect flight to return to list view
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "chevron.left")
+                                                .font(.system(size: 14))
+                                            Text("Back to flights")
+                                                .font(.system(size: 14, weight: .medium))
+                                        }
+                                        .foregroundColor(.blue)
+                                    }
+                                    .padding(.top, 12)
+                                    .padding(.bottom, 8)
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
+                                
+                                // Flight tags
+                                HStack(spacing: 8) {
+                                    if selectedFlight.isBest {
+                                        FlightTagView(tag: FlightTag.best)
+                                    }
+                                    if selectedFlight.isCheapest {
+                                        FlightTagView(tag: FlightTag.cheapest)
+                                    }
+                                    if selectedFlight.isFastest {
+                                        FlightTagView(tag: FlightTag.fastest)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom, 8)
+                                
+                                // Display flight details - handle both outbound and return legs
+                                if let outboundLeg = selectedFlight.legs.first,
+                                   let returnLeg = selectedFlight.legs.last {
+                                    
+                                    // Outbound leg - check if direct or connecting
+                                    if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
+                                        // Direct flight
+                                        let segment = outboundLeg.segments.first!
+                                        displayDirectFlight(leg: outboundLeg, segment: segment)
+                                    } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
+                                        // Connecting flight
+                                        displayConnectingFlight(leg: outboundLeg)
+                                    }
+                                    
+                                    // Return leg - check if direct or connecting
+                                    if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                        // Direct flight
+                                        let segment = returnLeg.segments.first!
+                                        displayDirectFlight(leg: returnLeg, segment: segment)
+                                    } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                        // Connecting flight
+                                        displayConnectingFlight(leg: returnLeg)
+                                    }
+                                }
+                                
+                                // Price section
+                                PriceSection(price: "₹\(Int(selectedFlight.minPrice))", passengers: "2")
+                                    .padding()
+                            }
+                        }
+                    }
+                    // Otherwise show the list of flights
+                    else {
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                ForEach(viewModel.detailedFlightResults, id: \.id) { result in
+                                    DetailedFlightCardWrapper(
+                                        result: result,
+                                        onTap: {
+                                            selectedFlightId = result.id
+                                        }
+                                    )
+                                    .padding(.horizontal)
+                                }
+                            }
+                            .padding(.vertical)
+                        }
+                        // Show loading indicator at the bottom if still loading more
+                        if viewModel.isLoadingDetailedFlights {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                Text("Loading more flights...")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .padding(.leading, 8)
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color(.systemBackground))
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color(.systemBackground))
+    }
+    
+    @ViewBuilder
+    private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
+        FlightDetailCard(
+            destination: leg.destination,
+            isDirectFlight: true,
+            flightDuration: formatDuration(minutes: leg.duration),
+            flightClass: segment.cabinClass ?? "Economy",
+            departureDate: formatDate(from: segment.departureTimeAirport),
+            departureTime: formatTime(from: segment.departureTimeAirport),
+            departureAirportCode: segment.originCode,
+            departureAirportName: segment.origin,
+            departureTerminal: "1", // Using a default value
+            airline: segment.airlineName,
+            flightNumber: segment.flightNumber,
+            arrivalDate: formatDate(from: segment.arriveTimeAirport),
+            arrivalTime: formatTime(from: segment.arriveTimeAirport),
+            arrivalAirportCode: segment.destinationCode,
+            arrivalAirportName: segment.destination,
+            arrivalTerminal: "2", // Using a default value
+            arrivalNextDay: segment.arrivalDayDifference > 0
+        )
+        .padding(.horizontal)
+        .padding(.bottom, 16)
+    }
+    
+    @ViewBuilder
+    private func displayConnectingFlight(leg: FlightLegDetail) -> some View {
+        // Create segments for connecting flight
+        let connectionSegments = createConnectionSegments(from: leg)
+        
+        FlightDetailCard(
+            destination: leg.destination,
+            flightDuration: formatDuration(minutes: leg.duration),
+            flightClass: leg.segments.first?.cabinClass ?? "Economy",
+            connectionSegments: connectionSegments
+        )
+        .padding(.horizontal)
+        .padding(.bottom, 16)
+    }
+    
+    private func createConnectionSegments(from leg: FlightLegDetail) -> [ConnectionSegment] {
+        var segments: [ConnectionSegment] = []
+        
+        // Process each segment
+        for (index, segment) in leg.segments.enumerated() {
+            // Calculate connection duration if this isn't the last segment
+            var connectionDuration: String? = nil
+            if index < leg.segments.count - 1 {
+                let nextSegment = leg.segments[index + 1]
+                let connectionMinutes = (nextSegment.departureTimeAirport - segment.arriveTimeAirport) / 60
+                let hours = connectionMinutes / 60
+                let mins = connectionMinutes % 60
+                connectionDuration = "\(hours)h \(mins)m connection Airport"
+            }
+            
+            segments.append(
+                ConnectionSegment(
+                    departureDate: formatDate(from: segment.departureTimeAirport),
+                    departureTime: formatTime(from: segment.departureTimeAirport),
+                    departureAirportCode: segment.originCode,
+                    departureAirportName: segment.origin,
+                    departureTerminal: "1", // Default
+                    arrivalDate: formatDate(from: segment.arriveTimeAirport),
+                    arrivalTime: formatTime(from: segment.arriveTimeAirport),
+                    arrivalAirportCode: segment.destinationCode,
+                    arrivalAirportName: segment.destination,
+                    arrivalTerminal: "2", // Default
+                    arrivalNextDay: segment.arrivalDayDifference > 0,
+                    airline: segment.airlineName,
+                    flightNumber: segment.flightNumber,
+                    connectionDuration: connectionDuration
+                )
+            )
+        }
+        
+        return segments
+    }
+    
+    // Helper functions for formatting
+    private func formatDate(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
+}
+
+struct FlightTagView: View {
+    let tag: FlightTag
+    
+    var body: some View {
+        Text(tag.title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tag.color)
+            .cornerRadius(4)
+    }
+}
+
+struct PriceSection: View {
+    let price: String
+    let passengers: String
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Divider()
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total Price")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    Text(price)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("\(passengers) passengers")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    // Book flight action
+                }) {
+                    Text("Book Flight")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 24)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                }
+            }
+        }
     }
 }
