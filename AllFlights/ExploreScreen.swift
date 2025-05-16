@@ -317,7 +317,7 @@ class ExploreAPIService {
     private let session = Session()
     
     
-    func searchFlights(origin: String, destination: String, date: String = "2025-12-12") -> AnyPublisher<SearchResponse, Error> {
+    func searchFlights(origin: String, destination: String) -> AnyPublisher<SearchResponse, Error> {
         let baseURL = "https://staging.plane.lascade.com/api/search/"
         
         let parameters: [String: String] = [
@@ -327,16 +327,28 @@ class ExploreAPIService {
             "app_code": "D1WF"
         ]
         
-        let requestData: [String: Any] = [
-            "legs": [
-                [
-                    "origin": origin,
-                    "destination": destination,
-                    "date": date
-                ]
+        // Use fixed dates for now
+        let departureDate = "2025-12-29"
+        let returnDate = "2025-12-30"
+        
+        // Create two legs - one outbound, one return
+        let legs: [[String: String]] = [
+            [
+                "origin": origin,
+                "destination": destination,
+                "date": departureDate
             ],
+            [
+                "origin": destination,
+                "destination": origin,
+                "date": returnDate
+            ]
+        ]
+        
+        let requestData: [String: Any] = [
+            "legs": legs,
             "cabin_class": "economy",
-            "adults": 1,
+            "adults": 2,
             "children_ages": [0]
         ]
         
@@ -347,6 +359,7 @@ class ExploreAPIService {
         var request = URLRequest(url: urlComponents.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("IN", forHTTPHeaderField: "country")
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestData)
         
         return Future<SearchResponse, Error> { promise in
@@ -357,6 +370,10 @@ class ExploreAPIService {
                     case .success(let searchResponse):
                         promise(.success(searchResponse))
                     case .failure(let error):
+                        print("Search API error: \(error.localizedDescription)")
+                        if let data = response.data, let responseString = String(data: data, encoding: .utf8) {
+                            print("Response body: \(responseString)")
+                        }
                         promise(.failure(error))
                     }
                 }
@@ -374,38 +391,73 @@ class ExploreAPIService {
         var urlComponents = URLComponents(string: baseURL)!
         urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
         
-        // Simple filter parameters that will return most results
-        let requestData: [String: Any] = [
-            "duration_max": 0,
-            "stop_count_max": 2,
-            "arrival_departure_ranges": [
-                [
-                    "arrival": ["min": 0, "max": 86400],
-                    "departure": ["min": 0, "max": 86400]
-                ]
-            ],
-            "sort_by": "duration",
-            "sort_order": "asc",
-            "price_min": 0,
-            "price_max": 0
-        ]
+        // Empty request data as specified
+        let requestData: [String: Any] = [:]
         
         var request = URLRequest(url: urlComponents.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestData)
         
+        print("Polling with search ID: \(searchId)")
+        
         return Future<FlightPollResponse, Error> { promise in
-            AF.request(request)
-                .validate()
-                .responseDecodable(of: FlightPollResponse.self) { response in
-                    switch response.result {
-                    case .success(let pollResponse):
-                        promise(.success(pollResponse))
-                    case .failure(let error):
-                        promise(.failure(error))
+            // Function to make a poll request
+           
+            func poll(attempts: Int = 0) {
+                // Check if we've reached the maximum number of attempts
+              
+                
+                AF.request(request)
+                    .validate()
+                    .responseData { response in
+                        switch response.result {
+                        case .success(let data):
+                            do {
+                                let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                                
+                                // Check if count is 0 (no flights available)
+                                if pollResponse.count == 0 {
+                                    print("Poll completed: No flights available for this route/date")
+                                    // We'll still return the response so the UI can show "No flights found"
+                                    promise(.success(pollResponse))
+                                    return
+                                }
+                                
+                                // Check if we have results
+                                if !pollResponse.results.isEmpty {
+                                    print("Poll successful, found \(pollResponse.results.count) results")
+                                    promise(.success(pollResponse))
+                                } 
+                            } catch {
+                                print("Poll decoding error: \(error)")
+                                
+                                // If decoding fails but we got a 200 response, try again
+                                if response.response?.statusCode == 200 {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                        poll(attempts: attempts + 1)
+                                    }
+                                } else {
+                                    promise(.failure(error))
+                                }
+                            }
+                        case .failure(let error):
+                            print("Poll API error: \(error)")
+                            
+                            // If it's a server error (5xx), retry
+                            if let statusCode = response.response?.statusCode, statusCode >= 500 {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                    poll(attempts: attempts + 1)
+                                }
+                            } else {
+                                promise(.failure(error))
+                            }
+                        }
                     }
-                }
+            }
+            
+            // Start polling
+            poll()
         }.eraseToAnyPublisher()
     }
     
@@ -530,11 +582,74 @@ class ExploreViewModel: ObservableObject {
     @Published var fromIataCode: String = ""
     @Published var toIataCode: String = ""
     
+    @Published var selectedFlightDetail: FlightDetailResult?
+    @Published var isLoadingFlightDetails = false
+    @Published var showingDetailedFlightCard = false
+    
+    @Published var detailedFlightResults: [FlightDetailResult] = []
+    @Published var isLoadingDetailedFlights = false
+    @Published var detailedFlightError: String? = nil
+    @Published var showingDetailedFlightList = false
+    @Published var selectedDepartureDatee: String = ""
+    @Published var selectedReturnDatee: String = ""
+    @Published var selectedOriginCode: String = ""
+    @Published var selectedDestinationCode: String = ""
+    
      var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
     init() {
         setupAvailableMonths()
+    }
+    
+    // Add this function to handle search and poll
+    func searchFlightsForDates(origin: String, destination: String) {
+        isLoadingDetailedFlights = true
+        detailedFlightError = nil
+        detailedFlightResults = []
+        showingDetailedFlightList = true
+        
+        // Store selected flight details (with fixed dates for now)
+        selectedOriginCode = origin
+        selectedDestinationCode = destination
+        selectedDepartureDatee = "2025-12-29"
+        selectedReturnDatee = "2025-12-30"
+        
+        print("Searching flights: \(origin) to \(destination)")
+        
+        // Make search API call with simplified parameters
+        service.searchFlights(origin: origin, destination: destination)
+            .receive(on: DispatchQueue.main)
+            .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
+                print("Search successful, got searchId: \(searchResponse.searchId)")
+                return self.service.pollFlightResults(searchId: searchResponse.searchId)
+            }
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoadingDetailedFlights = false
+                if case .failure(let error) = completion {
+                    print("Flight search failed: \(error.localizedDescription)")
+                    self?.detailedFlightError = error.localizedDescription
+                }
+            }, receiveValue: { [weak self] pollResponse in
+                print("Got flight results: \(pollResponse.results.count) items")
+                self?.detailedFlightResults = pollResponse.results
+            })
+            .store(in: &cancellables)
+    }
+
+    // Add helper function to format date for API
+    func formatDateForAPI(from date: String) -> String {
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "EEE, d MMM"
+        
+        let outputFormatter = DateFormatter()
+        outputFormatter.dateFormat = "yyyy-MM-dd"
+        
+        if let date = inputFormatter.date(from: date) {
+            return outputFormatter.string(from: date)
+        }
+        return "2025-12-29" // Default fallback date
     }
     
     func fetchCountries() {
@@ -792,6 +907,7 @@ struct ExploreScreen: View {
                                 }
                                 .padding(.horizontal)
                             }
+                       
                         
                         
                         // Destination cards (destinations/cities)
@@ -819,6 +935,15 @@ struct ExploreScreen: View {
                             .padding(.bottom, 16)
                         }
                     }
+                   
+                    else if viewModel.showingDetailedFlightList {
+                                    DetailedFlightListView(viewModel: viewModel)
+                                        .transition(.move(edge: .trailing))
+                                        .zIndex(1) // Make sure it's above the main content
+                                        .edgesIgnoringSafeArea(.all)
+                                        .background(Color(.systemBackground))
+                                }
+                    
                     else {
                         // Flight search results view
                         VStack(alignment: .center, spacing: 16) {
@@ -860,7 +985,8 @@ struct ExploreScreen: View {
                                         destination: result.outbound.destination.iata,
                                         price: "₹\(result.price)",
                                         isDirect: result.outbound.direct && (result.inbound?.direct ?? true),
-                                        tripDuration: viewModel.calculateTripDuration(result)
+                                        tripDuration: viewModel.calculateTripDuration(result),
+                                        viewModel: viewModel
                                     )
                                     .padding(.bottom, 8)
                                 }
@@ -892,6 +1018,8 @@ struct ExploreScreen: View {
             }
             viewModel.setupAvailableMonths()
         }
+
+        
     }
 }
 
@@ -983,6 +1111,7 @@ struct FlightResultCard: View {
     let price: String
     let isDirect: Bool
     let tripDuration: String
+    @ObservedObject var viewModel: ExploreViewModel
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1076,7 +1205,10 @@ struct FlightResultCard: View {
                 Spacer()
                 
                 Button(action: {
-                    // View details action
+                    viewModel.searchFlightsForDates(
+                           origin: origin,
+                           destination: destination
+                       )
                 }) {
                     Text("View these dates")
                         .font(.subheadline)
@@ -1797,8 +1929,7 @@ struct ExploreScreenPreview: PreviewProvider {
 
 //Last Flight view
 struct LastFlightCard: View {
-// Flight tags
-let tags: [FlightTag]
+
 
 // Outbound flight
 let departureTime: String
@@ -1831,24 +1962,7 @@ let priceDetail: String
 
 var body: some View {
     VStack(spacing: 0) {
-        // Tags at top
-        if !tags.isEmpty {
-            HStack(spacing: 8) {
-                ForEach(tags) { tag in
-                    Text(tag.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(tag.color)
-                        .cornerRadius(4)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
-        }
+
         
         // Outbound flight
         HStack(alignment: .top, spacing: 0) {
@@ -2006,3 +2120,144 @@ static let cheapest = FlightTag(title: "Cheapest", color: Color.green)
 static let fastest = FlightTag(title: "Fastest", color: Color.purple)
 }
 
+struct DetailedFlightListView: View {
+    @ObservedObject var viewModel: ExploreViewModel
+    
+    var body: some View {
+        VStack {
+            // Header
+            HStack {
+                Button(action: {
+                    viewModel.showingDetailedFlightList = false
+                }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.primary)
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                
+                Spacer()
+                
+                Text("\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
+                    .font(.headline)
+                
+                Spacer()
+                
+              
+
+                // Changed from the previous dynamic dates to use the fixed ones
+                Text("Dec 29 - Dec 30, 2025")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            
+            // Content
+            if viewModel.isLoadingDetailedFlights {
+                Spacer()
+                ProgressView()
+                Text("Loading flights...")
+                    .foregroundColor(.gray)
+                    .padding(.top, 8)
+                Spacer()
+            } else if let error = viewModel.detailedFlightError {
+                Spacer()
+                Text("Error: \(error)")
+                    .foregroundColor(.red)
+                    .padding()
+                Spacer()
+            } else if viewModel.detailedFlightResults.isEmpty {
+                Spacer()
+                Text("No flights found for these dates")
+                    .foregroundColor(.gray)
+                    .padding()
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(viewModel.detailedFlightResults, id: \.id) { result in
+                            DetailedFlightCardWrapper(result: result)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+            }
+        }
+        .background(Color(.systemBackground))
+    }
+}
+
+struct DetailedFlightCardWrapper: View {
+    let result: FlightDetailResult
+    
+    var body: some View {
+        if result.legs.count >= 2,
+           let outboundLeg = result.legs.first,
+           let returnLeg = result.legs.last,
+           !outboundLeg.segments.isEmpty,
+           !returnLeg.segments.isEmpty {
+            
+            let outboundSegment = outboundLeg.segments.first!
+            let returnSegment = returnLeg.segments.first!
+            
+            // Create tags
+
+            
+            // Format time and dates
+            let outboundDepartureTime = formatTime(from: outboundSegment.departureTimeAirport)
+            let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
+            let returnDepartureTime = formatTime(from: returnSegment.departureTimeAirport)
+            let returnArrivalTime = formatTime(from: returnSegment.arriveTimeAirport)
+            
+            LastFlightCard(
+             
+                 departureTime: outboundDepartureTime,
+                departureCode: outboundSegment.originCode,
+                departureDate: formatDate(from: outboundSegment.departureTimeAirport),
+                arrivalTime: outboundArrivalTime,
+                arrivalCode: outboundSegment.destinationCode,
+                arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
+                duration: formatDuration(minutes: outboundLeg.duration),
+                isOutboundDirect: outboundLeg.stopCount == 0,
+                
+                returnDepartureTime: returnDepartureTime,
+                returnDepartureCode: returnSegment.originCode,
+                returnDepartureDate: formatDate(from: returnSegment.departureTimeAirport),
+                returnArrivalTime: returnArrivalTime,
+                returnArrivalCode: returnSegment.destinationCode,
+                returnArrivalDate: formatDate(from: returnSegment.arriveTimeAirport),
+                returnDuration: formatDuration(minutes: returnLeg.duration),
+                isReturnDirect: returnLeg.stopCount == 0,
+                
+                airline: outboundSegment.airlineName,
+                price: "₹\(Int(result.minPrice))",
+                priceDetail: "per person"
+            )
+        } else {
+            Text("Incomplete flight details")
+                .foregroundColor(.gray)
+                .padding()
+        }
+    }
+    
+    // Helper functions for formatting
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDate(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
+}
