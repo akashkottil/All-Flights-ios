@@ -387,11 +387,9 @@ class ExploreAPIService {
             "search_id": searchId
         ]
         
-        // Create URL with query parameters
         var urlComponents = URLComponents(string: baseURL)!
         urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
         
-        // Empty request data as specified
         let requestData: [String: Any] = [:]
         
         var request = URLRequest(url: urlComponents.url!)
@@ -399,66 +397,104 @@ class ExploreAPIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestData)
         
-        print("Polling with search ID: \(searchId)")
+        print("Starting progressive polling with search ID: \(searchId)")
         
-        return Future<FlightPollResponse, Error> { promise in
-            // Function to make a poll request
-           
-            func poll(attempts: Int = 0) {
-                // Check if we've reached the maximum number of attempts
-              
+        // Create a subject that will emit values as they come in
+        let progressiveResults = PassthroughSubject<FlightPollResponse, Error>()
+        
+        // Start polling
+        pollProgressively(request: request, subject: progressiveResults)
+        
+        // Return the subject as a publisher
+        return progressiveResults.eraseToAnyPublisher()
+    }
+
+    // Helper method to handle progressive polling
+    private func pollProgressively(request: URLRequest, subject: PassthroughSubject<FlightPollResponse, Error>, attempt: Int = 0, seenResultIds: Set<String> = []) {
+        
+        
+       
+        
+        AF.request(request)
+            .validate()
+            .responseData { [weak self] response in
+                guard let self = self else { return }
                 
-                AF.request(request)
-                    .validate()
-                    .responseData { response in
-                        switch response.result {
-                        case .success(let data):
-                            do {
-                                let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
-                                
-                                // Check if count is 0 (no flights available)
-                                if pollResponse.count == 0 {
-                                    print("Poll completed: No flights available for this route/date")
-                                    // We'll still return the response so the UI can show "No flights found"
-                                    promise(.success(pollResponse))
-                                    return
-                                }
-                                
-                                // Check if we have results
-                                if !pollResponse.results.isEmpty {
-                                    print("Poll successful, found \(pollResponse.results.count) results")
-                                    promise(.success(pollResponse))
-                                } 
-                            } catch {
-                                print("Poll decoding error: \(error)")
-                                
-                                // If decoding fails but we got a 200 response, try again
-                                if response.response?.statusCode == 200 {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                                        poll(attempts: attempts + 1)
-                                    }
-                                } else {
-                                    promise(.failure(error))
-                                }
-                            }
-                        case .failure(let error):
-                            print("Poll API error: \(error)")
+                switch response.result {
+                case .success(let data):
+                    do {
+                        let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                        
+                        // If count is 0, no flights available
+                        if pollResponse.count == 0 {
+                            print("Poll completed: No flights available")
+                            subject.send(pollResponse)
+                            subject.send(completion: .finished)
+                            return
+                        }
+                        
+                        // Check if we have new results
+                        let currentResultIds = Set(pollResponse.results.map { $0.id })
+                        let newResultIds = currentResultIds.subtracting(seenResultIds)
+                        
+                        if !pollResponse.results.isEmpty {
+                            // We have results to show, send them
+                            print("Poll successful, found \(pollResponse.results.count) results, \(newResultIds.count) new")
+                            subject.send(pollResponse)
                             
-                            // If it's a server error (5xx), retry
-                            if let statusCode = response.response?.statusCode, statusCode >= 500 {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                                    poll(attempts: attempts + 1)
-                                }
-                            } else {
-                                promise(.failure(error))
+                            // If we've seen all results or have enough, we can finish
+                            if newResultIds.isEmpty || pollResponse.results.count >= pollResponse.count {
+                                print("All results received, polling complete")
+                                subject.send(completion: .finished)
+                                return
                             }
                         }
+                        
+                        // Continue polling for more results
+                     
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            self.pollProgressively(
+                                request: request,
+                                subject: subject,
+                                attempt: attempt + 1,
+                                seenResultIds: currentResultIds
+                            )
+                        }
+                    } catch {
+                        print("Poll decoding error: \(error)")
+                        
+                        // Retry on decoding error if we got a 200 response
+                        if response.response?.statusCode == 200 {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                self.pollProgressively(
+                                    request: request,
+                                    subject: subject,
+                                    attempt: attempt + 1,
+                                    seenResultIds: seenResultIds
+                                )
+                            }
+                        } else {
+                            subject.send(completion: .failure(error))
+                        }
                     }
+                case .failure(let error):
+                    print("Poll API error: \(error)")
+                    
+                    // Retry on server errors
+                    if let statusCode = response.response?.statusCode, statusCode >= 500 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            self.pollProgressively(
+                                request: request,
+                                subject: subject,
+                                attempt: attempt + 1,
+                                seenResultIds: seenResultIds
+                            )
+                        }
+                    } else {
+                        subject.send(completion: .failure(error))
+                    }
+                }
             }
-            
-            // Start polling
-            poll()
-        }.eraseToAnyPublisher()
     }
     
     
@@ -609,7 +645,7 @@ class ExploreViewModel: ObservableObject {
         detailedFlightResults = []
         showingDetailedFlightList = true
         
-        // Store selected flight details (with fixed dates for now)
+        // Store selected flight details
         selectedOriginCode = origin
         selectedDestinationCode = destination
         selectedDepartureDatee = "2025-12-29"
@@ -617,7 +653,7 @@ class ExploreViewModel: ObservableObject {
         
         print("Searching flights: \(origin) to \(destination)")
         
-        // Make search API call with simplified parameters
+        // First, get the search ID
         service.searchFlights(origin: origin, destination: destination)
             .receive(on: DispatchQueue.main)
             .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
@@ -625,16 +661,43 @@ class ExploreViewModel: ObservableObject {
                 return self.service.pollFlightResults(searchId: searchResponse.searchId)
             }
             .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoadingDetailedFlights = false
-                if case .failure(let error) = completion {
-                    print("Flight search failed: \(error.localizedDescription)")
-                    self?.detailedFlightError = error.localizedDescription
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    // This will only be called when polling is fully completed or fails
+                    self?.isLoadingDetailedFlights = false
+                    if case .failure(let error) = completion {
+                        print("Flight search failed: \(error.localizedDescription)")
+                        self?.detailedFlightError = error.localizedDescription
+                    }
+                },
+                receiveValue: { [weak self] pollResponse in
+                    guard let self = self else { return }
+                    
+                    // Received new results - update UI immediately
+                    if !pollResponse.results.isEmpty {
+  
+                        
+                        // Option 2: Append unique new results (preferred for progressive loading)
+                        let existingIds = Set(self.detailedFlightResults.map { $0.id })
+                        let newResults = pollResponse.results.filter { !existingIds.contains($0.id) }
+                        
+                        if !newResults.isEmpty {
+                            self.detailedFlightResults.append(contentsOf: newResults)
+                            print("Updated UI with \(newResults.count) new results, total: \(self.detailedFlightResults.count)")
+                        }
+                        
+                        // Since we're showing results now, we can consider the loading as complete
+                        if !self.detailedFlightResults.isEmpty {
+                            self.isLoadingDetailedFlights = false
+                        }
+                    }
+                    
+                    // If there are no results in the response and our array is still empty
+                    if pollResponse.count == 0 && self.detailedFlightResults.isEmpty {
+                        self.isLoadingDetailedFlights = false
+                    }
                 }
-            }, receiveValue: { [weak self] pollResponse in
-                print("Got flight results: \(pollResponse.results.count) items")
-                self?.detailedFlightResults = pollResponse.results
-            })
+            )
             .store(in: &cancellables)
     }
 
@@ -2152,6 +2215,7 @@ struct DetailedFlightListView: View {
             .padding()
             
             // Content
+            if viewModel.detailedFlightResults.isEmpty {
             if viewModel.isLoadingDetailedFlights {
                 Spacer()
                 ProgressView()
@@ -2171,15 +2235,32 @@ struct DetailedFlightListView: View {
                     .foregroundColor(.gray)
                     .padding()
                 Spacer()
+            }
             } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(viewModel.detailedFlightResults, id: \.id) { result in
-                            DetailedFlightCardWrapper(result: result)
-                                .padding(.horizontal)
+                VStack {
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            ForEach(viewModel.detailedFlightResults, id: \.id) { result in
+                                DetailedFlightCardWrapper(result: result)
+                                    .padding(.horizontal)
+                            }
                         }
+                        .padding(.vertical)
                     }
-                    .padding(.vertical)
+                    // Show loading indicator at the bottom if still loading more
+                    if viewModel.isLoadingDetailedFlights {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Text("Loading more flights...")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                                .padding(.leading, 8)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                    }
                 }
             }
         }
