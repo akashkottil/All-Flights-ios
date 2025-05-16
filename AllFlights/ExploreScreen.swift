@@ -1445,11 +1445,11 @@ struct LocationSearchSheet: View {
                     )
                     .cornerRadius(8)
                     .focused($focusedField, equals: .origin) // Add focused modifier
-                    .onChange(of: originSearchText) { newValue in
+                    .onChange(of: originSearchText) {
                         activeSearchBar = .origin
-                        if !newValue.isEmpty {
+                        if !originSearchText.isEmpty {
                             debouncer.debounce {
-                                searchLocations(query: newValue)
+                                searchLocations(query: originSearchText)
                             }
                         } else {
                             results = []
@@ -1489,11 +1489,11 @@ struct LocationSearchSheet: View {
                     )
                     .cornerRadius(8)
                     .focused($focusedField, equals: .destination) // Add focused modifier
-                    .onChange(of: destinationSearchText) { newValue in
+                    .onChange(of: destinationSearchText) {
                         activeSearchBar = .destination
-                        if !newValue.isEmpty {
+                        if !destinationSearchText.isEmpty {
                             debouncer.debounce {
-                                searchLocations(query: newValue)
+                                searchLocations(query: destinationSearchText)
                             }
                         } else {
                             results = []
