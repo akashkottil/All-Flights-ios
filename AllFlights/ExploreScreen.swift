@@ -317,7 +317,7 @@ class ExploreAPIService {
     private let session = Session()
     
     
-    func searchFlights(origin: String, destination: String) -> AnyPublisher<SearchResponse, Error> {
+    func searchFlights(origin: String, destination: String , returndate: String , departuredate: String) -> AnyPublisher<SearchResponse, Error> {
         let baseURL = "https://staging.plane.lascade.com/api/search/"
         
         let parameters: [String: String] = [
@@ -326,22 +326,21 @@ class ExploreAPIService {
             "language": "en-GB",
             "app_code": "D1WF"
         ]
-        
         // Use fixed dates for now
-        let departureDate = "2025-12-29"
-        let returnDate = "2025-12-30"
+//        let departureDate = "2025-12-29"
+//        let returnDate = "2025-12-30"
         
         // Create two legs - one outbound, one return
         let legs: [[String: String]] = [
             [
                 "origin": origin,
                 "destination": destination,
-                "date": departureDate
+                "date": departuredate
             ],
             [
                 "origin": destination,
                 "destination": origin,
-                "date": returnDate
+                "date": returndate
             ]
         ]
         
@@ -648,13 +647,13 @@ class ExploreViewModel: ObservableObject {
         // Store selected flight details
         selectedOriginCode = origin
         selectedDestinationCode = destination
-        selectedDepartureDatee = returnDate
-        selectedReturnDatee = departureDate
+        selectedDepartureDatee = departureDate
+        selectedReturnDatee = returnDate
         
         print("Searching flights: \(origin) to \(destination)")
         
         // First, get the search ID
-        service.searchFlights(origin: origin, destination: destination)
+        service.searchFlights(origin: origin, destination: destination , returndate: selectedReturnDatee, departuredate: selectedDepartureDatee)
             .receive(on: DispatchQueue.main)
             .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
                 print("Search successful, got searchId: \(searchResponse.searchId)")
@@ -704,7 +703,7 @@ class ExploreViewModel: ObservableObject {
     // Add helper function to format date for API
     func formatDateForAPI(from date: String) -> String? {
            let inputFormatter = DateFormatter()
-           inputFormatter.dateFormat = "EEE, d MMM"
+           inputFormatter.dateFormat = "EEE, d MMM yyyy"
            
            if let parsedDate = inputFormatter.date(from: date) {
                let outputFormatter = DateFormatter()
@@ -854,7 +853,7 @@ class ExploreViewModel: ObservableObject {
     func formatDate(_ timestamp: Int) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, d MMM"
+        formatter.dateFormat = "EEE, d MMM yyyy"
         return formatter.string(from: date)
     }
     
@@ -1049,7 +1048,8 @@ struct ExploreScreen: View {
                                         origin: result.outbound.origin.iata,
                                         destination: result.outbound.destination.iata,
                                         price: "₹\(result.price)",
-                                        isDirect: result.outbound.direct && (result.inbound?.direct ?? true),
+                                        isOutDirect: result.outbound.direct,
+                                        isInDirect: result.inbound?.direct ?? false,
                                         tripDuration: viewModel.calculateTripDuration(result),
                                         viewModel: viewModel
                                     )
@@ -1174,7 +1174,8 @@ struct FlightResultCard: View {
     let origin: String
     let destination: String
     let price: String
-    let isDirect: Bool
+    let isOutDirect: Bool
+    let isInDirect: Bool
     let tripDuration: String
     @ObservedObject var viewModel: ExploreViewModel
     
@@ -1187,7 +1188,7 @@ struct FlightResultCard: View {
                     .foregroundColor(.gray)
                 
                 HStack {
-                    Text(departureDate)
+                    Text(departureDate.dropLast(5))
                         .font(.headline)
                     
                     Spacer()
@@ -1205,7 +1206,7 @@ struct FlightResultCard: View {
                     
                     Spacer()
                     
-                    Text(isDirect ? "Direct" : "Connecting")
+                    Text(isOutDirect ? "Direct" : "Connecting")
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.green)
@@ -1222,7 +1223,7 @@ struct FlightResultCard: View {
                     .foregroundColor(.gray)
                 
                 HStack {
-                    Text(returnDate)
+                    Text(returnDate.dropLast(5))
                         .font(.headline)
                     
                     Spacer()
@@ -1240,7 +1241,7 @@ struct FlightResultCard: View {
                     
                     Spacer()
                     
-                    Text(isDirect ? "Direct" : "Connecting")
+                    Text(isInDirect ? "Direct" : "Connecting")
                         .font(.subheadline)
                         .foregroundColor(.green)
                         .fontWeight(.bold)
@@ -1290,9 +1291,10 @@ struct FlightResultCard: View {
         .padding(.horizontal)
     }
     private func searchFlights() {
+
            // First convert dates
-           let formattedDepartureDate = viewModel.formatDateForAPI(from: departureDate) ?? "2025-12-29"
-           let formattedReturnDate = viewModel.formatDateForAPI(from: returnDate) ?? "2025-12-30"
+           let formattedDepartureDate = viewModel.formatDateForAPI(from: departureDate) ?? "2025-11-25"
+           let formattedReturnDate = viewModel.formatDateForAPI(from: returnDate) ?? "2025-11-27"
            
            // Then call the search function
            viewModel.searchFlightsForDates(
@@ -1721,8 +1723,7 @@ struct LocationSearchSheet: View {
             // Results section
             resultsView()
             
-            // Search button
-            searchButtonView()
+
             
             Spacer()
         }
@@ -1908,24 +1909,6 @@ struct LocationSearchSheet: View {
         }
     }
     
-    private func searchButtonView() -> some View {
-        Group {
-            if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
-                Button(action: {
-                    initiateSearch()
-                }) {
-                    Text("Search Flights")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(8)
-                }
-                .padding()
-            }
-        }
-    }
     
     // MARK: - Helper Methods
     
@@ -2386,7 +2369,7 @@ struct DetailedFlightCardWrapper: View {
     private func formatDate(from timestamp: Int) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, d MMM"
+        formatter.dateFormat = "EEE, d MMM yyyy"
         return formatter.string(from: date)
     }
     
