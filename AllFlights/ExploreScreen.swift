@@ -649,6 +649,13 @@ class ExploreViewModel: ObservableObject {
                 .store(in: &cancellables)
     }
     
+    // Method to format selected dates for display in UI
+    func formatDateForDisplay(date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
+    }
+    
     func updateSelectedDates() {
         if dates.count >= 2 {
             let sortedDates = dates.sorted()
@@ -669,6 +676,67 @@ class ExploreViewModel: ObservableObject {
                 selectedReturnDatee = formatter.string(from: nextDay)
             } else {
                 selectedReturnDatee = selectedDepartureDatee
+            }
+        }
+    }
+    
+    func updateDatesAndRunSearch() {
+        // Only proceed if we have both origin and destination selected
+        if !fromIataCode.isEmpty && !toIataCode.isEmpty && !dates.isEmpty {
+            // Format dates properly for the API
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            let departureDate: String
+            let returnDate: String
+            
+            if dates.count >= 2 {
+                let sortedDates = dates.sorted()
+                departureDate = formatter.string(from: sortedDates[0])
+                returnDate = formatter.string(from: sortedDates[1])
+            } else if dates.count == 1 {
+                departureDate = formatter.string(from: dates[0])
+                // For one-way trip, set return date to next day or any valid date
+                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: dates[0]) {
+                    returnDate = formatter.string(from: nextDay)
+                } else {
+                    returnDate = departureDate // Fallback
+                }
+            } else {
+                // Default dates if somehow dates array is empty
+                departureDate = "2025-12-29"
+                returnDate = "2025-12-30"
+            }
+            
+            // Update the stored dates
+            selectedDepartureDatee = departureDate
+            selectedReturnDatee = returnDate
+            
+            // Initiate search with these dates
+            searchFlightsForDates(
+                origin: fromIataCode,
+                destination: toIataCode,
+                returnDate: returnDate,
+                departureDate: departureDate
+            )
+        }
+    }
+    
+    // Add a method to initialize dates from API date strings
+    func initializeDatesFromStrings() {
+        if !selectedDepartureDatee.isEmpty && dates.isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            if let departureDate = formatter.date(from: selectedDepartureDatee) {
+                var newDates = [departureDate]
+                
+                if !selectedReturnDatee.isEmpty, let returnDate = formatter.date(from: selectedReturnDatee) {
+                    newDates.append(returnDate)
+                }
+                
+                // Update dates array to keep calendar in sync
+                dates = newDates
             }
         }
     }
@@ -864,12 +932,71 @@ class ExploreViewModel: ObservableObject {
         .store(in: &cancellables)
     }
     
+    // Update the month selector method to preserve dates
     func selectMonth(at index: Int) {
         if index >= 0 && index < availableMonths.count {
             selectedMonthIndex = index
             
-            // Re-fetch flight details with the new month if a city is selected
-            if let city = selectedCity {
+            // If we have origin, destination and dates set, perform a search with the new month
+            if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+                // Get the first day of the selected month
+                let selectedMonth = availableMonths[index]
+                
+                // Create a new date for the same day in the new month
+                let calendar = Calendar.current
+                
+                // If we have existing dates, try to preserve the day value in the new month
+                if !dates.isEmpty {
+                    var newDates: [Date] = []
+                    
+                    for date in dates {
+                        let components = calendar.dateComponents([.day], from: date)
+                        let day = components.day ?? 1
+                        
+                        // Create a date with same day but in new month
+                        var newDateComponents = calendar.dateComponents([.year, .month], from: selectedMonth)
+                        newDateComponents.day = min(day, 28) // Ensure valid day even in February
+                        
+                        if let newDate = calendar.date(from: newDateComponents) {
+                            newDates.append(newDate)
+                        }
+                    }
+                    
+                    // Update dates and trigger search
+                    if !newDates.isEmpty {
+                        dates = newDates
+                        updateDatesAndRunSearch()
+                        return
+                    }
+                }
+                
+                // Fallback - use the selected month with default day values
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                // Get first and last days of month for search
+                let firstDay = selectedMonth
+                let lastDay = calendar.date(byAdding: .day, value: 6, to: firstDay) ?? firstDay // Default to 1 week trip
+                
+                // Update the search dates based on the new month selection
+                selectedDepartureDatee = formatter.string(from: firstDay)
+                selectedReturnDatee = formatter.string(from: lastDay)
+                
+                // Trigger search with the new month dates
+                searchFlightsForDates(
+                    origin: fromIataCode,
+                    destination: toIataCode,
+                    returnDate: selectedReturnDatee,
+                    departureDate: selectedDepartureDatee
+                )
+                
+                // Also update the dates array to keep UI in sync
+                dates = [firstDay, lastDay]
+            }
+            
+            // If a city was selected but we don't have both origin/destination codes yet,
+            // still fetch flight details to show available flights in this month
+            else if let city = selectedCity {
                 fetchFlightDetails(destination: city.location.iata)
             }
         }
@@ -1212,7 +1339,12 @@ struct SearchCard: View {
             LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
                 .presentationDetents([.large])
         }
-        .sheet(isPresented: $showingCalendar) {
+        .sheet(isPresented: $showingCalendar, onDismiss: {
+            // When calendar is dismissed, check if dates were selected and trigger search
+            if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                viewModel.updateDatesAndRunSearch()
+            }
+        }) {
             CalendarView(parentSelectedDates: $viewModel.dates)
         }
     }
@@ -1350,19 +1482,36 @@ struct FlightResultCard: View {
         .padding(.horizontal)
     }
     private func searchFlights() {
-
-           // First convert dates
-           let formattedDepartureDate = viewModel.formatDateForAPI(from: departureDate) ?? "2025-11-25"
-           let formattedReturnDate = viewModel.formatDateForAPI(from: returnDate) ?? "2025-11-27"
-           
-           // Then call the search function
-           viewModel.searchFlightsForDates(
-               origin: origin,
-               destination: destination,
-               returnDate: formattedReturnDate,
-               departureDate: formattedDepartureDate
-           )
-       }
+        // Use the formatted dates from the view model if available, otherwise fallback to card dates
+        let departureDate: String
+        let returnDate: String
+        
+        // First, convert the card dates to API format
+        let formattedCardDepartureDate = viewModel.formatDateForAPI(from: self.departureDate) ?? "2025-11-25"
+        let formattedCardReturnDate = viewModel.formatDateForAPI(from: self.returnDate) ?? "2025-11-27"
+        
+        // Create dates from the card dates to update the calendar selection
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        if let departureDateObj = dateFormatter.date(from: formattedCardDepartureDate),
+           let returnDateObj = dateFormatter.date(from: formattedCardReturnDate) {
+            // Update the dates array in the view model to keep calendar in sync
+            viewModel.dates = [departureDateObj, returnDateObj]
+        }
+        
+        // Update the API date parameters
+        viewModel.selectedDepartureDatee = formattedCardDepartureDate
+        viewModel.selectedReturnDatee = formattedCardReturnDate
+        
+        // Then call the search function with these dates
+        viewModel.searchFlightsForDates(
+            origin: origin,
+            destination: destination,
+            returnDate: formattedCardReturnDate,
+            departureDate: formattedCardDepartureDate
+        )
+    }
 }
 
 // MARK: - API Destination Card
@@ -2031,7 +2180,7 @@ struct LocationSearchSheet: View {
     }
     
     private func selectDestination(result: AutocompleteResult) {
-        // Selected destination - initiate search
+        // Selected destination - update the view model
         viewModel.toLocation = result.cityName
         viewModel.toIataCode = result.iataCode
         
@@ -2040,21 +2189,28 @@ struct LocationSearchSheet: View {
             // Dismiss the sheet
             dismiss()
             
-            // Update selected dates based on calendar selection
-            viewModel.updateSelectedDates()
-            
-            // Get the dates, use default dates if not set
-            let departureDate = viewModel.selectedDepartureDatee.isEmpty ? "2025-12-29" : viewModel.selectedDepartureDatee
-            let returnDate = viewModel.selectedReturnDatee.isEmpty ? "2025-12-30" : viewModel.selectedReturnDatee
-            
-            // Initiate flight search with selected dates
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                viewModel.searchFlightsForDates(
-                    origin: viewModel.fromIataCode,
-                    destination: result.iataCode,
-                    returnDate: returnDate,
-                    departureDate: departureDate
-                )
+            // If user has selected dates in the calendar, use those dates for search
+            if !viewModel.dates.isEmpty {
+                // Let the view model handle date formatting and search
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    viewModel.updateDatesAndRunSearch()
+                }
+            } else {
+                // If no dates selected, use default dates
+                let departureDate = "2025-12-29"
+                let returnDate = "2025-12-30"
+                viewModel.selectedDepartureDatee = departureDate
+                viewModel.selectedReturnDatee = returnDate
+                
+                // Initiate flight search with default dates
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    viewModel.searchFlightsForDates(
+                        origin: viewModel.fromIataCode,
+                        destination: result.iataCode,
+                        returnDate: returnDate,
+                        departureDate: departureDate
+                    )
+                }
             }
         }
     }
@@ -2942,6 +3098,24 @@ struct ModifiedDetailedFlightListView: View {
     @ObservedObject var viewModel: ExploreViewModel
     @State private var selectedFlightId: String? = nil
     
+    private var formattedDates: String {
+        if viewModel.dates.count >= 2 {
+            let sortedDates = viewModel.dates.sorted()
+            return "\(viewModel.formatDateForDisplay(date: sortedDates[0])) - \(viewModel.formatDateForDisplay(date: sortedDates[1]))"
+        } else if viewModel.dates.count == 1 {
+            return viewModel.formatDateForDisplay(date: viewModel.dates[0])
+        } else if !viewModel.selectedDepartureDatee.isEmpty && !viewModel.selectedReturnDatee.isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            if let departureDate = formatter.date(from: viewModel.selectedDepartureDatee),
+               let returnDate = formatter.date(from: viewModel.selectedReturnDatee) {
+                return "\(viewModel.formatDateForDisplay(date: departureDate)) - \(viewModel.formatDateForDisplay(date: returnDate))"
+            }
+        }
+        return "Selected dates"
+    }
+    
     var body: some View {
         VStack {
             // Header
@@ -2964,16 +3138,9 @@ struct ModifiedDetailedFlightListView: View {
                 Spacer()
                 
                 // Show selected dates if available, otherwise use fixed dates
-                if viewModel.dates.count >= 2 {
-                  
-                    Text("\(viewModel.dates[0]), 2025")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                } else {
-                    Text("Dec 29 - Dec 30, 2025")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                }
+                Text(formattedDates)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
             }
             .padding()
             
@@ -3107,6 +3274,10 @@ struct ModifiedDetailedFlightListView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            // Initialize dates array from the API date strings
+            viewModel.initializeDatesFromStrings()
         }
         .background(Color(.systemBackground))
     }
