@@ -1,7 +1,7 @@
 import SwiftUI
 import Alamofire
 import Combine
-
+import Shimmer
 
 
 // MARK: - Search API Response Models
@@ -639,7 +639,7 @@ class ExploreViewModel: ObservableObject {
     }
     
     // Add this function to handle search and poll
-    func searchFlightsForDates(origin: String, destination: String) {
+    func searchFlightsForDates(origin: String, destination: String , returnDate: String , departureDate: String) {
         isLoadingDetailedFlights = true
         detailedFlightError = nil
         detailedFlightResults = []
@@ -648,8 +648,8 @@ class ExploreViewModel: ObservableObject {
         // Store selected flight details
         selectedOriginCode = origin
         selectedDestinationCode = destination
-        selectedDepartureDatee = "2025-12-29"
-        selectedReturnDatee = "2025-12-30"
+        selectedDepartureDatee = returnDate
+        selectedReturnDatee = departureDate
         
         print("Searching flights: \(origin) to \(destination)")
         
@@ -702,18 +702,20 @@ class ExploreViewModel: ObservableObject {
     }
 
     // Add helper function to format date for API
-    func formatDateForAPI(from date: String) -> String {
-        let inputFormatter = DateFormatter()
-        inputFormatter.dateFormat = "EEE, d MMM"
-        
-        let outputFormatter = DateFormatter()
-        outputFormatter.dateFormat = "yyyy-MM-dd"
-        
-        if let date = inputFormatter.date(from: date) {
-            return outputFormatter.string(from: date)
-        }
-        return "2025-12-29" // Default fallback date
-    }
+    func formatDateForAPI(from date: String) -> String? {
+           let inputFormatter = DateFormatter()
+           inputFormatter.dateFormat = "EEE, d MMM"
+           
+           if let parsedDate = inputFormatter.date(from: date) {
+               let outputFormatter = DateFormatter()
+               outputFormatter.dateFormat = "yyyy-MM-dd"
+               return outputFormatter.string(from: parsedDate)
+           }
+           
+           // If we can't parse the date, return nil
+           // The caller will use a default value
+           return nil
+       }
     
     func fetchCountries() {
         isLoading = true
@@ -1268,10 +1270,7 @@ struct FlightResultCard: View {
                 Spacer()
                 
                 Button(action: {
-                    viewModel.searchFlightsForDates(
-                           origin: origin,
-                           destination: destination
-                       )
+                    searchFlights()
                 }) {
                     Text("View these dates")
                         .font(.subheadline)
@@ -1290,6 +1289,19 @@ struct FlightResultCard: View {
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         .padding(.horizontal)
     }
+    private func searchFlights() {
+           // First convert dates
+           let formattedDepartureDate = viewModel.formatDateForAPI(from: departureDate) ?? "2025-12-29"
+           let formattedReturnDate = viewModel.formatDateForAPI(from: returnDate) ?? "2025-12-30"
+           
+           // Then call the search function
+           viewModel.searchFlightsForDates(
+               origin: origin,
+               destination: destination,
+               returnDate: formattedReturnDate,
+               departureDate: formattedDepartureDate
+           )
+       }
 }
 
 // MARK: - API Destination Card
@@ -1429,7 +1441,7 @@ struct SkeletonDestinationCard: View {
                 .fill(Color(UIColor.systemGray5))
                 .frame(width: 80, height: 80)
                 .cornerRadius(8)
-            
+             
             // Placeholder text
             VStack(alignment: .leading, spacing: 8) {
                 // "Flights from" placeholder
@@ -1690,132 +1702,146 @@ struct LocationSearchSheet: View {
     }
 
     var initialFocus: SearchBarType
-
     private let debouncer = Debouncer(delay: 0.3)
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18))
-                        .foregroundColor(.black)
-                }
-                
-                Spacer()
-                
-                Text(activeSearchBar == .origin ? "From Where?" : "Where to?")
-                    .font(.headline)
-                
-                Spacer()
-                
-                // Empty space to balance the X button
+            // Header section
+            headerView()
+            
+            // Search bars
+            originSearchBarView()
+            destinationSearchBarView()
+            
+            // Current location button
+            currentLocationButtonView()
+            
+            Divider()
+            
+            // Results section
+            resultsView()
+            
+            // Search button
+            searchButtonView()
+            
+            Spacer()
+        }
+        .background(Color.white)
+        .onAppear {
+            // Set the initial focus
+            activeSearchBar = initialFocus
+            focusedField = initialFocus
+        }
+    }
+    
+    // MARK: - Component Views
+    
+    private func headerView() -> some View {
+        HStack {
+            Button(action: {
+                dismiss()
+            }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 18))
-                    .foregroundColor(.clear)
+                    .foregroundColor(.black)
             }
-            .padding()
             
-            // Origin search bar
-            HStack {
-                TextField("", text: $originSearchText)
-                    .placeholder(when: originSearchText.isEmpty) {
-                        Text("Origin City, Airport or place")
-                            .foregroundColor(.gray)
-                    }
-                    .padding(12)
-                    .background(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(activeSearchBar == .origin ? Color.orange : Color.gray, lineWidth: 2)
-                    )
-                    .cornerRadius(8)
-                    .focused($focusedField, equals: .origin)
-                    .onChange(of: originSearchText) {
-                        activeSearchBar = .origin
-                        if !originSearchText.isEmpty {
-                            debouncer.debounce {
-                                searchLocations(query: originSearchText)
-                            }
-                        } else {
-                            results = []
-                        }
-                    }
-                    .onTapGesture {
-                        activeSearchBar = .origin
-                        focusedField = .origin
-                    }
-                
-                if !originSearchText.isEmpty {
-                    Button(action: {
-                        originSearchText = ""
-                        if activeSearchBar == .origin {
-                            results = []
-                        }
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                    }
+            Spacer()
+            
+            Text(activeSearchBar == .origin ? "From Where?" : "Where to?")
+                .font(.headline)
+            
+            Spacer()
+            
+            // Empty space to balance the X button
+            Image(systemName: "xmark")
+                .font(.system(size: 18))
+                .foregroundColor(.clear)
+        }
+        .padding()
+    }
+    
+    private func originSearchBarView() -> some View {
+        HStack {
+            TextField("", text: $originSearchText)
+                .placeholder(when: originSearchText.isEmpty) {
+                    Text("Origin City, Airport or place")
+                        .foregroundColor(.gray)
                 }
-            }
-            .padding()
-            
-            // Destination search bar
-            HStack {
-                TextField("", text: $destinationSearchText)
-                    .placeholder(when: destinationSearchText.isEmpty) {
-                        Text("Destination City, Airport or place")
-                            .foregroundColor(.gray)
-                    }
-                    .padding(12)
-                    .background(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(activeSearchBar == .destination ? Color.orange : Color.gray, lineWidth: 2)
-                    )
-                    .cornerRadius(8)
-                    .focused($focusedField, equals: .destination)
-                    .onChange(of: destinationSearchText) {
-                        activeSearchBar = .destination
-                        if !destinationSearchText.isEmpty {
-                            debouncer.debounce {
-                                searchLocations(query: destinationSearchText)
-                            }
-                        } else {
-                            results = []
-                        }
-                    }
-                    .onTapGesture {
-                        activeSearchBar = .destination
-                        focusedField = .destination
-                    }
-                
-                if !destinationSearchText.isEmpty {
-                    Button(action: {
-                        destinationSearchText = ""
-                        if activeSearchBar == .destination {
-                            results = []
-                        }
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                    }
+                .padding(12)
+                .background(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(activeSearchBar == .origin ? Color.orange : Color.gray, lineWidth: 2)
+                )
+                .cornerRadius(8)
+                .focused($focusedField, equals: .origin)
+                .onChange(of: originSearchText) { _ in
+                    handleOriginTextChange()
                 }
-            }
-            .padding(.horizontal)
+                .onTapGesture {
+                    activeSearchBar = .origin
+                    focusedField = .origin
+                }
             
-            // Use current location button
-            if activeSearchBar == .origin {
+            if !originSearchText.isEmpty {
                 Button(action: {
-                    viewModel.fromLocation = "Current Location"
-                    viewModel.fromIataCode = "DEL" // Using Delhi as default
-                    originSearchText = "Current Location"
-                    
+                    originSearchText = ""
+                    if activeSearchBar == .origin {
+                        results = []
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding()
+    }
+    
+    private func destinationSearchBarView() -> some View {
+        HStack {
+            TextField("", text: $destinationSearchText)
+                .placeholder(when: destinationSearchText.isEmpty) {
+                    Text("Destination City, Airport or place")
+                        .foregroundColor(.gray)
+                }
+                .padding(12)
+                .background(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(activeSearchBar == .destination ? Color.orange : Color.gray, lineWidth: 2)
+                )
+                .cornerRadius(8)
+                .focused($focusedField, equals: .destination)
+                .onChange(of: destinationSearchText) { _ in
+                    handleDestinationTextChange()
+                }
+                .onTapGesture {
                     activeSearchBar = .destination
                     focusedField = .destination
+                }
+            
+            if !destinationSearchText.isEmpty {
+                Button(action: {
+                    destinationSearchText = ""
+                    if activeSearchBar == .destination {
+                        results = []
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private func currentLocationButtonView() -> some View {
+        Group {
+            if activeSearchBar == .origin {
+                Button(action: {
+                    useCurrentLocation()
                 }) {
                     HStack {
                         Image(systemName: "location.fill")
@@ -1830,82 +1856,63 @@ struct LocationSearchSheet: View {
                     .padding()
                 }
             }
-            
-            Divider()
-            
-            // Results list
+        }
+    }
+    
+    private func resultsView() -> some View {
+        Group {
             if isSearching {
-                VStack {
-                    ProgressView()
-                    Text("Searching...")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                .padding()
+                searchingView()
             } else if let error = searchError {
-                Text(error)
-                    .foregroundColor(.red)
-                    .padding()
-            } else if results.isEmpty && ((activeSearchBar == .origin && !originSearchText.isEmpty) ||
-                                          (activeSearchBar == .destination && !destinationSearchText.isEmpty)) {
-                Text("No results found")
-                    .foregroundColor(.gray)
-                    .padding()
+                errorView(error: error)
+            } else if shouldShowNoResults() {
+                noResultsView()
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(results) { result in
-                            LocationResultRow(result: result)
-                                .onTapGesture {
-                                    if activeSearchBar == .origin {
-                                        viewModel.fromLocation = result.cityName
-                                        viewModel.fromIataCode = result.iataCode
-                                        originSearchText = result.cityName
-                                        
-                                        // Auto-focus the destination field
-                                        activeSearchBar = .destination
-                                        focusedField = .destination
-                                    } else {
-                                        // Selected destination - initiate search
-                                        viewModel.toLocation = result.cityName
-                                        viewModel.toIataCode = result.iataCode
-                                        
-                                        // Only proceed if we have both origin and destination
-                                        if !viewModel.fromIataCode.isEmpty {
-                                            // Dismiss the sheet
-                                            dismiss()
-                                            
-                                            // Use fixed dates and initiate flight search
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                                viewModel.searchFlightsForDates(
-                                                    origin: viewModel.fromIataCode,
-                                                    destination: result.iataCode
-                                                    // The function internally uses fixed dates:
-                                                    // selectedDepartureDatee = "2025-12-29"
-                                                    // selectedReturnDatee = "2025-12-30"
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                resultsList()
+            }
+        }
+    }
+    
+    private func searchingView() -> some View {
+        VStack {
+            ProgressView()
+            Text("Searching...")
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .padding()
+    }
+    
+    private func errorView(error: String) -> some View {
+        Text(error)
+            .foregroundColor(.red)
+            .padding()
+    }
+    
+    private func noResultsView() -> some View {
+        Text("No results found")
+            .foregroundColor(.gray)
+            .padding()
+    }
+    
+    private func resultsList() -> some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(results) { result in
+                    LocationResultRow(result: result)
+                        .onTapGesture {
+                            handleResultSelection(result: result)
                         }
-                    }
                 }
             }
-            
-            // Add search button at the bottom for better UX
+        }
+    }
+    
+    private func searchButtonView() -> some View {
+        Group {
             if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
                 Button(action: {
-                    // Dismiss the sheet
-                    dismiss()
-                    
-                    // Initiate flight search with fixed dates
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        viewModel.searchFlightsForDates(
-                            origin: viewModel.fromIataCode,
-                            destination: viewModel.toIataCode
-                        )
-                    }
+                    initiateSearch()
                 }) {
                     Text("Search Flights")
                         .font(.headline)
@@ -1917,14 +1924,96 @@ struct LocationSearchSheet: View {
                 }
                 .padding()
             }
-            
-            Spacer()
         }
-        .background(Color.white)
-        .onAppear {
-            // Set the initial focus
-            activeSearchBar = initialFocus
-            focusedField = initialFocus
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func handleOriginTextChange() {
+        activeSearchBar = .origin
+        if !originSearchText.isEmpty {
+            debouncer.debounce {
+                searchLocations(query: originSearchText)
+            }
+        } else {
+            results = []
+        }
+    }
+    
+    private func handleDestinationTextChange() {
+        activeSearchBar = .destination
+        if !destinationSearchText.isEmpty {
+            debouncer.debounce {
+                searchLocations(query: destinationSearchText)
+            }
+        } else {
+            results = []
+        }
+    }
+    
+    private func shouldShowNoResults() -> Bool {
+        let emptyResults = results.isEmpty
+        let activeOriginWithText = activeSearchBar == .origin && !originSearchText.isEmpty
+        let activeDestinationWithText = activeSearchBar == .destination && !destinationSearchText.isEmpty
+        
+        return emptyResults && (activeOriginWithText || activeDestinationWithText)
+    }
+    
+    private func useCurrentLocation() {
+        viewModel.fromLocation = "Current Location"
+        viewModel.fromIataCode = "DEL" // Using Delhi as default
+        originSearchText = "Current Location"
+        
+        activeSearchBar = .destination
+        focusedField = .destination
+    }
+    
+    private func handleResultSelection(result: AutocompleteResult) {
+        if activeSearchBar == .origin {
+            selectOrigin(result: result)
+        } else {
+            selectDestination(result: result)
+        }
+    }
+    
+    private func selectOrigin(result: AutocompleteResult) {
+        viewModel.fromLocation = result.cityName
+        viewModel.fromIataCode = result.iataCode
+        originSearchText = result.cityName
+        
+        // Auto-focus the destination field
+        activeSearchBar = .destination
+        focusedField = .destination
+    }
+    
+    private func selectDestination(result: AutocompleteResult) {
+        // Selected destination - initiate search
+        viewModel.toLocation = result.cityName
+        viewModel.toIataCode = result.iataCode
+        
+        // Only proceed if we have both origin and destination
+        if !viewModel.fromIataCode.isEmpty {
+            // Dismiss the sheet
+            dismiss()
+            
+            // Use fixed dates and initiate flight search
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                viewModel.searchFlightsForDates(origin: viewModel.fromIataCode, destination: result.iataCode, returnDate: "2025-12-12", departureDate: "2025-12-20"
+                    
+                )
+            }
+        }
+    }
+    
+    private func initiateSearch() {
+        // Dismiss the sheet
+        dismiss()
+        
+        // Initiate flight search with fixed dates
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            viewModel.searchFlightsForDates(origin: viewModel.fromIataCode, destination: viewModel.toIataCode, returnDate: "2025-12-12", departureDate: "2025-12-20"
+                
+            )
         }
     }
 
@@ -2236,9 +2325,9 @@ struct DetailedFlightCardWrapper: View {
             let returnArrivalTime = formatTime(from: returnSegment.arriveTimeAirport)
             
             Button(action: onTap) {
-                HStack {
+                VStack {
                     // Flight tags - display them in a row at the left side
-                    VStack(spacing: 4) {
+                    HStack(spacing: 4) {
                         if result.isBest {
                             FlightTagView(tag: FlightTag.best)
                         }
@@ -2249,7 +2338,7 @@ struct DetailedFlightCardWrapper: View {
                             FlightTagView(tag: FlightTag.fastest)
                         }
                     }
-                    .frame(width: 80, alignment: .leading)
+
                     .padding(.trailing, -40) // Move tags closer to the card
                     .zIndex(1) // Make sure tags appear over the card
                     
@@ -2830,10 +2919,11 @@ struct ModifiedDetailedFlightListView: View {
             if viewModel.detailedFlightResults.isEmpty {
                 if viewModel.isLoadingDetailedFlights {
                     Spacer()
-                    ProgressView()
-                    Text("Loading flights...")
-                        .foregroundColor(.gray)
-                        .padding(.top, 8)
+                    ForEach(0..<4){_ in 
+                        DetailedFlightCardSkeleton()
+                            .padding(.bottom,5)
+                    }
+                
                     Spacer()
                 } else if let error = viewModel.detailedFlightError {
                     Spacer()
@@ -3070,6 +3160,7 @@ struct FlightTagView: View {
             .padding(.vertical, 4)
             .background(tag.color)
             .cornerRadius(4)
+          
     }
 }
 
@@ -3107,6 +3198,234 @@ struct PriceSection: View {
                         .background(Color.blue)
                         .cornerRadius(8)
                 }
+            }
+        }
+    }
+}
+
+
+struct DetailedFlightCardSkeleton: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        HStack {
+            // Flight tags shimmer
+//            VStack(spacing: 4) {
+//                Rectangle()
+//                    .fill(Color(UIColor.systemGray5))
+//                    .frame(width: 60, height: 24)
+//                    .cornerRadius(4)
+//                
+//                Rectangle()
+//                    .fill(Color(UIColor.systemGray5))
+//                    .frame(width: 60, height: 24)
+//                    .cornerRadius(4)
+//            }
+//            .frame(width: 80, alignment: .leading)
+//            .padding(.trailing, -40)
+//            .zIndex(1)
+//            
+            // Flight card shimmer
+            VStack(spacing: 0) {
+                // Outbound flight
+                HStack(alignment: .top, spacing: 0) {
+                    // Departure
+                    VStack(alignment: .leading, spacing: 2) {
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 18)
+                            .frame(width: 50)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 30)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 60)
+                            .cornerRadius(4)
+                    }
+                    .frame(width: 70, alignment: .leading)
+                    
+                    // Flight path
+                    VStack(spacing: 2) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(width: 8, height: 8)
+                            
+                            Rectangle()
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(height: 1)
+                            
+                            Circle()
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(width: 8, height: 8)
+                        }
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 12)
+                            .frame(width: 50)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 12)
+                            .frame(width: 40)
+                            .cornerRadius(4)
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // Arrival
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 18)
+                            .frame(width: 50)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 30)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 60)
+                            .cornerRadius(4)
+                    }
+                    .frame(width: 70, alignment: .trailing)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                
+                Divider()
+                    .padding(.horizontal, 16)
+                
+                // Return flight
+                HStack(alignment: .top, spacing: 0) {
+                    // Departure
+                    VStack(alignment: .leading, spacing: 2) {
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 18)
+                            .frame(width: 50)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 30)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 60)
+                            .cornerRadius(4)
+                    }
+                    .frame(width: 70, alignment: .leading)
+                    
+                    // Flight path
+                    VStack(spacing: 2) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(width: 8, height: 8)
+                            
+                            Rectangle()
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(height: 1)
+                            
+                            Circle()
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(width: 8, height: 8)
+                        }
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 12)
+                            .frame(width: 50)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 12)
+                            .frame(width: 40)
+                            .cornerRadius(4)
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // Arrival
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 18)
+                            .frame(width: 50)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 30)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 14)
+                            .frame(width: 60)
+                            .cornerRadius(4)
+                    }
+                    .frame(width: 70, alignment: .trailing)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                
+                Divider()
+                    .padding(.horizontal, 16)
+                
+                // Airline and price
+                HStack {
+                    Rectangle()
+                        .fill(Color(UIColor.systemGray5))
+                        .frame(height: 14)
+                        .frame(width: 100)
+                        .cornerRadius(4)
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 20)
+                            .frame(width: 80)
+                            .cornerRadius(4)
+                        
+                        Rectangle()
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(height: 12)
+                            .frame(width: 60)
+                            .cornerRadius(4)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        }
+        .opacity(isAnimating ? 0.7 : 1.0)
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
+                isAnimating.toggle()
             }
         }
     }

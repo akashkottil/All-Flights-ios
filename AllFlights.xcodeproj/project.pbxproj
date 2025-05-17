@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		DB8934122DD4BDCD00F45A43 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = DB8934112DD4BDCD00F45A43 /* Alamofire */; };
+		DBED61542DD8534B00D2F81C /* Shimmer in Frameworks */ = {isa = PBXBuildFile; productRef = DBED61532DD8534B00D2F81C /* Shimmer */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DBED61542DD8534B00D2F81C /* Shimmer in Frameworks */,
 				DB8934122DD4BDCD00F45A43 /* Alamofire in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -126,6 +128,7 @@
 			name = AllFlights;
 			packageProductDependencies = (
 				DB8934112DD4BDCD00F45A43 /* Alamofire */,
+				DBED61532DD8534B00D2F81C /* Shimmer */,
 			);
 			productName = AllFlights;
 			productReference = DB8932FE2DD4A75E00F45A43 /* AllFlights.app */;
@@ -211,6 +214,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				DB89340F2DD4BDBE00F45A43 /* XCRemoteSwiftPackageReference "Alamofire" */,
+				DBED61522DD8533C00D2F81C /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DB8932FF2DD4A75E00F45A43 /* Products */;
@@ -579,6 +583,14 @@
 				minimumVersion = 5.10.2;
 			};
 		};
+		DBED61522DD8533C00D2F81C /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/markiv/SwiftUI-Shimmer";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -586,6 +598,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DB89340F2DD4BDBE00F45A43 /* XCRemoteSwiftPackageReference "Alamofire" */;
 			productName = Alamofire;
+		};
+		DBED61532DD8534B00D2F81C /* Shimmer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DBED61522DD8533C00D2F81C /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */;
+			productName = Shimmer;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
