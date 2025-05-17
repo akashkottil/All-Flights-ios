@@ -685,6 +685,7 @@ class ExploreViewModel: ObservableObject {
                          
                         }
                         
+                        
                         // Since we're showing results now, we can consider the loading as complete
                         if !self.detailedFlightResults.isEmpty {
                             self.isLoadingDetailedFlights = false
@@ -1093,19 +1094,21 @@ struct SearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     @State private var showingSearchSheet = false
     @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
+    @State private var showingCalendar = false
     
     var body: some View {
         VStack(spacing: 5) {
             Divider()
             // From row
             HStack {
-                Image(systemName: "airplane.departure")
-                    .foregroundColor(.blue)
+              
 
                 Button(action: {
                     initialFocus = .origin
                     showingSearchSheet = true
                 }) {
+                    Image(systemName: "airplane.departure")
+                        .foregroundColor(.blue)
                     Text(viewModel.fromLocation)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.black)
@@ -1125,13 +1128,14 @@ struct SearchCard: View {
                 
                 Spacer()
                 
-                Image(systemName: "airplane.arrival")
-                    .foregroundColor(.blue)
+ 
                 
                 Button(action: {
                     initialFocus = .destination
                     showingSearchSheet = true
                 }) {
+                    Image(systemName: "airplane.arrival")
+                        .foregroundColor(.blue)
                     Text(viewModel.toLocation)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.black)
@@ -1143,11 +1147,17 @@ struct SearchCard: View {
 
             // Date and passengers row
             HStack {
-                Image(systemName: "calendar")
-                    .foregroundColor(.blue)
+                Button(action: {
+                    showingCalendar = true
+                }){
+                    Image(systemName: "calendar")
+                        .foregroundColor(.blue)
+                
                 
                 Text("Anytime")
+                        .foregroundColor(.primary)
                     .font(.system(size: 14, weight: .medium))
+                }
                 
                 Spacer()
                 
