@@ -630,11 +630,47 @@ class ExploreViewModel: ObservableObject {
     @Published var selectedOriginCode: String = ""
     @Published var selectedDestinationCode: String = ""
     
+    @Published var dates: [Date] = []
+    
      var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
     init() {
         setupAvailableMonths()
+        
+        // Add observer for dates changes
+            $dates
+                .sink { [weak self] selectedDates in
+                    guard let self = self else { return }
+                    if !selectedDates.isEmpty {
+                        self.updateSelectedDates()
+                    }
+                }
+                .store(in: &cancellables)
+    }
+    
+    func updateSelectedDates() {
+        if dates.count >= 2 {
+            let sortedDates = dates.sorted()
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            selectedDepartureDatee = formatter.string(from: sortedDates[0])
+            selectedReturnDatee = formatter.string(from: sortedDates[1])
+        } else if dates.count == 1 {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            selectedDepartureDatee = formatter.string(from: dates[0])
+            
+            // For one-way trip - set same date or next day depending on your requirements
+            if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: dates[0]) {
+                selectedReturnDatee = formatter.string(from: nextDay)
+            } else {
+                selectedReturnDatee = selectedDepartureDatee
+            }
+        }
     }
     
     // Add this function to handle search and poll
@@ -1101,8 +1137,6 @@ struct SearchCard: View {
             Divider()
             // From row
             HStack {
-              
-
                 Button(action: {
                     initialFocus = .origin
                     showingSearchSheet = true
@@ -1128,8 +1162,6 @@ struct SearchCard: View {
                 
                 Spacer()
                 
- 
-                
                 Button(action: {
                     initialFocus = .destination
                     showingSearchSheet = true
@@ -1153,10 +1185,17 @@ struct SearchCard: View {
                     Image(systemName: "calendar")
                         .foregroundColor(.blue)
                 
-                
-                Text("Anytime")
-                        .foregroundColor(.primary)
-                    .font(.system(size: 14, weight: .medium))
+                    // Display selected dates if available, otherwise show "Anytime"
+                    if viewModel.dates.isEmpty {
+                        Text("Anytime")
+                            .font(.system(size: 14, weight: .medium))
+                    } else if viewModel.dates.count == 1 {
+                        Text(formatDate(viewModel.dates[0]))
+                            .font(.system(size: 14, weight: .medium))
+                    } else if viewModel.dates.count >= 2 {
+                        Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
+                            .font(.system(size: 14, weight: .medium))
+                    }
                 }
                 
                 Spacer()
@@ -1173,6 +1212,16 @@ struct SearchCard: View {
             LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
                 .presentationDetents([.large])
         }
+        .sheet(isPresented: $showingCalendar) {
+            CalendarView(parentSelectedDates: $viewModel.dates)
+        }
+    }
+    
+    // Helper method to format date for display
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
     }
 }
 
@@ -1922,6 +1971,8 @@ struct LocationSearchSheet: View {
     
     // MARK: - Helper Methods
     
+    
+    
     private func handleOriginTextChange() {
         activeSearchBar = .origin
         if !originSearchText.isEmpty {
@@ -1989,26 +2040,36 @@ struct LocationSearchSheet: View {
             // Dismiss the sheet
             dismiss()
             
-            // Use fixed dates and initiate flight search
+            // Update selected dates based on calendar selection
+            viewModel.updateSelectedDates()
+            
+            // Get the dates, use default dates if not set
+            let departureDate = viewModel.selectedDepartureDatee.isEmpty ? "2025-12-29" : viewModel.selectedDepartureDatee
+            let returnDate = viewModel.selectedReturnDatee.isEmpty ? "2025-12-30" : viewModel.selectedReturnDatee
+            
+            // Initiate flight search with selected dates
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                viewModel.searchFlightsForDates(origin: viewModel.fromIataCode, destination: result.iataCode, returnDate: "2025-12-12", departureDate: "2025-12-20"
-                    
+                viewModel.searchFlightsForDates(
+                    origin: viewModel.fromIataCode,
+                    destination: result.iataCode,
+                    returnDate: returnDate,
+                    departureDate: departureDate
                 )
             }
         }
     }
     
-    private func initiateSearch() {
-        // Dismiss the sheet
-        dismiss()
-        
-        // Initiate flight search with fixed dates
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            viewModel.searchFlightsForDates(origin: viewModel.fromIataCode, destination: viewModel.toIataCode, returnDate: "2025-12-12", departureDate: "2025-12-20"
-                
-            )
-        }
-    }
+//    private func initiateSearch() {
+//        // Dismiss the sheet
+//        dismiss()
+//        
+//        // Initiate flight search with fixed dates
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+//            viewModel.searchFlightsForDates(origin: viewModel.fromIataCode, destination: viewModel.toIataCode, returnDate: "2025-12-12", departureDate: "2025-12-20"
+//                
+//            )
+//        }
+//    }
 
     private func searchLocations(query: String) {
         guard !query.isEmpty else {
@@ -2884,6 +2945,7 @@ struct ModifiedDetailedFlightListView: View {
     var body: some View {
         VStack {
             // Header
+            // In ModifiedDetailedFlightListView
             HStack {
                 Button(action: {
                     selectedFlightId = nil
@@ -2901,10 +2963,17 @@ struct ModifiedDetailedFlightListView: View {
                 
                 Spacer()
                 
-                // Fixed dates
-                Text("Dec 29 - Dec 30, 2025")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                // Show selected dates if available, otherwise use fixed dates
+                if viewModel.dates.count >= 2 {
+                  
+                    Text("\(viewModel.dates[0]), 2025")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                } else {
+                    Text("Dec 29 - Dec 30, 2025")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
             }
             .padding()
             
