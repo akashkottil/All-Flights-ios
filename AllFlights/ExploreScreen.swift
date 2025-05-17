@@ -425,7 +425,7 @@ class ExploreAPIService {
                         let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
                         
                         // If count is 0, no flights available
-                        if pollResponse.count == 0 {
+                        if pollResponse.cache == true {
                             print("Poll completed: No flights available")
                             subject.send(pollResponse)
                             subject.send(completion: .finished)
@@ -442,7 +442,7 @@ class ExploreAPIService {
                             subject.send(pollResponse)
                             
                             // If we've seen all results or have enough, we can finish
-                            if newResultIds.isEmpty || pollResponse.results.count >= pollResponse.count {
+                            if newResultIds.isEmpty  {
                                 print("All results received, polling complete")
                                 subject.send(completion: .finished)
                                 return
@@ -682,7 +682,7 @@ class ExploreViewModel: ObservableObject {
                         
                         if !newResults.isEmpty {
                             self.detailedFlightResults.append(contentsOf: newResults)
-                            print("Updated UI with \(newResults.count) new results, total: \(self.detailedFlightResults.count)")
+                         
                         }
                         
                         // Since we're showing results now, we can consider the loading as complete
@@ -692,7 +692,7 @@ class ExploreViewModel: ObservableObject {
                     }
                     
                     // If there are no results in the response and our array is still empty
-                    if pollResponse.count == 0 && self.detailedFlightResults.isEmpty {
+                    if pollResponse.cache == true && self.detailedFlightResults.isEmpty {
                         self.isLoadingDetailedFlights = false
                     }
                 }
@@ -1777,7 +1777,7 @@ struct LocationSearchSheet: View {
                 )
                 .cornerRadius(8)
                 .focused($focusedField, equals: .origin)
-                .onChange(of: originSearchText) { _ in
+                .onChange(of: originSearchText) {
                     handleOriginTextChange()
                 }
                 .onTapGesture {
@@ -1815,7 +1815,7 @@ struct LocationSearchSheet: View {
                 )
                 .cornerRadius(8)
                 .focused($focusedField, equals: .destination)
-                .onChange(of: destinationSearchText) { _ in
+                .onChange(of: destinationSearchText) {
                     handleDestinationTextChange()
                 }
                 .onTapGesture {
