@@ -1315,6 +1315,7 @@ struct SearchCard: View {
                     // Display selected dates if available, otherwise show "Anytime"
                     if viewModel.dates.isEmpty {
                         Text("Anytime")
+                            .foregroundColor(.primary)
                             .font(.system(size: 14, weight: .medium))
                     } else if viewModel.dates.count == 1 {
                         Text(formatDate(viewModel.dates[0]))
