@@ -501,25 +501,25 @@ struct CalendarView: View {
                     .fontWeight(isSelected ? .bold : .regular)
                     .foregroundColor(
                         isPastDate ? Color.gray.opacity(0.5) :
-                            (isSelected ? .white : .black)
+                            (isSelected ? Color(hex: "#0044AB") : .black)
                     )
                     .frame(width: 36, height: 36)
                     .background(
-                        Circle()
-                            .fill(isSelected ? Color.blue : Color.clear)
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(isSelected ? Color.clear : Color.clear)
                     )
                     .overlay(
-                        Circle()
+                        RoundedRectangle(cornerRadius: 5)
                             .stroke(
                                 isPastDate ? Color.clear :
-                                (isSelected || isInRange ? Color.blue : Color.clear),
+                                (isSelected ? Color(hex: "#0044AB") : Color.clear),
                                 lineWidth: 1
                             )
                     )
                     .background(
                         // Only apply the background highlight if NOT in range selection mode
-                        Circle()
-                            .fill(isInRange && !isSelected && !isPastDate && !isRangeSelection ?
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(isInRange && !isSelected && !isPastDate && isRangeSelection ?
                                   Color.blue.opacity(0.2) : Color.clear)
                     )
                 
@@ -545,7 +545,7 @@ struct CalendarView: View {
             case "expensive":
                 return .red
             case "normal":
-                return .primary
+                return .gray
             default:
                 return .primary
             }
