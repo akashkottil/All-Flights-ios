@@ -49,6 +49,11 @@
 			path = AllFlightsUITests;
 			sourceTree = "<group>";
 		};
+		DF498CE52DDB69B500F4AAA1 /* Models */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Models;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +90,7 @@
 				DB8933182DD4A76000F45A43 /* AllFlightsUITests */,
 				DF498C4A2DDA56EE00F4AAA1 /* Frameworks */,
 				DB8932FF2DD4A75E00F45A43 /* Products */,
+				DF498CE52DDB69B500F4AAA1 /* Models */,
 			);
 			sourceTree = "<group>";
 		};
@@ -122,6 +128,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				DB8933002DD4A75E00F45A43 /* AllFlights */,
+				DF498CE52DDB69B500F4AAA1 /* Models */,
 			);
 			name = AllFlights;
 			packageProductDependencies = (

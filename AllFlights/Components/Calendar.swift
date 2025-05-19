@@ -747,10 +747,6 @@ struct DayCell: View {
         calendar.compare(date, to: today, toGranularity: .day) == .orderedAscending
     }
     
-    private var datePrice: (Int, String)? {
-            priceData[calendar.startOfDay(for: date)]
-        }
-    
     var body: some View {
         VStack {
             Text("\(day)")
@@ -779,16 +775,11 @@ struct DayCell: View {
                 .opacity(isPastDate ? 0.5 : 1.0)
                 .contentShape(Rectangle())
             
-            if let priceInfo = datePrice {
-                           let price = priceInfo.0
-                           let category = priceInfo.1
-                           
-                           Text("₹\(price)")
-                               .font(.system(size: 9))
-                               .foregroundColor(getPriceColor(for: category))
-                               .padding(.top, 1)
-                               .padding(.bottom, 4)
-                       } else {
+            if let price = priceData[calendar.startOfDay(for: date)] {
+                Text("₹\(price)")
+                    .font(.caption2)
+                    .foregroundColor(.green)
+            } else {
                 Text("")
                     .font(.caption2)
             }

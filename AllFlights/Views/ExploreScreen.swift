@@ -311,14 +311,14 @@ class ExploreAPIService {
     let currency:String = "INR"
     let country:String = "IN"
     
-    private let baseURL = "https://staging.plane.lascade.com/api/explore/"
-    private let flightsURL = "https://staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
+    private let baseURL = "https//staging.plane.lascade.com/api/explore/"
+    private let flightsURL = "https//staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
     private var currentFlightSearchRequest: DataRequest?
     private let session = Session()
     
     
     func searchFlights(origin: String, destination: String , returndate: String , departuredate: String) -> AnyPublisher<SearchResponse, Error> {
-        let baseURL = "https://staging.plane.lascade.com/api/search/"
+        let baseURL = "https//staging.plane.lascade.com/api/search/"
         
         let parameters: [String: String] = [
             "user_id": "-0",
@@ -380,7 +380,7 @@ class ExploreAPIService {
     }
 
     func pollFlightResults(searchId: String) -> AnyPublisher<FlightPollResponse, Error> {
-        let baseURL = "https://staging.plane.lascade.com/api/poll/"
+        let baseURL = "https//staging.plane.lascade.com/api/poll/"
         
         let parameters: [String: String] = [
             "search_id": searchId
@@ -498,7 +498,7 @@ class ExploreAPIService {
     
     
     func fetchAutocomplete(query: String, country: String = "IN", language: String = "en-GB") -> AnyPublisher<[AutocompleteResult], Error> {
-        let baseURL = "https://staging.plane.lascade.com/api/autocomplete"
+        let baseURL = "https//staging.plane.lascade.com/api/autocomplete"
         
         let parameters: [String: String] = [
             "search": query,

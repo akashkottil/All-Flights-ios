@@ -11,7 +11,7 @@ import SwiftUI
 struct AllFlightsApp: App {
     var body: some Scene {
         WindowGroup {
-            ExploreScreen()
+            RootTabView()
         }
     }
 }
