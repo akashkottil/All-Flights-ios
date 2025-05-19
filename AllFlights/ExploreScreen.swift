@@ -1,7 +1,7 @@
 import SwiftUI
 import Alamofire
 import Combine
-import Shimmer
+
 
 
 // MARK: - Search API Response Models
@@ -1346,7 +1346,8 @@ struct SearchCard: View {
                 viewModel.updateDatesAndRunSearch()
             }
         }) {
-            CalendarView(parentSelectedDates: $viewModel.dates)
+            
+            CalendarView(fromiatacode: $viewModel.fromIataCode, toiatacode:$viewModel.toIataCode, parentSelectedDates:$viewModel.dates)
         }
     }
     

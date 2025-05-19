@@ -1,5 +1,15 @@
 import SwiftUI
 
+
+struct APIResponse: Codable {
+    let results: [FlightPrice]
+}
+
+struct FlightPrice: Codable {
+    let date: TimeInterval  // Unix timestamp
+    let price: Int
+}
+
 // MARK: - Language Models
 struct LanguageData: Codable {
     var months: MonthNames
@@ -101,9 +111,13 @@ struct CalendarFormatting {
 // MARK: - CalendarView
 struct CalendarView: View {
     
+    @State private var priceData: [Date: Int] = [:]
+
+    
     // MARK: - Properties
  
-    
+    @Binding var fromiatacode:String
+    @Binding var toiatacode:String
     @Binding var parentSelectedDates: [Date]
    
     private let calendar = Calendar.current
@@ -134,6 +148,53 @@ struct CalendarView: View {
      var selectedDates: [Date] {
         dateSelection.selectedDates
     }
+    
+    private func fetchMonthlyPrices(for selectedDate: Date) {
+        guard let origin = fromiatacode.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let destination = toiatacode.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
+        
+        let calendar = Calendar.current
+        let firstOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedDate))!
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd-MM-yyyy"
+        let formattedDate = dateFormatter.string(from: firstOfMonth)
+
+        let urlString = "https://staging.plane.lascade.com/api/price/?currency=INR&country=IN"
+        guard let url = URL(string: urlString) else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload: [String: Any] = [
+            "origin": origin,
+            "destination": destination,
+            "departure": formattedDate,
+            "round_trip": true
+        ]
+
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        request.httpBody = httpBody
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data else { return }
+            do {
+                let decoded = try JSONDecoder().decode(APIResponse.self, from: data)
+                DispatchQueue.main.async {
+                    var newPriceData: [Date: Int] = [:]
+                    for item in decoded.results {
+                        let date = Date(timeIntervalSince1970: item.date)
+                        let normalizedDate = calendar.startOfDay(for: date)
+                        newPriceData[normalizedDate] = item.price
+                    }
+                    self.priceData = newPriceData
+                }
+            } catch {
+                print("Failed to decode API response:", error)
+            }
+        }.resume()
+    }
+
     
     private var availableLanguages: [String] {
         Array(languages.keys).sorted()
@@ -249,30 +310,35 @@ struct CalendarView: View {
     private var calendarScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 20, pinnedViews: [.sectionHeaders]) {
+                // Create an array of integers from 0 to showingMonths-1
                 ForEach(0..<showingMonths, id: \.self) { monthOffset in
                     if let date = calendar.date(byAdding: .month, value: monthOffset, to: currentMonth) {
-                        Section(header:
+                        VStack(alignment: .leading, spacing: 0) {
                             MonthHeaderView(
                                 month: date,
                                 calendar: calendar,
                                 languageData: languages[selectedLanguage]
                             )
-                        ) {
                             MonthView(
                                 month: date,
                                 dateSelection: $dateSelection,
                                 calendar: calendar,
                                 singleDateMode: !singleDate,
                                 languageData: languages[selectedLanguage],
-                                showHeader: false
+                                showHeader: false,
+                                priceData: priceData,
+                                onDateSelected: { selectedDate in
+                                    fetchMonthlyPrices(for: selectedDate)
+                                }
                             )
-                            .id("month-\(monthOffset)")
                         }
+                        .id("month-\(monthOffset)")
                     }
                 }
             }
             .padding(.bottom, 100)
-        }.background(
+        }
+        .background(
             LinearGradient(
                 gradient: Gradient(colors: [
                     Color(.white),
@@ -283,6 +349,10 @@ struct CalendarView: View {
             )
         )
     }
+
+
+
+
     
     private var footerView: some View {
         VStack(spacing: 0) {
@@ -473,6 +543,10 @@ struct MonthView: View {
     let languageData: LanguageData?
     let showHeader: Bool
     
+    let priceData: [Date: Int]
+    let onDateSelected: ((Date) -> Void)?
+
+
     // Cache computed values
     private let monthStart: Date
     private let daysInMonth: Int
@@ -487,23 +561,33 @@ struct MonthView: View {
         CalendarFormatting.yearString(for: month)
     }
     
-    init(month: Date, dateSelection: Binding<DateSelection>, calendar: Calendar, singleDateMode: Bool = false, languageData: LanguageData? = nil, showHeader: Bool = true) {
-        self.month = month
-        self._dateSelection = dateSelection
-        self.calendar = calendar
-        self.languageData = languageData
-        self.showHeader = showHeader
-        self.singleDateMode = singleDateMode
-        
-        // Pre-compute values
-        self.monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
-        self.daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
-        let firstWeekday = calendar.component(.weekday, from: monthStart)
-        self.adjustedFirstWeekday = (firstWeekday + 5) % 7 // Adjusting to make Monday = 0, Sunday = 6
-        
-        // Cache today's date for performance
-        self.today = calendar.startOfDay(for: Date())
-    }
+    init(month: Date,
+             dateSelection: Binding<DateSelection>,
+             calendar: Calendar,
+             singleDateMode: Bool = false,
+             languageData: LanguageData? = nil,
+             showHeader: Bool = true,
+             priceData: [Date: Int] = [:],  // Add default empty dictionary
+             onDateSelected: ((Date) -> Void)? = nil)  // Add optional closure with nil default
+        {
+            self.month = month
+            self._dateSelection = dateSelection
+            self.calendar = calendar
+            self.languageData = languageData
+            self.showHeader = showHeader
+            self.singleDateMode = singleDateMode
+            self.priceData = priceData  // Set the new property
+            self.onDateSelected = onDateSelected  // Set the new property
+            
+            // Pre-compute values
+            self.monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+            self.daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
+            let firstWeekday = calendar.component(.weekday, from: monthStart)
+            self.adjustedFirstWeekday = (firstWeekday + 5) % 7 // Adjusting to make Monday = 0, Sunday = 6
+            
+            // Cache today's date for performance
+            self.today = calendar.startOfDay(for: Date())
+        }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -536,18 +620,21 @@ struct MonthView: View {
                             day: day,
                             selectedDates: dateSelection.selectedDates,
                             calendar: calendar,
-                            today: today
+                            today: today, priceData: priceData,
                         )
                         .aspectRatio(1, contentMode: .fit)
                         .onTapGesture {
                             if !isPastDate(currentDate) {
                                 handleDateSelection(currentDate)
+                                onDateSelected?(currentDate)
                             }
                         }
+
                     }
                 }
             }
         }
+
     }
     
     // Optimized date creation
@@ -618,6 +705,8 @@ struct MonthView: View {
     }
 }
 
+
+
 // MARK: - DayCell
 struct DayCell: View {
     let date: Date
@@ -625,6 +714,24 @@ struct DayCell: View {
     let selectedDates: [Date]
     let calendar: Calendar
     let today: Date
+    
+    // Add a default empty dictionary for priceData
+    let priceData: [Date: Int]
+    
+    init(date: Date,
+         day: Int,
+         selectedDates: [Date],
+         calendar: Calendar,
+         today: Date,
+         priceData: [Date: Int] = [:]) {
+        
+        self.date = date
+        self.day = day
+        self.selectedDates = selectedDates
+        self.calendar = calendar
+        self.today = today
+        self.priceData = priceData
+    }
     
     // Memoized properties to avoid repeated calculations
     private var isEndpoint: Bool {
@@ -667,14 +774,18 @@ struct DayCell: View {
                 .opacity(isPastDate ? 0.5 : 1.0)
                 .contentShape(Rectangle())
             
-            //Dummy data under the each date and color
-            Text("\(Int.random(in: 1...99))k")
-                .font(.caption2)
-                .foregroundColor(Int.random(in: 1...99) < 50 ? .green : .primary)
-               
-        } // Make entire cell tappable
+            if let price = priceData[calendar.startOfDay(for: date)] {
+                Text("₹\(price)")
+                    .font(.caption2)
+                    .foregroundColor(.green)
+            } else {
+                Text("")
+                    .font(.caption2)
+            }
+        }
     }
     
+    // Your existing methods
     private func isDateSelected(_ date: Date) -> Bool {
         selectedDates.contains { calendar.isDate($0, inSameDayAs: date) }
     }
@@ -796,8 +907,12 @@ struct CalendarView_Previews: PreviewProvider {
         // Use a State wrapper to create a binding for the preview
         struct PreviewWrapper: View {
             @State private var dates: [Date] = []
+            @State private var fromIataCode: String  = "COK"
+            @State private var toIataCode: String = "DXB"
+
             var body: some View {
-                CalendarView(parentSelectedDates: $dates)
+
+                CalendarView(fromiatacode: $fromIataCode, toiatacode:$fromIataCode, parentSelectedDates:$dates)
             }
         }
         

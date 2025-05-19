@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DB8934122DD4BDCD00F45A43 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = DB8934112DD4BDCD00F45A43 /* Alamofire */; };
-		DBED61542DD8534B00D2F81C /* Shimmer in Frameworks */ = {isa = PBXBuildFile; productRef = DBED61532DD8534B00D2F81C /* Shimmer */; };
+		DF498C4C2DDA56EE00F4AAA1 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = DF498C4B2DDA56EE00F4AAA1 /* Alamofire */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,8 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DBED61542DD8534B00D2F81C /* Shimmer in Frameworks */,
-				DB8934122DD4BDCD00F45A43 /* Alamofire in Frameworks */,
+				DF498C4C2DDA56EE00F4AAA1 /* Alamofire in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,7 +83,7 @@
 				DB8933002DD4A75E00F45A43 /* AllFlights */,
 				DB89330E2DD4A76000F45A43 /* AllFlightsTests */,
 				DB8933182DD4A76000F45A43 /* AllFlightsUITests */,
-				DB8934102DD4BDCD00F45A43 /* Frameworks */,
+				DF498C4A2DDA56EE00F4AAA1 /* Frameworks */,
 				DB8932FF2DD4A75E00F45A43 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -100,7 +98,7 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		DB8934102DD4BDCD00F45A43 /* Frameworks */ = {
+		DF498C4A2DDA56EE00F4AAA1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -127,8 +125,7 @@
 			);
 			name = AllFlights;
 			packageProductDependencies = (
-				DB8934112DD4BDCD00F45A43 /* Alamofire */,
-				DBED61532DD8534B00D2F81C /* Shimmer */,
+				DF498C4B2DDA56EE00F4AAA1 /* Alamofire */,
 			);
 			productName = AllFlights;
 			productReference = DB8932FE2DD4A75E00F45A43 /* AllFlights.app */;
@@ -213,8 +210,7 @@
 			mainGroup = DB8932F52DD4A75E00F45A43;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				DB89340F2DD4BDBE00F45A43 /* XCRemoteSwiftPackageReference "Alamofire" */,
-				DBED61522DD8533C00D2F81C /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */,
+				DF498C492DDA568700F4AAA1 /* XCRemoteSwiftPackageReference "Alamofire" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DB8932FF2DD4A75E00F45A43 /* Products */;
@@ -416,7 +412,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZDNN6UMF6Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -444,7 +439,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZDNN6UMF6Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -575,34 +569,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		DB89340F2DD4BDBE00F45A43 /* XCRemoteSwiftPackageReference "Alamofire" */ = {
+		DF498C492DDA568700F4AAA1 /* XCRemoteSwiftPackageReference "Alamofire" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Alamofire/Alamofire";
+			repositoryURL = "https://github.com/Alamofire/Alamofire.git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 5.10.2;
 			};
 		};
-		DBED61522DD8533C00D2F81C /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/markiv/SwiftUI-Shimmer";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.5.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		DB8934112DD4BDCD00F45A43 /* Alamofire */ = {
+		DF498C4B2DDA56EE00F4AAA1 /* Alamofire */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = DB89340F2DD4BDBE00F45A43 /* XCRemoteSwiftPackageReference "Alamofire" */;
+			package = DF498C492DDA568700F4AAA1 /* XCRemoteSwiftPackageReference "Alamofire" */;
 			productName = Alamofire;
-		};
-		DBED61532DD8534B00D2F81C /* Shimmer */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = DBED61522DD8533C00D2F81C /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */;
-			productName = Shimmer;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
