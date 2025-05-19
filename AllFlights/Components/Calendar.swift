@@ -8,6 +8,7 @@ struct APIResponse: Codable {
 struct FlightPrice: Codable {
     let date: TimeInterval  // Unix timestamp
     let price: Int
+    let price_category: String
 }
 
 // MARK: - Language Models
@@ -111,7 +112,7 @@ struct CalendarFormatting {
 // MARK: - CalendarView
 struct CalendarView: View {
     
-    @State private var priceData: [Date: Int] = [:]
+    @State private var priceData: [Date: (Int,String)] = [:]
 
     
     // MARK: - Properties
@@ -181,11 +182,11 @@ struct CalendarView: View {
             do {
                 let decoded = try JSONDecoder().decode(APIResponse.self, from: data)
                 DispatchQueue.main.async {
-                    var newPriceData: [Date: Int] = [:]
+                    var newPriceData: [Date: (Int,String)] = [:]
                     for item in decoded.results {
                         let date = Date(timeIntervalSince1970: item.date)
                         let normalizedDate = calendar.startOfDay(for: date)
-                        newPriceData[normalizedDate] = item.price
+                        newPriceData[normalizedDate] = (item.price,item.price_category)
                     }
                     self.priceData = newPriceData
                 }
@@ -543,7 +544,7 @@ struct MonthView: View {
     let languageData: LanguageData?
     let showHeader: Bool
     
-    let priceData: [Date: Int]
+    let priceData: [Date: (Int,String)]
     let onDateSelected: ((Date) -> Void)?
 
 
@@ -567,7 +568,7 @@ struct MonthView: View {
              singleDateMode: Bool = false,
              languageData: LanguageData? = nil,
              showHeader: Bool = true,
-             priceData: [Date: Int] = [:],  // Add default empty dictionary
+             priceData: [Date: (Int,String)] = [:],  // Add default empty dictionary
              onDateSelected: ((Date) -> Void)? = nil)  // Add optional closure with nil default
         {
             self.month = month
@@ -716,14 +717,14 @@ struct DayCell: View {
     let today: Date
     
     // Add a default empty dictionary for priceData
-    let priceData: [Date: Int]
+    let priceData: [Date: (Int , String)]
     
     init(date: Date,
          day: Int,
          selectedDates: [Date],
          calendar: Calendar,
          today: Date,
-         priceData: [Date: Int] = [:]) {
+         priceData: [Date: (Int , String)] = [:]) {
         
         self.date = date
         self.day = day
@@ -745,6 +746,10 @@ struct DayCell: View {
     private var isPastDate: Bool {
         calendar.compare(date, to: today, toGranularity: .day) == .orderedAscending
     }
+    
+    private var datePrice: (Int, String)? {
+            priceData[calendar.startOfDay(for: date)]
+        }
     
     var body: some View {
         VStack {
@@ -774,16 +779,34 @@ struct DayCell: View {
                 .opacity(isPastDate ? 0.5 : 1.0)
                 .contentShape(Rectangle())
             
-            if let price = priceData[calendar.startOfDay(for: date)] {
-                Text("₹\(price)")
-                    .font(.caption2)
-                    .foregroundColor(.green)
-            } else {
+            if let priceInfo = datePrice {
+                           let price = priceInfo.0
+                           let category = priceInfo.1
+                           
+                           Text("₹\(price)")
+                               .font(.system(size: 9))
+                               .foregroundColor(getPriceColor(for: category))
+                               .padding(.top, 1)
+                               .padding(.bottom, 4)
+                       } else {
                 Text("")
                     .font(.caption2)
             }
         }
     }
+    
+    private func getPriceColor(for category: String) -> Color {
+           switch category.lowercased() {
+           case "cheap":
+               return .green
+           case "expensive":
+               return .red
+           case "normal":
+               return .primary // Black in light mode, white in dark mode
+           default:
+               return .primary
+           }
+       }
     
     // Your existing methods
     private func isDateSelected(_ date: Date) -> Bool {
