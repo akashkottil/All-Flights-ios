@@ -163,18 +163,20 @@ struct CalendarView: View {
                         }
                     }
                 }
+                .padding(.bottom, 80) // Add padding at bottom to account for fixed Continue button
             }
             
-            // Bottom Apply button
-            if !dateSelection.selectedDates.isEmpty {
-                Button(action: {
+            // Bottom Continue button (always visible)
+            ContinueButtonView(
+                tripType: showReturnDateSelector ? "Round Trip" : "One Way",
+                price: getLowestPrice(),
+                onContinue: {
                     parentSelectedDates = dateSelection.selectedDates
                     dismiss()
-                }) {
-                    ApplyButton()
                 }
-                .padding()
-            }
+            )
+            .background(Color.white)
+            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: -2)
         }
         .onAppear {
             loadLanguageData()
@@ -438,7 +440,8 @@ struct CalendarView: View {
                             isSelected: isDateSelected(dayDate),
                             calendar: calendar,
                             priceData: priceData,
-                            isInRange: isDateInRange(dayDate)
+                            isInRange: isDateInRange(dayDate),
+                            isRangeSelection: dateSelection.selectedDates.count > 1
                         )
                         .onTapGesture {
                             if !isPastDate(dayDate) {
@@ -446,6 +449,7 @@ struct CalendarView: View {
                                 fetchMonthlyPrices(for: dayDate)
                             }
                         }
+                        .contentShape(Rectangle()) // Makes the entire cell tappable
                     } else {
                         // Empty cell
                         Color.clear
@@ -467,6 +471,9 @@ struct CalendarView: View {
         // Check if this date is in a selected range (for highlighting dates between selections)
         let isInRange: Bool
         
+        // Add a property to check if there are multiple dates selected (range selection)
+        let isRangeSelection: Bool
+        
         private var day: Int {
             calendar.component(.day, from: date)
         }
@@ -481,13 +488,21 @@ struct CalendarView: View {
             return priceData[normalizedDate]?.1
         }
         
+        private var isPastDate: Bool {
+            let today = calendar.startOfDay(for: Date())
+            return calendar.compare(date, to: today, toGranularity: .day) == .orderedAscending
+        }
+        
         var body: some View {
             VStack(spacing: 5) {
                 // Day number
                 Text("\(day)")
                     .font(.system(size: 16))
                     .fontWeight(isSelected ? .bold : .regular)
-                    .foregroundColor(isSelected ? .white : .black)
+                    .foregroundColor(
+                        isPastDate ? Color.gray.opacity(0.5) :
+                            (isSelected ? .white : .black)
+                    )
                     .frame(width: 36, height: 36)
                     .background(
                         Circle()
@@ -495,21 +510,32 @@ struct CalendarView: View {
                     )
                     .overlay(
                         Circle()
-                            .stroke(isSelected || isInRange ? Color.blue : Color.clear, lineWidth: 1)
+                            .stroke(
+                                isPastDate ? Color.clear :
+                                (isSelected || isInRange ? Color.blue : Color.clear),
+                                lineWidth: 1
+                            )
                     )
                     .background(
+                        // Only apply the background highlight if NOT in range selection mode
                         Circle()
-                            .fill(isInRange && !isSelected ? Color.blue.opacity(0.2) : Color.clear)
+                            .fill(isInRange && !isSelected && !isPastDate && !isRangeSelection ?
+                                  Color.blue.opacity(0.2) : Color.clear)
                     )
                 
                 // Price
-                if let price = price {
+                if let price = price, !isPastDate {
                     Text("$\(price)")
                         .font(.system(size: 12))
                         .foregroundColor(getPriceColor(for: priceCategory ?? "normal"))
+                } else {
+                    // Empty text to maintain spacing
+                    Text("")
+                        .font(.system(size: 12))
                 }
             }
             .frame(height: 50)
+            .opacity(isPastDate ? 0.5 : 1.0)
         }
         
         private func getPriceColor(for category: String) -> Color {
@@ -526,25 +552,68 @@ struct CalendarView: View {
         }
     }
     
-    // MARK: - Apply Button
-    struct ApplyButton: View {
+    // Get the lowest price for the selected trip
+    private func getLowestPrice() -> Int {
+        if dateSelection.selectedDates.isEmpty {
+            // If no dates selected, find the lowest price in the priceData
+            if let minPrice = priceData.values.map({ $0.0 }).min() {
+                return minPrice
+            }
+            return 198 // Default price if no data available
+        } else if dateSelection.selectedDates.count == 1, let selectedDate = dateSelection.selectedDates.first {
+            // If only one date is selected, get its price if available
+            let normalizedDate = calendar.startOfDay(for: selectedDate)
+            if let price = priceData[normalizedDate]?.0 {
+                return price
+            }
+            return 198 // Default price if price for the selected date is not available
+        } else if dateSelection.selectedDates.count >= 2 {
+            // If two dates are selected (round trip), calculate total price
+            // Here you might want to sum prices or implement your own pricing logic
+            var totalPrice = 0
+            for date in dateSelection.selectedDates {
+                let normalizedDate = calendar.startOfDay(for: date)
+                if let price = priceData[normalizedDate]?.0 {
+                    totalPrice += price
+                }
+            }
+            return totalPrice > 0 ? totalPrice : 198
+        }
+        
+        return 198 // Default price
+    }
+    
+    // MARK: - Continue Button View
+    struct ContinueButtonView: View {
+        let tripType: String
+        let price: Int
+        let onContinue: () -> Void
+        
         var body: some View {
-            Text("Apply")
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color(red: 253/255, green: 104/255, blue: 14/255),
-                            Color(red: 218/255, green: 69/255, blue: 1/255)
-                        ]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .cornerRadius(8)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tripType)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    Text("from $\(price)")
+                        .font(.headline)
+                        .foregroundColor(.black)
+                }
+                
+                Spacer()
+                
+                Button(action: onContinue) {
+                    Text("Continue")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(width: 120, height: 44)
+                        .background(Color(hex: "#0044AB"))
+                        .cornerRadius(8)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color.white)
         }
     }
     
