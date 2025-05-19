@@ -1,6 +1,5 @@
 import SwiftUI
 
-
 struct APIResponse: Codable {
     let results: [FlightPrice]
 }
@@ -11,7 +10,6 @@ struct FlightPrice: Codable {
     let price_category: String
 }
 
-// MARK: - Language Models
 struct LanguageData: Codable {
     var months: MonthNames
     var days: DayNames
@@ -28,7 +26,6 @@ struct LanguageData: Codable {
     }
 }
 
-// MARK: - Models
 struct DateSelection {
     var selectedDates: [Date] = []
     var selectionState: SelectionState = .none
@@ -40,8 +37,6 @@ struct DateSelection {
     }
 }
 
-// MARK: - Calendar Date Utilities
-// Extracted reusable date formatting logic
 struct CalendarFormatting {
     private static let dateCache = NSCache<NSString, NSString>()
     private static let timeCache = NSCache<NSString, NSString>()
@@ -111,16 +106,11 @@ struct CalendarFormatting {
 
 // MARK: - CalendarView
 struct CalendarView: View {
-    
-    @State private var priceData: [Date: (Int,String)] = [:]
-
-    
-    // MARK: - Properties
- 
-    @Binding var fromiatacode:String
-    @Binding var toiatacode:String
+    @Binding var fromiatacode: String
+    @Binding var toiatacode: String
     @Binding var parentSelectedDates: [Date]
    
+    @State private var priceData: [Date: (Int, String)] = [:]
     private let calendar = Calendar.current
     
     // MARK: - Language Properties
@@ -134,7 +124,7 @@ struct CalendarView: View {
     @State private var showingMonths = 12
     
     // Time selection
-    @State private var timeSelection: Bool = true
+    @State private var timeSelection: Bool = false // Changed to false to match the screenshot
     @State private var departureTime = Date()
     @State private var showDepartureTimePicker: Bool = false
     @State private var returnTime = Date()
@@ -143,11 +133,494 @@ struct CalendarView: View {
     // Single or range selection
     @State private var singleDate: Bool = true
     
-   
-   
+    // Controls whether to show the return date selector
+    @State private var showReturnDateSelector: Bool = false
+    
     // MARK: - Computed Properties
-     var selectedDates: [Date] {
+    var selectedDates: [Date] {
         dateSelection.selectedDates
+    }
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    // MARK: - Body
+    var body: some View {
+        VStack(spacing: 0) {
+            // New header view that matches the screenshot
+            calendarHeaderView
+            
+            // Weekday header
+            weekdayHeaderView
+                .background(Color.white)
+            
+            // Main calendar content
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Display multiple months
+                    ForEach(0..<showingMonths, id: \.self) { monthOffset in
+                        if let date = calendar.date(byAdding: .month, value: monthOffset, to: currentMonth) {
+                            monthSectionView(for: date)
+                        }
+                    }
+                }
+            }
+            
+            // Bottom Apply button
+            if !dateSelection.selectedDates.isEmpty {
+                Button(action: {
+                    parentSelectedDates = dateSelection.selectedDates
+                    dismiss()
+                }) {
+                    ApplyButton()
+                }
+                .padding()
+            }
+        }
+        .onAppear {
+            loadLanguageData()
+            
+            // Initialize dateSelection with parentSelectedDates
+            if !parentSelectedDates.isEmpty {
+                dateSelection.selectedDates = parentSelectedDates
+                
+                // Update selection state based on number of dates
+                if parentSelectedDates.count == 1 {
+                    dateSelection.selectionState = .firstDateSelected
+                } else if parentSelectedDates.count > 1 {
+                    dateSelection.selectionState = .rangeSelected
+                    showReturnDateSelector = true
+                }
+            }
+            
+            // Fetch prices for the current month
+            fetchMonthlyPrices(for: currentMonth)
+        }
+    }
+    
+    // MARK: - Calendar Header View
+    private var calendarHeaderView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .padding()
+                }
+                
+                Text("Dates")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Button("Anytime") {
+                    // Handle anytime selection
+                }
+                .foregroundColor(.blue)
+                .padding()
+            }
+            .padding(.horizontal)
+            
+            HStack(spacing: 15) {
+                if dateSelection.selectedDates.isEmpty {
+                    // No dates selected yet - show placeholders
+                    // Departure date selector
+                    VStack(alignment: .leading) {
+                        Text("Departure")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.orange, lineWidth: 2)
+                    )
+                    .padding(.leading)
+                    
+                    // Return date selector or Add Return button
+                    if showReturnDateSelector {
+                        VStack(alignment: .leading) {
+                            Text("Return")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                        .padding(.trailing)
+                    } else {
+                        Button(action: {
+                            showReturnDateSelector = true
+                            singleDate = false
+                        }) {
+                            Text("Add Return")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                        }
+                        .padding(.trailing)
+                    }
+                } else {
+                    // Show selected dates with X button
+                    if let departureDate = dateSelection.selectedDates.first {
+                        // Departure date display
+                        HStack {
+                            let dateFormatter = DateFormatter()
+//                            dateFormatter.dateFormat = "EEE, d MMM"
+                            
+                            Text(dateFormatter.string(from: departureDate))
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                // Clear this date
+                                if dateSelection.selectedDates.count > 1 {
+                                    dateSelection.selectedDates.removeFirst()
+                                    dateSelection.selectionState = .firstDateSelected
+                                } else {
+                                    dateSelection.selectedDates = []
+                                    dateSelection.selectionState = .none
+                                }
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                .background(Color.white)
+                        )
+                        .padding(.leading)
+                    }
+                    
+                    // Return date if available
+                    if dateSelection.selectedDates.count > 1, let returnDate = dateSelection.selectedDates.last {
+                        HStack {
+                            let dateFormatter = DateFormatter()
+//                            dateFormatter.dateFormat = "EEE, d MMM"
+                            
+                            Text(dateFormatter.string(from: returnDate))
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                // Clear this date
+                                dateSelection.selectedDates.removeLast()
+                                dateSelection.selectionState = .firstDateSelected
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                .background(Color.white)
+                        )
+                        .padding(.trailing)
+                    } else if showReturnDateSelector {
+                        // Empty return date selector
+                        VStack(alignment: .leading) {
+                            Text("Return")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                        .padding(.trailing)
+                    } else {
+                        // Add Return button
+                        Button(action: {
+                            showReturnDateSelector = true
+                            singleDate = false
+                        }) {
+                            Text("Add Return")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                        }
+                        .padding(.trailing)
+                    }
+                }
+            }
+            .padding(.bottom)
+        }
+        .background(Color.white)
+    }
+    
+    // MARK: - Weekday Header View
+    private var weekdayHeaderView: some View {
+        HStack(spacing: 0) {
+            ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
+                Text(day)
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .foregroundColor(.black)
+            }
+        }
+        .padding(.vertical, 10)
+        .background(Color.white)
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color.gray.opacity(0.3)),
+            alignment: .bottom
+        )
+    }
+    
+    // MARK: - Month Section View
+    private func monthSectionView(for date: Date) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            // Month header
+            HStack {
+                Text("\(CalendarFormatting.monthString(for: date, languageData: languages[selectedLanguage], calendar: calendar)) , \(CalendarFormatting.yearString(for: date))")
+                    .font(.headline)
+                    .padding(.leading)
+                    .padding(.top, 10)
+                
+                Spacer()
+                
+                Button("Select Month") {
+                    // Handle month selection
+                }
+                .foregroundColor(.blue)
+                .font(.subheadline)
+                .padding(.trailing)
+                .padding(.top, 10)
+            }
+            
+            // Calendar grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 15) {
+                let days = getDaysInMonth(for: date)
+                
+                ForEach(days, id: \.self) { day in
+                    if let dayDate = day {
+                        DayViewWithPrice(
+                            date: dayDate,
+                            isSelected: isDateSelected(dayDate),
+                            calendar: calendar,
+                            priceData: priceData,
+                            isInRange: isDateInRange(dayDate)
+                        )
+                        .onTapGesture {
+                            if !isPastDate(dayDate) {
+                                handleDateSelection(dayDate)
+                                fetchMonthlyPrices(for: dayDate)
+                            }
+                        }
+                    } else {
+                        // Empty cell
+                        Color.clear
+                            .frame(height: 50)
+                    }
+                }
+            }
+            .padding(.bottom, 20)
+        }
+    }
+    
+    // MARK: - Day View with Price
+    struct DayViewWithPrice: View {
+        let date: Date
+        let isSelected: Bool
+        let calendar: Calendar
+        let priceData: [Date: (Int, String)]
+        
+        // Check if this date is in a selected range (for highlighting dates between selections)
+        let isInRange: Bool
+        
+        private var day: Int {
+            calendar.component(.day, from: date)
+        }
+        
+        private var price: Int? {
+            let normalizedDate = calendar.startOfDay(for: date)
+            return priceData[normalizedDate]?.0
+        }
+        
+        private var priceCategory: String? {
+            let normalizedDate = calendar.startOfDay(for: date)
+            return priceData[normalizedDate]?.1
+        }
+        
+        var body: some View {
+            VStack(spacing: 5) {
+                // Day number
+                Text("\(day)")
+                    .font(.system(size: 16))
+                    .fontWeight(isSelected ? .bold : .regular)
+                    .foregroundColor(isSelected ? .white : .black)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(isSelected ? Color.blue : Color.clear)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected || isInRange ? Color.blue : Color.clear, lineWidth: 1)
+                    )
+                    .background(
+                        Circle()
+                            .fill(isInRange && !isSelected ? Color.blue.opacity(0.2) : Color.clear)
+                    )
+                
+                // Price
+                if let price = price {
+                    Text("$\(price)")
+                        .font(.system(size: 12))
+                        .foregroundColor(getPriceColor(for: priceCategory ?? "normal"))
+                }
+            }
+            .frame(height: 50)
+        }
+        
+        private func getPriceColor(for category: String) -> Color {
+            switch category.lowercased() {
+            case "cheap":
+                return .green
+            case "expensive":
+                return .red
+            case "normal":
+                return .primary
+            default:
+                return .primary
+            }
+        }
+    }
+    
+    // MARK: - Apply Button
+    struct ApplyButton: View {
+        var body: some View {
+            Text("Apply")
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 253/255, green: 104/255, blue: 14/255),
+                            Color(red: 218/255, green: 69/255, blue: 1/255)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(8)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    private func isDateSelected(_ date: Date) -> Bool {
+        dateSelection.selectedDates.contains { calendar.isDate($0, inSameDayAs: date) }
+    }
+    
+    private func isPastDate(_ date: Date) -> Bool {
+        let today = calendar.startOfDay(for: Date())
+        return calendar.compare(date, to: today, toGranularity: .day) == .orderedAscending
+    }
+    
+    private func isDateInRange(_ date: Date) -> Bool {
+        // If we have two dates selected, check if this date is between them
+        if dateSelection.selectedDates.count >= 2,
+           let firstDate = dateSelection.selectedDates.first,
+           let lastDate = dateSelection.selectedDates.last {
+            
+            let normalizedDate = calendar.startOfDay(for: date)
+            let normalizedFirst = calendar.startOfDay(for: firstDate)
+            let normalizedLast = calendar.startOfDay(for: lastDate)
+            
+            return normalizedDate >= normalizedFirst && normalizedDate <= normalizedLast
+        }
+        return false
+    }
+    
+    private func handleDateSelection(_ date: Date) {
+        if singleDate && !showReturnDateSelector {
+            // Single date mode
+            dateSelection.selectedDates = [date]
+            dateSelection.selectionState = .firstDateSelected
+        } else {
+            // Two date selection mode
+            switch dateSelection.selectionState {
+            case .none:
+                dateSelection.selectedDates = [date]
+                dateSelection.selectionState = .firstDateSelected
+                
+            case .firstDateSelected:
+                if calendar.isDate(date, inSameDayAs: dateSelection.selectedDates[0]) {
+                    return // Same date, do nothing
+                }
+                
+                let startDate = min(date, dateSelection.selectedDates[0])
+                let endDate = max(date, dateSelection.selectedDates[0])
+                dateSelection.selectedDates = [startDate, endDate]
+                dateSelection.selectionState = .rangeSelected
+                
+            case .rangeSelected:
+                // Start over with new date
+                dateSelection.selectedDates = [date]
+                dateSelection.selectionState = .firstDateSelected
+            }
+        }
+    }
+    
+    private func getDaysInMonth(for date: Date) -> [Date?] {
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
+        let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
+        
+        // Get the weekday of the first day (1 = Sunday, 2 = Monday, etc.)
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        
+        // Create array with empty slots for days before the 1st of the month
+        var days = Array(repeating: nil as Date?, count: firstWeekday - 1)
+        
+        // Add all days in the month
+        for day in 1...daysInMonth {
+            if let dayDate = calendar.date(byAdding: .day, value: day - 1, to: monthStart) {
+                days.append(dayDate)
+            }
+        }
+        
+        return days
     }
     
     private func fetchMonthlyPrices(for selectedDate: Date) {
@@ -182,11 +655,11 @@ struct CalendarView: View {
             do {
                 let decoded = try JSONDecoder().decode(APIResponse.self, from: data)
                 DispatchQueue.main.async {
-                    var newPriceData: [Date: (Int,String)] = [:]
+                    var newPriceData: [Date: (Int, String)] = [:]
                     for item in decoded.results {
                         let date = Date(timeIntervalSince1970: item.date)
                         let normalizedDate = calendar.startOfDay(for: date)
-                        newPriceData[normalizedDate] = (item.price,item.price_category)
+                        newPriceData[normalizedDate] = (item.price, item.price_category)
                     }
                     self.priceData = newPriceData
                 }
@@ -195,235 +668,7 @@ struct CalendarView: View {
             }
         }.resume()
     }
-
     
-    private var availableLanguages: [String] {
-        Array(languages.keys).sorted()
-    }
-    
-    private var weekdayNames: [String] {
-        // Get the short day names for the selected language
-        // Default to English-like weekday abbreviations if language data isn't loaded
-        guard let languageData = languages[selectedLanguage] else {
-            return ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-        }
-
-        var shortDays = languageData.days.short
-
-        if shortDays.count == 7 {
-            let sunday = shortDays.removeFirst()
-            shortDays.append(sunday)
-        }
-        return shortDays
-    }
-    
-    @Environment(\.dismiss) private var dismiss
-    // MARK: - Body
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Header with language selection button
-                headerView
-                
-                // Sticky weekday header
-                weekdayHeaderView
-                    .background(Color.white)
-                    .zIndex(1)
-                
-                // Calendar main part
-                calendarScrollView
-                
-                // Footer with date selection and apply button
-                footerView
-            }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(.white),
-                        Color(UIColor.systemGray6)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .navigationBarHidden(true)
-            .onAppear {
-                loadLanguageData()
-                
-                // Initialize dateSelection with parentSelectedDates
-                if !parentSelectedDates.isEmpty {
-                    dateSelection.selectedDates = parentSelectedDates
-                    
-                    // Update selection state based on number of dates
-                    if parentSelectedDates.count == 1 {
-                        dateSelection.selectionState = .firstDateSelected
-                    } else if parentSelectedDates.count > 1 {
-                        dateSelection.selectionState = .rangeSelected
-                    }
-                }
-            }
-            .sheet(isPresented: $showLanguagePicker) {
-                languagePickerView
-            }
-        }
-    }
-    
-    // MARK: - View Components
-    private var headerView: some View {
-        HStack {
-            Spacer()
-            
-            // Language selection button
-            Button(action: {
-                showLanguagePicker = true
-            }) {
-                HStack {
-                    Text(selectedLanguage)
-                        .font(.subheadline)
-                    
-                    Image(systemName: "globe")
-                        .font(.subheadline)
-                }
-                .padding(8)
-                .background(Color(UIColor.systemGray6))
-                .cornerRadius(8)
-            }
-            .padding(.trailing)
-        }
-        .padding(.vertical, 20)
-        .background(Color.white)
-    }
-    
-    private var weekdayHeaderView: some View {
-        HStack(spacing: 0) {
-            ForEach(weekdayNames.indices, id: \.self) { index in
-                Text(weekdayNames[index])
-                    .font(.caption)
-                    .fontWeight(.regular)
-                    .frame(maxWidth: .infinity)
-                    .foregroundColor(Color(hex:"#142968"))
-            }
-        }
-        .padding(.vertical, 15)
-        .background(Color.white)
-    }
-    
-    private var calendarScrollView: some View {
-        ScrollView {
-            LazyVStack(spacing: 20, pinnedViews: [.sectionHeaders]) {
-                // Create an array of integers from 0 to showingMonths-1
-                ForEach(0..<showingMonths, id: \.self) { monthOffset in
-                    if let date = calendar.date(byAdding: .month, value: monthOffset, to: currentMonth) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            MonthHeaderView(
-                                month: date,
-                                calendar: calendar,
-                                languageData: languages[selectedLanguage]
-                            )
-                            MonthView(
-                                month: date,
-                                dateSelection: $dateSelection,
-                                calendar: calendar,
-                                singleDateMode: !singleDate,
-                                languageData: languages[selectedLanguage],
-                                showHeader: false,
-                                priceData: priceData,
-                                onDateSelected: { selectedDate in
-                                    fetchMonthlyPrices(for: selectedDate)
-                                }
-                            )
-                        }
-                        .id("month-\(monthOffset)")
-                    }
-                }
-            }
-            .padding(.bottom, 100)
-        }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(.white),
-                    Color(hex:"#D5D5D5")
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
-
-
-
-    
-    private var footerView: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                DateAndTime(
-                    showTimePicker: $showDepartureTimePicker,
-                    selectedTime: $departureTime,
-                    timeSelection: $timeSelection,
-                    selectedDates: dateSelection.selectedDates,
-                    isFirst: true,
-                    label: "Departure"
-                )
-                
-                if singleDate {
-                    DateAndTime(
-                        showTimePicker: $showReturnTimePicker,
-                        selectedTime: $returnTime,
-                        timeSelection: $timeSelection,
-                        selectedDates: dateSelection.selectedDates,
-                        isFirst: false,
-                        label: "Return"
-                    )
-                }
-            }
-            .padding()
-            
-            Button(action: {
-                parentSelectedDates = dateSelection.selectedDates
-                dismiss()
-            }) {
-                ApplyButton()
-            }
-            .padding(.horizontal)
-            .padding(.bottom)
-        }
-        .background(Color.white)
-    }
-    
-    private var languagePickerView: some View {
-        NavigationView {
-            List {
-                ForEach(availableLanguages, id: \.self) { language in
-                    Button(action: {
-                        selectedLanguage = language
-                        showLanguagePicker = false
-                    }) {
-                        HStack {
-                            Text(language)
-                            
-                            Spacer()
-                            
-                            if language == selectedLanguage {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                    .foregroundColor(.primary)
-                }
-            }
-            .navigationTitle("Select Language")
-            .navigationBarItems(trailing: Button("Cancel") {
-                showLanguagePicker = false
-            })
-        }
-        .presentationDetents([.medium, .large])
-    }
-    
-    // MARK: - Methods
-    // Load language data from the calendar_localizations file
     private func loadLanguageData() {
         guard let fileURL = Bundle.main.url(forResource: "calendar_localizations", withExtension: "json"),
               let jsonData = try? Data(contentsOf: fileURL) else {
@@ -435,7 +680,6 @@ struct CalendarView: View {
             let decoder = JSONDecoder()
             languages = try decoder.decode([String: LanguageData].self, from: jsonData)
             
-            // Set default language - use English if available, otherwise first in list
             if languages.keys.contains("English") {
                 selectedLanguage = "English"
             } else {
@@ -447,486 +691,17 @@ struct CalendarView: View {
     }
 }
 
-// MARK: - Visibility Check Modifier
-struct VisibilityDetector: ViewModifier {
-    let onVisible: (Bool) -> Void
-
-    func body(content: Content) -> some View {
-        content
-            .overlay(
-                GeometryReader { geometry in
-                    Color.clear
-                        .preference(key: VisibilityPreferenceKey.self, value: geometry.frame(in: .named("calendarScroll")))
-                }
-            )
-            .onPreferenceChange(VisibilityPreferenceKey.self) { frame in
-                let isVisible = frame.minY < 100 && frame.maxY > 0
-                onVisible(isVisible)
-            }
-    }
-}
-
-struct VisibilityPreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
-    }
-}
-
-extension View {
-    func checkVisibility(onVisible: @escaping (Bool) -> Void) -> some View {
-        modifier(VisibilityDetector(onVisible: onVisible))
-    }
-}
-
-// MARK: - MonthHeaderView (Sticky Section Header)
-struct MonthHeaderView: View {
-    let month: Date
-    let calendar: Calendar
-    let languageData: LanguageData?
-    
-    private var monthOnly: String {
-        CalendarFormatting.monthString(for: month, languageData: languageData, calendar: calendar)
-    }
-    
-    private var yearOnly: String {
-        CalendarFormatting.yearString(for: month)
-    }
-    
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Spacer()
-            Text(monthOnly)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(Color("calendarColor"))
-            Text(yearOnly)
-                .font(.caption)
-                .foregroundColor(Color("calendarColor"))
-                .fontWeight(.bold)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-    }
-}
-
-// MARK: - MonthSectionView (Combined Month and Grid)
-struct MonthSectionView: View {
-    let month: Date
-    @Binding var dateSelection: DateSelection
-    let calendar: Calendar
-    let singleDateMode: Bool
-    let languageData: LanguageData?
-    let onVisible: (Bool) -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Month dates grid without the header
-            MonthView(
-                month: month,
-                dateSelection: $dateSelection,
-                calendar: calendar,
-                singleDateMode: singleDateMode,
-                languageData: languageData,
-                showHeader: false
-            )
-        }
-        .checkVisibility(onVisible: onVisible)
-    }
-}
-
-// MARK: - MonthView
-struct MonthView: View {
-    let month: Date
-    @Binding var dateSelection: DateSelection
-    let calendar: Calendar
-    let singleDateMode: Bool
-    let languageData: LanguageData?
-    let showHeader: Bool
-    
-    let priceData: [Date: (Int,String)]
-    let onDateSelected: ((Date) -> Void)?
 
 
-    // Cache computed values
-    private let monthStart: Date
-    private let daysInMonth: Int
-    private let adjustedFirstWeekday: Int
-    private let today: Date
-    
-    private var monthOnly: String {
-        CalendarFormatting.monthString(for: month, languageData: languageData, calendar: calendar)
-    }
-    
-    private var yearOnly: String {
-        CalendarFormatting.yearString(for: month)
-    }
-    
-    init(month: Date,
-             dateSelection: Binding<DateSelection>,
-             calendar: Calendar,
-             singleDateMode: Bool = false,
-             languageData: LanguageData? = nil,
-             showHeader: Bool = true,
-             priceData: [Date: (Int,String)] = [:],  // Add default empty dictionary
-             onDateSelected: ((Date) -> Void)? = nil)  // Add optional closure with nil default
-        {
-            self.month = month
-            self._dateSelection = dateSelection
-            self.calendar = calendar
-            self.languageData = languageData
-            self.showHeader = showHeader
-            self.singleDateMode = singleDateMode
-            self.priceData = priceData  // Set the new property
-            self.onDateSelected = onDateSelected  // Set the new property
-            
-            // Pre-compute values
-            self.monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
-            self.daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
-            let firstWeekday = calendar.component(.weekday, from: monthStart)
-            self.adjustedFirstWeekday = (firstWeekday + 5) % 7 // Adjusting to make Monday = 0, Sunday = 6
-            
-            // Cache today's date for performance
-            self.today = calendar.startOfDay(for: Date())
-        }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if showHeader {
-                HStack {
-                    Text(monthOnly)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color("calendarColor"))
-                    Text(yearOnly)
-                        .font(.caption)
-                        .foregroundColor(Color("calendarColor"))
-                        .fontWeight(.bold)
-                }
-            }
-            
-            // Days grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
-                // Empty cells for days before the first of month
-                ForEach(0..<adjustedFirstWeekday, id: \.self) { _ in
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fit)
-                }
-                
-                // Days of the month
-                ForEach(1...daysInMonth, id: \.self) { day in
-                    if let currentDate = createDate(day: day) {
-                        DayCell(
-                            date: currentDate,
-                            day: day,
-                            selectedDates: dateSelection.selectedDates,
-                            calendar: calendar,
-                            today: today, priceData: priceData,
-                        )
-                        .aspectRatio(1, contentMode: .fit)
-                        .onTapGesture {
-                            if !isPastDate(currentDate) {
-                                handleDateSelection(currentDate)
-                                onDateSelected?(currentDate)
-                            }
-                        }
-
-                    }
-                }
-            }
-        }
-
-    }
-    
-    // Optimized date creation
-    private func createDate(day: Int) -> Date? {
-        return calendar.date(from: DateComponents(
-            year: calendar.component(.year, from: monthStart),
-            month: calendar.component(.month, from: monthStart),
-            day: day
-        ))
-    }
-    
-    private func isPastDate(_ date: Date) -> Bool {
-        calendar.compare(date, to: today, toGranularity: .day) == .orderedAscending
-    }
-    
-    private func handleDateSelection(_ date: Date) {
-        if singleDateMode {
-            // Single date mode - always just select one date
-            dateSelection.selectedDates = [date]
-            dateSelection.selectionState = .firstDateSelected
-        }
-        else {
-            switch dateSelection.selectionState {
-            case .none:
-                // First date selected
-                dateSelection.selectedDates = [date]
-                dateSelection.selectionState = .firstDateSelected
-                
-            case .firstDateSelected:
-                // Second date selected, create range
-                if calendar.isDate(date, inSameDayAs: dateSelection.selectedDates[0]) {
-                    // If tapping the same date again, just keep it selected
-                    return
-                }
-                
-                let startDate = min(date, dateSelection.selectedDates[0])
-                let endDate = max(date, dateSelection.selectedDates[0])
-                dateSelection.selectedDates = createDateRange(from: startDate, to: endDate)
-                dateSelection.selectionState = .rangeSelected
-                
-            case .rangeSelected:
-                // Clear previous selection, start fresh
-                dateSelection.selectedDates = [date]
-                dateSelection.selectionState = .firstDateSelected
-            }
-        }
-    }
-    
-    private func createDateRange(from startDate: Date, to endDate: Date) -> [Date] {
-        var dates: [Date] = []
-        var currentDate = startDate
-        
-        // Pre-compute days between to avoid unnecessary date calculations in the loop
-        let daysBetween = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
-        dates.reserveCapacity(daysBetween + 1)
-        
-        while currentDate <= endDate {
-            // Skip past dates
-            if calendar.compare(currentDate, to: today, toGranularity: .day) != .orderedAscending {
-                dates.append(currentDate)
-            }
-            
-            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
-            currentDate = nextDate
-        }
-        
-        return dates
-    }
-}
-
-
-
-// MARK: - DayCell
-struct DayCell: View {
-    let date: Date
-    let day: Int  // Pre-computed day value
-    let selectedDates: [Date]
-    let calendar: Calendar
-    let today: Date
-    
-    // Add a default empty dictionary for priceData
-    let priceData: [Date: (Int , String)]
-    
-    init(date: Date,
-         day: Int,
-         selectedDates: [Date],
-         calendar: Calendar,
-         today: Date,
-         priceData: [Date: (Int , String)] = [:]) {
-        
-        self.date = date
-        self.day = day
-        self.selectedDates = selectedDates
-        self.calendar = calendar
-        self.today = today
-        self.priceData = priceData
-    }
-    
-    // Memoized properties to avoid repeated calculations
-    private var isEndpoint: Bool {
-        isDateEndpoint(date)
-    }
-    
-    private var isInRange: Bool {
-        isDateInRange(date)
-    }
-    
-    private var isPastDate: Bool {
-        calendar.compare(date, to: today, toGranularity: .day) == .orderedAscending
-    }
-    
-    var body: some View {
-        VStack {
-            Text("\(day)")
-                .font(.caption)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(
-                    Group {
-                        if isEndpoint {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color(hex:"#0044AB"))
-                                .frame(width: 40, height: 40)
-                        } else if isInRange {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color(hex:"#EAF0F6"))
-                                .frame(width: 40, height: 40)
-                        } else {
-                            Color.clear
-                        }
-                    }
-                )
-                .foregroundColor(
-                    isEndpoint ? .white :
-                        (isInRange ? .primary :
-                            (isPastDate ? .gray : Color(hex:"#3E627E")))
-                )
-                .opacity(isPastDate ? 0.5 : 1.0)
-                .contentShape(Rectangle())
-            
-            if let price = priceData[calendar.startOfDay(for: date)] {
-                Text("₹\(price)")
-                    .font(.caption2)
-                    .foregroundColor(.green)
-            } else {
-                Text("")
-                    .font(.caption2)
-            }
-        }
-    }
-    
-    private func getPriceColor(for category: String) -> Color {
-           switch category.lowercased() {
-           case "cheap":
-               return .green
-           case "expensive":
-               return .red
-           case "normal":
-               return .primary // Black in light mode, white in dark mode
-           default:
-               return .primary
-           }
-       }
-    
-    // Your existing methods
-    private func isDateSelected(_ date: Date) -> Bool {
-        selectedDates.contains { calendar.isDate($0, inSameDayAs: date) }
-    }
-    
-    private func isDateEndpoint(_ date: Date) -> Bool {
-        guard !selectedDates.isEmpty else { return false }
-        
-        if selectedDates.count == 1 {
-            return calendar.isDate(date, inSameDayAs: selectedDates[0])
-        }
-        
-        return calendar.isDate(date, inSameDayAs: selectedDates.first!) ||
-               calendar.isDate(date, inSameDayAs: selectedDates.last!)
-    }
-    
-    private func isDateInRange(_ date: Date) -> Bool {
-        guard selectedDates.count >= 2,
-              let firstDate = selectedDates.first,
-              let lastDate = selectedDates.last else {
-            return false
-        }
-        
-        return calendar.compare(date, to: firstDate, toGranularity: .day) != .orderedAscending &&
-               calendar.compare(date, to: lastDate, toGranularity: .day) != .orderedDescending &&
-               !calendar.isDate(date, inSameDayAs: firstDate) &&
-               !calendar.isDate(date, inSameDayAs: lastDate)
-    }
-}
-
-// MARK: - DateAndTime
-struct DateAndTime: View {
-    @Binding var showTimePicker: Bool
-    @Binding var selectedTime: Date
-    @Binding var timeSelection: Bool
-    let selectedDates: [Date]
-    let isFirst: Bool
-    let label: String
-    
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text(label)
-                .foregroundColor(.gray)
-                .font(.caption)
-            
-            if isFirst {
-                Text(CalendarFormatting.formattedDate(selectedDates.first))
-                    .font(.headline)
-            } else {
-                Text(selectedDates.count > 1 ? CalendarFormatting.formattedDate(selectedDates.last) : "MMM DD, YYYY")
-                    .font(.headline)
-            }
-            
-            if timeSelection {
-                Text(CalendarFormatting.formattedTime(selectedTime))
-                    .font(.subheadline)
-            }
-        }
-        .onTapGesture {
-            showTimePicker = true
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(UIColor.systemGray6))
-        .cornerRadius(8)
-        .sheet(isPresented: $showTimePicker) {
-            TimePickerView(selectedTime: $selectedTime, showTimePicker: $showTimePicker)
-        }
-    }
-}
-
-// MARK: - TimePickerView
-struct TimePickerView: View {
-    @Binding var selectedTime: Date
-    @Binding var showTimePicker: Bool
-    
-    var body: some View {
-        VStack {
-            DatePicker(
-                "Select Time",
-                selection: $selectedTime,
-                displayedComponents: .hourAndMinute
-            )
-            .datePickerStyle(WheelDatePickerStyle())
-            .labelsHidden()
-            .padding()
-            
-            Button("Done") {
-                showTimePicker = false
-            }
-            .padding()
-        }
-        .presentationDetents([.height(250)])
-    }
-}
-
-// MARK: - ApplyButton
-struct ApplyButton: View {
-    var body: some View {
-        Text("Apply")
-            .font(.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 253/255, green: 104/255, blue: 14/255, opacity: 1.0),
-                    Color(red: 218/255, green: 69/255, blue: 1/255, opacity: 1.0)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ))
-            .cornerRadius(8)
-    }
-}
-
-// MARK: - Previews
 struct CalendarView_Previews: PreviewProvider {
     static var previews: some View {
-        // Use a State wrapper to create a binding for the preview
         struct PreviewWrapper: View {
             @State private var dates: [Date] = []
-            @State private var fromIataCode: String  = "COK"
+            @State private var fromIataCode: String = "COK"
             @State private var toIataCode: String = "DXB"
 
             var body: some View {
-
-                CalendarView(fromiatacode: $fromIataCode, toiatacode:$fromIataCode, parentSelectedDates:$dates)
+                CalendarView(fromiatacode: $fromIataCode, toiatacode: $toIataCode, parentSelectedDates: $dates)
             }
         }
         
