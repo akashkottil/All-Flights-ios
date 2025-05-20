@@ -3510,9 +3510,8 @@ struct ModifiedDetailedFlightListView: View {
                                 .padding(.horizontal)
                                 .padding(.bottom, 8)
                                 
-                                // Display flight details - handle both outbound and return legs
-                                if let outboundLeg = selectedFlight.legs.first,
-                                   let returnLeg = selectedFlight.legs.last {
+                                // Display flight details based on whether it's one-way or round-trip
+                                if let outboundLeg = selectedFlight.legs.first {
                                     
                                     // Outbound leg - check if direct or connecting
                                     if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
@@ -3524,14 +3523,21 @@ struct ModifiedDetailedFlightListView: View {
                                         displayConnectingFlight(leg: outboundLeg)
                                     }
                                     
-                                    // Return leg - check if direct or connecting
-                                    if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
-                                        // Direct flight
-                                        let segment = returnLeg.segments.first!
-                                        displayDirectFlight(leg: returnLeg, segment: segment)
-                                    } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
-                                        // Connecting flight
-                                        displayConnectingFlight(leg: returnLeg)
+                                    // Only display return leg if there's more than one leg (round trip)
+                                    // and if it's a different leg from outbound (one-way flights will have same leg repeated)
+                                    if selectedFlight.legs.count > 1,
+                                       let returnLeg = selectedFlight.legs.last,
+                                       returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+                                        
+                                        // Return leg - check if direct or connecting
+                                        if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                            // Direct flight
+                                            let segment = returnLeg.segments.first!
+                                            displayDirectFlight(leg: returnLeg, segment: segment)
+                                        } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                            // Connecting flight
+                                            displayConnectingFlight(leg: returnLeg)
+                                        }
                                     }
                                 }
                                 
