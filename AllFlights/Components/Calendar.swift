@@ -511,6 +511,7 @@ struct CalendarView: View {
                         isPastDate ? Color.gray.opacity(0.5) :
                             (isSelected ? Color(hex: "#0044AB") : .black)
                     )
+                    
                     .frame(width: 36, height: 36)
                     .background(
                         RoundedRectangle(cornerRadius: 5)
