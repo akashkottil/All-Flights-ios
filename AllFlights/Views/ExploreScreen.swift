@@ -245,21 +245,62 @@ struct Location: Codable {
     let iata: String
     let name: String
     let country: String
+    
+    // Add custom initializer to handle empty strings
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        iata = try container.decode(String.self, forKey: .iata)
+        name = try container.decode(String.self, forKey: .name)
+        country = try container.decode(String.self, forKey: .country)
+    }
 }
 
 struct Airline: Codable {
     let iata: String
     let name: String
     let logo: String
+    
+    // Add custom initializer to handle empty strings
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        iata = try container.decode(String.self, forKey: .iata)
+        name = try container.decode(String.self, forKey: .name)
+        logo = try container.decode(String.self, forKey: .logo)
+    }
 }
 
 struct FlightLeg: Codable {
     let origin: Location
     let destination: Location
     let airline: Airline
-    let departure: Int
-    let departure_datetime: String
+    let departure: Int?  // Make this optional to handle null values
+    let departure_datetime: String?  // Make this optional too
     let direct: Bool
+    
+    // Add custom initializer to handle potential nulls
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        origin = try container.decode(Location.self, forKey: .origin)
+        destination = try container.decode(Location.self, forKey: .destination)
+        airline = try container.decode(Airline.self, forKey: .airline)
+        direct = try container.decode(Bool.self, forKey: .direct)
+        
+        // Handle potentially null values
+        departure = try container.decodeIfPresent(Int.self, forKey: .departure) ?? 0
+        departure_datetime = try container.decodeIfPresent(String.self, forKey: .departure_datetime)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case origin
+        case destination
+        case airline
+        case departure
+        case departure_datetime
+        case direct
+    }
 }
 
 struct PriceStats: Codable {
@@ -317,7 +358,7 @@ class ExploreAPIService {
     private let session = Session()
     
     
-    func searchFlights(origin: String, destination: String , returndate: String , departuredate: String) -> AnyPublisher<SearchResponse, Error> {
+    func searchFlights(origin: String, destination: String , returndate: String , departuredate: String,   roundTrip: Bool = true) -> AnyPublisher<SearchResponse, Error> {
         let baseURL = "https://staging.plane.lascade.com/api/search/"
         
         let parameters: [String: String] = [
@@ -330,19 +371,23 @@ class ExploreAPIService {
 //        let departureDate = "2025-12-29"
 //        let returnDate = "2025-12-30"
         
-        // Create two legs - one outbound, one return
-        let legs: [[String: String]] = [
-            [
-                "origin": origin,
-                "destination": destination,
-                "date": departuredate
-            ],
-            [
-                "origin": destination,
-                "destination": origin,
-                "date": returndate
-            ]
-        ]
+        // Create legs based on round trip status
+               var legs: [[String: String]] = [
+                   [
+                       "origin": origin,
+                       "destination": destination,
+                       "date": departuredate
+                   ]
+               ]
+               
+               // Only add return leg if it's a round trip
+               if roundTrip && !returndate.isEmpty {
+                   legs.append([
+                       "origin": destination,
+                       "destination": origin,
+                       "date": returndate
+                   ])
+               }
         
         let requestData: [String: Any] = [
             "legs": legs,
@@ -558,9 +603,14 @@ class ExploreAPIService {
         destination: String,
         departure: String,
         roundTrip: Bool = true,
-        currency: String = "INR",
-        country: String = "IN"
     ) -> AnyPublisher<FlightSearchResponse, Error> {
+        
+        print("origin222 \(origin)")
+        print("dest222 \(destination)")
+        print("dep222 \(departure)")
+        print("roundTr222 \(roundTrip)")
+        print("ocurrency222 \(currency)")
+        print("ocontry222 \(country)")
         
         // Create request parameters according to requirements
         let parameters: [String: Any] = [
@@ -568,8 +618,6 @@ class ExploreAPIService {
             "destination": destination,
             "departure": departure,
             "round_trip": roundTrip,
-            "currency": currency,
-            "country": country
         ]
         
         return Future<FlightSearchResponse, Error> { promise in
@@ -632,6 +680,8 @@ class ExploreViewModel: ObservableObject {
     
     @Published var dates: [Date] = []
     
+    @Published var isRoundTrip: Bool = true
+    
      var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
@@ -647,6 +697,29 @@ class ExploreViewModel: ObservableObject {
                     }
                 }
                 .store(in: &cancellables)
+    }
+    
+    func handleTripTypeChange() {
+        // If we have an active search, re-run it with the updated trip type
+        if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+            // Clear current results first
+            detailedFlightResults = []
+            flightResults = []
+            
+            // If we were on the detailed flight list, re-run that search
+            if showingDetailedFlightList {
+                searchFlightsForDates(
+                    origin: selectedOriginCode,
+                    destination: selectedDestinationCode,
+                    returnDate: isRoundTrip ? selectedReturnDatee : "",
+                    departureDate: selectedDepartureDatee
+                )
+            }
+            // If we had a selected city in the main view
+            else if let city = selectedCity {
+                fetchFlightDetails(destination: city.location.iata)
+            }
+        }
     }
     
     // Method to format selected dates for display in UI
@@ -690,22 +763,18 @@ class ExploreViewModel: ObservableObject {
             let departureDate: String
             let returnDate: String
             
-            if dates.count >= 2 {
+            if dates.count >= 2 && isRoundTrip {
                 let sortedDates = dates.sorted()
                 departureDate = formatter.string(from: sortedDates[0])
                 returnDate = formatter.string(from: sortedDates[1])
-            } else if dates.count == 1 {
+            } else if dates.count == 1 || !isRoundTrip {
                 departureDate = formatter.string(from: dates[0])
-                // For one-way trip, set return date to next day or any valid date
-                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: dates[0]) {
-                    returnDate = formatter.string(from: nextDay)
-                } else {
-                    returnDate = departureDate // Fallback
-                }
+                // For one-way trip, set return date to empty string
+                returnDate = isRoundTrip ? formatter.string(from: Calendar.current.date(byAdding: .day, value: 1, to: dates[0])!) : ""
             } else {
                 // Default dates if somehow dates array is empty
                 departureDate = "2025-12-29"
-                returnDate = "2025-12-30"
+                returnDate = isRoundTrip ? "2025-12-30" : ""
             }
             
             // Update the stored dates
@@ -757,7 +826,13 @@ class ExploreViewModel: ObservableObject {
         print("Searching flights: \(origin) to \(destination)")
         
         // First, get the search ID
-        service.searchFlights(origin: origin, destination: destination , returndate: selectedReturnDatee, departuredate: selectedDepartureDatee)
+        service.searchFlights(
+                    origin: origin,
+                    destination: destination,
+                    returndate: isRoundTrip ? selectedReturnDatee : "", // Only pass return date if round trip
+                    departuredate: selectedDepartureDatee,
+                    roundTrip: isRoundTrip
+                )
             .receive(on: DispatchQueue.main)
             .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
                 print("Search successful, got searchId: \(searchResponse.searchId)")
@@ -907,10 +982,16 @@ class ExploreViewModel: ObservableObject {
         
         let departureDate = dateFormatter.string(from: dateToUse)
         
+        print("Fetching flight details for trip type: \(isRoundTrip ? "Round Trip" : "One Way")")
+        print("Rountrip1111: \(isRoundTrip)")
+        print("depdate1111: \(departureDate)")
+        print("dest1111: \(destination)")
+        
         service.fetchFlightDetails(
             origin: "DEL",
             destination: destination,
-            departure: departureDate
+            departure: departureDate,
+            roundTrip: isRoundTrip // Make sure this is being passed correctly
         )
         .receive(on: DispatchQueue.main)
         .sink(receiveCompletion: { [weak self] completion in
@@ -918,16 +999,19 @@ class ExploreViewModel: ObservableObject {
             if case .failure(let error) = completion {
                 self?.errorMessage = error.localizedDescription
                 self?.flightResults = [] // Ensure results are cleared on error
+                print("Flight details fetch failed: \(error.localizedDescription)")
             }
         }, receiveValue: { [weak self] response in
             self?.flightSearchResponse = response
             self?.flightResults = response.results
+            print("Fetched \(response.results.count) flight results")
+            
             // If we got an empty array but no error, set a custom error message
-                   if response.results.isEmpty {
-                       self?.errorMessage = "No flights available"
-                   } else {
-                       self?.errorMessage = nil
-                   }
+            if response.results.isEmpty {
+                self?.errorMessage = "No flights available"
+            } else {
+                self?.errorMessage = nil
+            }
         })
         .store(in: &cancellables)
     }
@@ -1015,6 +1099,10 @@ class ExploreViewModel: ObservableObject {
     
     // Helper function to format timestamp to readable date
     func formatDate(_ timestamp: Int) -> String {
+        if timestamp <= 0 {
+            return "No date"
+        }
+        
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE, d MMM yyyy"
@@ -1023,9 +1111,9 @@ class ExploreViewModel: ObservableObject {
     
     // Helper function to calculate trip duration
     func calculateTripDuration(_ result: FlightResult) -> String {
-        if let inbound = result.inbound {
-            let outboundDate = Date(timeIntervalSince1970: TimeInterval(result.outbound.departure))
-            let inboundDate = Date(timeIntervalSince1970: TimeInterval(inbound.departure))
+        if let inbound = result.inbound, let inboundDeparture = inbound.departure, inboundDeparture > 0 {
+            let outboundDate = Date(timeIntervalSince1970: TimeInterval(result.outbound.departure ?? 0))
+            let inboundDate = Date(timeIntervalSince1970: TimeInterval(inboundDeparture))
             let days = Calendar.current.dateComponents([.day], from: outboundDate, to: inboundDate).day ?? 0
             return "\(days) days trip"
         } else {
@@ -1041,6 +1129,7 @@ struct ExploreScreen: View {
     @State private var selectedTab = 0
     @State private var selectedFilterTab = 0
     @State private var selectedMonthTab = 0
+    @State private var isRoundTrip: Bool = true
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
 
@@ -1063,31 +1152,19 @@ struct ExploreScreen: View {
                     }
                     
                     Spacer()
-                    
-
-                    // Trip type tabs
-                    HStack(spacing: 0) {
-                        TabButton(title: "Return", isSelected: selectedTab == 0) {
-                            selectedTab = 0
-                        }
-                        
-                        TabButton(title: "One way", isSelected: selectedTab == 1) {
-                            selectedTab = 1
-                        }
-                        
-                        TabButton(title: "Multi city", isSelected: selectedTab == 2) {
-                            selectedTab = 2
-                        }
-                    }
-                    .background(Capsule().fill(Color(UIColor.systemGray6)))
-                    .padding(.trailing)
-                    Spacer()
+                                
+                                // Centered trip type tabs with more balanced width
+                    TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
+                                    .frame(width: UIScreen.main.bounds.width * 0.55) // Reduced from 0.6 to 0.55
+                                
+                                Spacer()
                 }
                 .padding(.horizontal)
-                .padding(.top, 8)
+                .padding(.vertical, 8)
+                .padding(.top,5)
                 
                 // Search card with dynamic values
-                SearchCard(viewModel: viewModel)
+                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip)
                     .padding(.horizontal)
                     .padding(.vertical, 8)
             }
@@ -1207,8 +1284,9 @@ struct ExploreScreen: View {
                                 ForEach(viewModel.flightResults) { result in
                                     // Create a FlightResultCard for each result
                                     FlightResultCard(
-                                        departureDate: viewModel.formatDate(result.outbound.departure),
-                                        returnDate: result.inbound != nil ? viewModel.formatDate(result.inbound!.departure) : "No return",
+                                        departureDate: viewModel.formatDate(result.outbound.departure ?? 0),
+                                        returnDate: result.inbound != nil && result.inbound?.departure != nil ?
+                                                           viewModel.formatDate(result.inbound!.departure!) : "No return",
                                         origin: result.outbound.origin.iata,
                                         destination: result.outbound.destination.iata,
                                         price: "₹\(result.price)",
@@ -1258,6 +1336,8 @@ struct SearchCard: View {
     @State private var showingSearchSheet = false
     @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
     @State private var showingCalendar = false
+    
+    @Binding var isRoundTrip: Bool
     
     var body: some View {
         VStack(spacing: 5) {
@@ -1347,8 +1427,22 @@ struct SearchCard: View {
             }
         }) {
             
-            CalendarView(fromiatacode: $viewModel.fromIataCode, toiatacode:$viewModel.toIataCode, parentSelectedDates:$viewModel.dates)
+            CalendarView(fromiatacode: $viewModel.fromIataCode, toiatacode:$viewModel.toIataCode, parentSelectedDates:$viewModel.dates,
+                      
+            )
         }
+        .onAppear {
+                    // Ensure viewModel's isRoundTrip is in sync with the binding
+            viewModel.isRoundTrip = isRoundTrip
+                }
+                .onChange(of: isRoundTrip) { newValue in
+                    // Update viewModel when isRoundTrip changes
+                    viewModel.isRoundTrip = newValue
+                    // If we have origin/destination and dates already set, trigger a new search
+                                if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
+                                    viewModel.updateDatesAndRunSearch()
+                                }
+                }
     }
     
     // Helper method to format date for display
@@ -1410,38 +1504,41 @@ struct FlightResultCard: View {
             
             
             // Return section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Return")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                
-                HStack {
-                    Text(returnDate.dropLast(5))
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 4) {
-                        Text(destination)
-                            .font(.headline)
-                        
-                        Image(systemName: "arrow.right")
-                            .font(.caption)
-                        
-                        Text(origin)
-                            .font(.headline)
-                    }
-                    
-                    Spacer()
-                    
-                    Text(isInDirect ? "Direct" : "Connecting")
+            if viewModel.isRoundTrip {
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Return")
                         .font(.subheadline)
-                        .foregroundColor(.green)
-                        .fontWeight(.bold)
+                        .foregroundColor(.gray)
+                    
+                    HStack {
+                        Text(returnDate.dropLast(5))
+                            .font(.headline)
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 4) {
+                            Text(destination)
+                                .font(.headline)
+                            
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                            
+                            Text(origin)
+                                .font(.headline)
+                        }
+                        
+                        Spacer()
+                        
+                        Text(isInDirect ? "Direct" : "Connecting")
+                            .font(.subheadline)
+                            .foregroundColor(.green)
+                            .fontWeight(.bold)
+                    }
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
             
             Divider()
             
@@ -1456,7 +1553,7 @@ struct FlightResultCard: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text(tripDuration)
+                    Text(viewModel.isRoundTrip ? tripDuration : "One way trip")
                         .font(.subheadline)
                         .foregroundColor(.gray)
                 }
@@ -1496,21 +1593,30 @@ struct FlightResultCard: View {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
-        if let departureDateObj = dateFormatter.date(from: formattedCardDepartureDate),
-           let returnDateObj = dateFormatter.date(from: formattedCardReturnDate) {
-            // Update the dates array in the view model to keep calendar in sync
-            viewModel.dates = [departureDateObj, returnDateObj]
+        // Add separate handling for one-way vs. round trip
+        if viewModel.isRoundTrip {
+            if let departureDateObj = dateFormatter.date(from: formattedCardDepartureDate),
+               let returnDateObj = dateFormatter.date(from: formattedCardReturnDate) {
+                // Update the dates array in the view model to keep calendar in sync for round trip
+                viewModel.dates = [departureDateObj, returnDateObj]
+            }
+            // Update the API date parameters
+            viewModel.selectedDepartureDatee = formattedCardDepartureDate
+            viewModel.selectedReturnDatee = formattedCardReturnDate
+        } else {
+            // One-way trip - just set departure date
+            if let departureDateObj = dateFormatter.date(from: formattedCardDepartureDate) {
+                viewModel.dates = [departureDateObj]
+            }
+            viewModel.selectedDepartureDatee = formattedCardDepartureDate
+            viewModel.selectedReturnDatee = "" // Empty for one-way
         }
-        
-        // Update the API date parameters
-        viewModel.selectedDepartureDatee = formattedCardDepartureDate
-        viewModel.selectedReturnDatee = formattedCardReturnDate
         
         // Then call the search function with these dates
         viewModel.searchFlightsForDates(
             origin: origin,
             destination: destination,
-            returnDate: formattedCardReturnDate,
+            returnDate: viewModel.isRoundTrip ? formattedCardReturnDate : "",
             departureDate: formattedCardDepartureDate
         )
     }
@@ -1582,6 +1688,84 @@ struct TabButton: View {
                 .clipShape(Capsule())
                 .padding(5)
         }
+    }
+}
+
+// MARK: - Updated TripTypeTabView
+struct TripTypeTabView: View {
+    @Binding var selectedTab: Int
+    @Binding var isRoundTrip: Bool
+    @ObservedObject var viewModel: ExploreViewModel // Add this to access the view model directly
+    let tabs = ["Return", "One way", "Multi city"]
+    
+    // Calculate dimensions once for consistency
+    private var totalWidth: CGFloat {
+        return UIScreen.main.bounds.width * 0.6 // Total width of tab control
+    }
+    
+    private var tabWidth: CGFloat {
+        return totalWidth / 3 // Each tab gets 1/3 of the space
+    }
+    
+    // Offset adjustment to shift the white background slightly right
+    private var rightShift: CGFloat {
+        return 5 // Positive value shifts to the right
+    }
+    
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Background capsule
+            Capsule()
+                .fill(Color(UIColor.systemGray6))
+                .padding(.horizontal, -5)
+                .padding(.vertical, -5)
+            
+            // Sliding white background with adjustment for right shift
+            Capsule()
+                .fill(Color.white)
+                .frame(width: tabWidth - 10) // Slightly narrower than tab width
+                .offset(x: (CGFloat(selectedTab) * tabWidth) + rightShift) // Added rightShift
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
+            
+            // Tab buttons row with consistent spacing
+            HStack(spacing: 0) {
+                ForEach(0..<tabs.count, id: \.self) { index in
+                    Button(action: {
+                        selectedTab = index
+                        let newIsRoundTrip = (index == 0)
+                        
+                        // Only trigger a search if the trip type actually changed
+                        if isRoundTrip != newIsRoundTrip {
+                            isRoundTrip = newIsRoundTrip
+                            viewModel.isRoundTrip = newIsRoundTrip // Update viewModel directly
+                            
+                            // If we have origin/destination and dates selected, run the search right away
+                            if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
+                                // Clear current results first
+                                viewModel.detailedFlightResults = []
+                                viewModel.flightResults = []
+                                
+                                // Force immediate search
+                                viewModel.updateDatesAndRunSearch()
+                            } else if viewModel.selectedCity != nil {
+                                // If a city was selected in explore view, re-fetch with new trip type
+                                viewModel.fetchFlightDetails(destination: viewModel.selectedCity!.location.iata)
+                            }
+                        } else {
+                            isRoundTrip = newIsRoundTrip
+                        }
+                    }) {
+                        Text(tabs[index])
+                            .font(.system(size: 13, weight: selectedTab == index ? .semibold : .regular))
+                            .foregroundColor(selectedTab == index ? .blue : .black)
+                            .frame(width: tabWidth)
+                            .padding(.vertical, 8)
+                    }
+                }
+            }
+        }
+        .frame(width: totalWidth, height: 36)
+        .padding(.horizontal, 4)
     }
 }
 
@@ -2518,27 +2702,22 @@ static let fastest = FlightTag(title: "Fastest", color: Color.purple)
 
 struct DetailedFlightCardWrapper: View {
     let result: FlightDetailResult
+    @ObservedObject var viewModel: ExploreViewModel
     var onTap: () -> Void
     
     var body: some View {
-        if result.legs.count >= 2,
-           let outboundLeg = result.legs.first,
-           let returnLeg = result.legs.last,
-           !outboundLeg.segments.isEmpty,
-           !returnLeg.segments.isEmpty {
-            
+        if let outboundLeg = result.legs.first, !outboundLeg.segments.isEmpty {
             let outboundSegment = outboundLeg.segments.first!
-            let returnSegment = returnLeg.segments.first!
+            let returnLeg = viewModel.isRoundTrip && result.legs.count >= 2 ? result.legs.last : nil
+            let returnSegment = returnLeg?.segments.first
             
             // Format time and dates
             let outboundDepartureTime = formatTime(from: outboundSegment.departureTimeAirport)
             let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
-            let returnDepartureTime = formatTime(from: returnSegment.departureTimeAirport)
-            let returnArrivalTime = formatTime(from: returnSegment.arriveTimeAirport)
             
             Button(action: onTap) {
                 VStack {
-                    // Flight tags - display them in a row at the left side
+                    // Flight tags
                     HStack(spacing: 4) {
                         if result.isBest {
                             FlightTagView(tag: FlightTag.best)
@@ -2550,33 +2729,50 @@ struct DetailedFlightCardWrapper: View {
                             FlightTagView(tag: FlightTag.fastest)
                         }
                     }
-
-                    .padding(.trailing, -40) // Move tags closer to the card
-                    .zIndex(1) // Make sure tags appear over the card
+                    .padding(.trailing, -40)
+                    .zIndex(1)
                     
-                    LastFlightCard(
-                        departureTime: outboundDepartureTime,
-                        departureCode: outboundSegment.originCode,
-                        departureDate: formatDate(from: outboundSegment.departureTimeAirport),
-                        arrivalTime: outboundArrivalTime,
-                        arrivalCode: outboundSegment.destinationCode,
-                        arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
-                        duration: formatDuration(minutes: outboundLeg.duration),
-                        isOutboundDirect: outboundLeg.stopCount == 0,
-                        
-                        returnDepartureTime: returnDepartureTime,
-                        returnDepartureCode: returnSegment.originCode,
-                        returnDepartureDate: formatDate(from: returnSegment.departureTimeAirport),
-                        returnArrivalTime: returnArrivalTime,
-                        returnArrivalCode: returnSegment.destinationCode,
-                        returnArrivalDate: formatDate(from: returnSegment.arriveTimeAirport),
-                        returnDuration: formatDuration(minutes: returnLeg.duration),
-                        isReturnDirect: returnLeg.stopCount == 0,
-                        
-                        airline: outboundSegment.airlineName,
-                        price: "₹\(Int(result.minPrice))",
-                        priceDetail: "per person"
-                    )
+                    if viewModel.isRoundTrip && returnLeg != nil && returnSegment != nil {
+                        // Round trip flight card
+                        LastFlightCard(
+                            departureTime: outboundDepartureTime,
+                            departureCode: outboundSegment.originCode,
+                            departureDate: formatDate(from: outboundSegment.departureTimeAirport),
+                            arrivalTime: outboundArrivalTime,
+                            arrivalCode: outboundSegment.destinationCode,
+                            arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
+                            duration: formatDuration(minutes: outboundLeg.duration),
+                            isOutboundDirect: outboundLeg.stopCount == 0,
+                            
+                            returnDepartureTime: formatTime(from: returnSegment!.departureTimeAirport),
+                            returnDepartureCode: returnSegment!.originCode,
+                            returnDepartureDate: formatDate(from: returnSegment!.departureTimeAirport),
+                            returnArrivalTime: formatTime(from: returnSegment!.arriveTimeAirport),
+                            returnArrivalCode: returnSegment!.destinationCode,
+                            returnArrivalDate: formatDate(from: returnSegment!.arriveTimeAirport),
+                            returnDuration: formatDuration(minutes: returnLeg!.duration),
+                            isReturnDirect: returnLeg!.stopCount == 0,
+                            
+                            airline: outboundSegment.airlineName,
+                            price: "₹\(Int(result.minPrice))",
+                            priceDetail: "per person"
+                        )
+                    } else {
+                        // One way flight card
+                        OneWayFlightCard(
+                            departureTime: outboundDepartureTime,
+                            departureCode: outboundSegment.originCode,
+                            departureDate: formatDate(from: outboundSegment.departureTimeAirport),
+                            arrivalTime: outboundArrivalTime,
+                            arrivalCode: outboundSegment.destinationCode,
+                            arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
+                            duration: formatDuration(minutes: outboundLeg.duration),
+                            isOutboundDirect: outboundLeg.stopCount == 0,
+                            airline: outboundSegment.airlineName,
+                            price: "₹\(Int(result.minPrice))",
+                            priceDetail: "per person"
+                        )
+                    }
                 }
             }
             .buttonStyle(PlainButtonStyle())
@@ -2606,6 +2802,108 @@ struct DetailedFlightCardWrapper: View {
         let hours = minutes / 60
         let mins = minutes % 60
         return "\(hours)h \(mins)m"
+    }
+}
+
+// Add a new OneWayFlightCard struct
+struct OneWayFlightCard: View {
+    let departureTime: String
+    let departureCode: String
+    let departureDate: String
+    let arrivalTime: String
+    let arrivalCode: String
+    let arrivalDate: String
+    let duration: String
+    let isOutboundDirect: Bool
+    let airline: String
+    let price: String
+    let priceDetail: String
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Outbound flight
+            HStack(alignment: .top, spacing: 0) {
+                // Departure
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(departureTime)
+                        .font(.system(size: 18, weight: .bold))
+                    Text(departureCode)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(departureDate)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 70, alignment: .leading)
+                
+                // Flight path
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.gray)
+                        
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundColor(.gray)
+                        
+                        Circle()
+                            .frame(width: 8, height: 8)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Text(duration)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                    
+                    Text(isOutboundDirect ? "Direct" : "1 Stop")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(isOutboundDirect ? .green : .primary)
+                }
+                .frame(maxWidth: .infinity)
+                
+                // Arrival
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(arrivalTime)
+                        .font(.system(size: 18, weight: .bold))
+                    Text(arrivalCode)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(arrivalDate)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 70, alignment: .trailing)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            
+            Divider()
+                .padding(.horizontal, 16)
+            
+            // Airline and price
+            HStack {
+                Text(airline)
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price)
+                        .font(.system(size: 20, weight: .bold))
+                    
+                    Text(priceDetail)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
 }
 
@@ -3249,7 +3547,7 @@ struct ModifiedDetailedFlightListView: View {
                             VStack(spacing: 16) {
                                 ForEach(viewModel.detailedFlightResults, id: \.id) { result in
                                     DetailedFlightCardWrapper(
-                                        result: result,
+                                        result: result, viewModel: viewModel,
                                         onTap: {
                                             selectedFlightId = result.id
                                         }

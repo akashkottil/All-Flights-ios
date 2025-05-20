@@ -110,6 +110,7 @@ struct CalendarView: View {
     @Binding var toiatacode: String
     @Binding var parentSelectedDates: [Date]
    
+   
     @State private var priceData: [Date: (Int, String)] = [:]
     private let calendar = Calendar.current
     
