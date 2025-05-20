@@ -137,6 +137,10 @@ struct CalendarView: View {
     // Controls whether to show the return date selector
     @State private var showReturnDateSelector: Bool = false
     
+    var isMultiCity: Bool = false
+       var multiCityTripIndex: Int = 0
+       var multiCityViewModel: ExploreViewModel? = nil
+    
     // MARK: - Computed Properties
     var selectedDates: [Date] {
         dateSelection.selectedDates
@@ -168,30 +172,58 @@ struct CalendarView: View {
             }
             
             // Bottom Continue button (always visible)
+            // Bottom Continue button (always visible)
             ContinueButtonView(
-                tripType: showReturnDateSelector ? "Round Trip" : "One Way",
+                tripType: isMultiCity ? "Multi-City" : (showReturnDateSelector ? "Round Trip" : "One Way"),
                 price: getLowestPrice(),
                 onContinue: {
-                    parentSelectedDates = dateSelection.selectedDates
+                    if isMultiCity {
+                        // In multi-city mode, update the specific trip's date
+                        if let viewModel = multiCityViewModel,
+                           !dateSelection.selectedDates.isEmpty,
+                           multiCityTripIndex < viewModel.multiCityTrips.count {
+                            viewModel.multiCityTrips[multiCityTripIndex].date = dateSelection.selectedDates[0]
+                        }
+                    } else {
+                        // In regular mode, update the parentSelectedDates
+                        parentSelectedDates = dateSelection.selectedDates
+                    }
                     dismiss()
                 }
-            )
-            .background(Color.white)
+            )            .background(Color.white)
             .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: -2)
         }
         .onAppear {
             loadLanguageData()
             
-            // Initialize dateSelection with parentSelectedDates
-            if !parentSelectedDates.isEmpty {
-                dateSelection.selectedDates = parentSelectedDates
+            // Special handling for multi-city mode
+            if isMultiCity {
+                // Force single date selection mode
+                singleDate = true
+                showReturnDateSelector = false
                 
-                // Update selection state based on number of dates
-                if parentSelectedDates.count == 1 {
+                // If we have a multiCityViewModel, initialize with the current trip's date
+                if let viewModel = multiCityViewModel,
+                   multiCityTripIndex < viewModel.multiCityTrips.count {
+                    let tripDate = viewModel.multiCityTrips[multiCityTripIndex].date
+                    dateSelection.selectedDates = [tripDate]
                     dateSelection.selectionState = .firstDateSelected
-                } else if parentSelectedDates.count > 1 {
-                    dateSelection.selectionState = .rangeSelected
-                    showReturnDateSelector = true
+                    
+                    // Initialize with the month containing this date
+                    currentMonth = tripDate
+                }
+            } else {
+                // Initialize dateSelection with parentSelectedDates
+                if !parentSelectedDates.isEmpty {
+                    dateSelection.selectedDates = parentSelectedDates
+                    
+                    // Update selection state based on number of dates
+                    if parentSelectedDates.count == 1 {
+                        dateSelection.selectionState = .firstDateSelected
+                    } else if parentSelectedDates.count > 1 {
+                        dateSelection.selectionState = .rangeSelected
+                        showReturnDateSelector = true
+                    }
                 }
             }
             
@@ -212,43 +244,48 @@ struct CalendarView: View {
                         .padding()
                 }
                 
-                Text("Dates")
-                    .font(.headline)
+                Text(isMultiCity ? "Select Date" : "Dates")
+                                .font(.headline)
                 
                 Spacer()
                 
-                Button("Anytime") {
-                    // Handle anytime selection
-                }
-                .foregroundColor(.blue)
-                .fontWeight(.semibold)
-                .padding()
-            }
-            .padding(.horizontal)
+                if !isMultiCity {
+                               Button("Anytime") {
+                                   // Handle anytime selection
+                               }
+                               .foregroundColor(.blue)
+                               .fontWeight(.semibold)
+                               .padding()
+                           }
+                       }
+                       .padding(.horizontal)
             
-            HStack(spacing: 15) {
-                if dateSelection.selectedDates.isEmpty {
-                    // No dates selected yet - show placeholders
-                    // Departure date selector
-                    VStack(alignment: .leading) {
-                        Text("Departure")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
+            // In multi-city mode, show a simpler header
+                    if isMultiCity {
+                        HStack(spacing: 15) {
+                            VStack(alignment: .leading) {
+                                Text("Flight Date")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal)
+                                    .padding(.top, 8)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange, lineWidth: 2)
+                            )
                             .padding(.horizontal)
-                            .padding(.top, 8)
+                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.orange, lineWidth: 2)
-                    )
-                    .padding(.leading)
-                    
-                    // Return date selector or Add Return button
-                    if showReturnDateSelector {
+            else{
+                HStack(spacing: 15) {
+                    if dateSelection.selectedDates.isEmpty {
+                        // No dates selected yet - show placeholders
+                        // Departure date selector
                         VStack(alignment: .leading) {
-                            Text("Return")
+                            Text("Departure")
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                                 .padding(.horizontal)
@@ -258,130 +295,148 @@ struct CalendarView: View {
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                        .padding(.trailing)
-                    } else {
-                        Button(action: {
-                            showReturnDateSelector = true
-                            singleDate = false
-                        }) {
-                            Text("Add Return")
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal)
-                                .frame(maxWidth: .infinity)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
-                        }
-                        .padding(.trailing)
-                    }
-                } else {
-                    // Show selected dates with X button
-                    if let departureDate = dateSelection.selectedDates.first {
-                        // Departure date display
-                        HStack {
-
-                            
-                            Text(formatted(date: departureDate))
-                                .font(.subheadline)
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                // Clear this date
-                                if dateSelection.selectedDates.count > 1 {
-                                    dateSelection.selectedDates.removeFirst()
-                                    dateSelection.selectionState = .firstDateSelected
-                                } else {
-                                    dateSelection.selectedDates = []
-                                    dateSelection.selectionState = .none
-                                }
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                .background(Color.white)
+                                .stroke(Color.orange, lineWidth: 2)
                         )
                         .padding(.leading)
-                    }
-                    
-                    // Return date if available
-                    if dateSelection.selectedDates.count > 1, let returnDate = dateSelection.selectedDates.last {
-                        HStack {
-                            Text(formatted(date: returnDate))
-                                .font(.subheadline)
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                // Clear this date
-                                dateSelection.selectedDates.removeLast()
-                                dateSelection.selectionState = .firstDateSelected
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
+                        
+                        // Return date selector or Add Return button
+                        if showReturnDateSelector {
+                            VStack(alignment: .leading) {
+                                Text("Return")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal)
+                                    .padding(.top, 8)
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.trailing)
+                        } else {
+                            Button(action: {
+                                showReturnDateSelector = true
+                                singleDate = false
+                            }) {
+                                Text("Add Return")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal)
+                                    .frame(maxWidth: .infinity)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                            }
+                            .padding(.trailing)
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                .background(Color.white)
-                        )
-                        .padding(.trailing)
-                    } else if showReturnDateSelector {
-                        // Empty return date selector
-                        VStack(alignment: .leading) {
-                            Text("Return")
-                                .font(.subheadline)
-                                .foregroundColor(.primary)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                        .padding(.trailing)
                     } else {
-                        // Add Return button
-                        Button(action: {
-                            showReturnDateSelector = true
-                            singleDate = false
-                        }) {
-                            Text("Add Return")
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal)
-                                .frame(maxWidth: .infinity)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
+                        // Show selected dates with X button
+                        if let departureDate = dateSelection.selectedDates.first {
+                            // Departure date display
+                            HStack {
+                                
+                                
+                                Text(formatted(date: departureDate))
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    // Clear this date
+                                    if dateSelection.selectedDates.count > 1 {
+                                        dateSelection.selectedDates.removeFirst()
+                                        dateSelection.selectionState = .firstDateSelected
+                                    } else {
+                                        dateSelection.selectedDates = []
+                                        dateSelection.selectionState = .none
+                                    }
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    .background(Color.white)
+                            )
+                            .padding(.leading)
                         }
-                        .padding(.trailing)
+                        
+                        // Return date if available
+                        if dateSelection.selectedDates.count > 1, let returnDate = dateSelection.selectedDates.last {
+                            HStack {
+                                Text(formatted(date: returnDate))
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    // Clear this date
+                                    dateSelection.selectedDates.removeLast()
+                                    dateSelection.selectionState = .firstDateSelected
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    .background(Color.white)
+                            )
+                            .padding(.trailing)
+                        } else if showReturnDateSelector {
+                            // Empty return date selector
+                            VStack(alignment: .leading) {
+                                Text("Return")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal)
+                                    .padding(.top, 8)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.trailing)
+                        } else {
+                            // Add Return button
+                            Button(action: {
+                                showReturnDateSelector = true
+                                singleDate = false
+                            }) {
+                                Text("Add Return")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal)
+                                    .frame(maxWidth: .infinity)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                            }
+                            .padding(.trailing)
+                        }
                     }
                 }
+                .padding(.bottom)
             }
-            .padding(.bottom)
         }
         .background(Color.white)
     }
@@ -712,6 +767,14 @@ struct CalendarView: View {
     }
     
     private func handleDateSelection(_ date: Date) {
+        // In multi-city mode, always enforce single date selection
+        if isMultiCity {
+            dateSelection.selectedDates = [date]
+            dateSelection.selectionState = .firstDateSelected
+            return
+        }
+        
+        // Regular mode date selection logic
         if singleDate && !showReturnDateSelector {
             // Single date mode
             dateSelection.selectedDates = [date]

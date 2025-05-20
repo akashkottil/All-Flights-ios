@@ -3,6 +3,24 @@ import Alamofire
 import Combine
 
 
+struct MultiCityTrip: Identifiable {
+    var id = UUID()
+    var fromLocation: String = ""
+    var fromIataCode: String = ""
+    var toLocation: String = ""
+    var toIataCode: String = ""
+    var date: Date = Date()
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+    var displayDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+}
 
 // MARK: - Search API Response Models
 struct SearchResponse: Codable {
@@ -682,6 +700,26 @@ class ExploreViewModel: ObservableObject {
     
     @Published var isRoundTrip: Bool = true
     
+    // Add this to the ExploreViewModel class
+    @Published var multiCityTrips: [MultiCityTrip] = []
+
+    
+
+    // Initialize with default trips in viewModel's init() method
+    func initializeMultiCityTrips() {
+        // Default to 2 trips as you mentioned
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+        
+        multiCityTrips = [
+            MultiCityTrip(fromLocation: fromLocation, fromIataCode: fromIataCode,
+                         toLocation: toLocation, toIataCode: toIataCode, date: tomorrow),
+            MultiCityTrip(fromLocation: toLocation, fromIataCode: toIataCode,
+                         toLocation: "", toIataCode: "", date: dayAfterTomorrow)
+        ]
+    }
+    
      var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
@@ -808,6 +846,108 @@ class ExploreViewModel: ObservableObject {
                 dates = newDates
             }
         }
+    }
+    
+    func searchMultiCityFlights() {
+        isLoadingDetailedFlights = true
+        detailedFlightError = nil
+        detailedFlightResults = []
+        showingDetailedFlightList = true
+        
+        // Store the first and last cities for display
+        selectedOriginCode = multiCityTrips.first?.fromIataCode ?? ""
+        selectedDestinationCode = multiCityTrips.last?.toIataCode ?? ""
+        
+        // Create request payload using the existing searchFlights method
+        // but with multiple legs from the multiCityTrips array
+        var legs: [[String: String]] = []
+        
+        for trip in multiCityTrips {
+            legs.append([
+                "origin": trip.fromIataCode,
+                "destination": trip.toIataCode,
+                "date": trip.formattedDate
+            ])
+        }
+        
+        print("Searching with \(legs.count) legs")
+        
+        // Use the same search API but with multiple legs
+        let baseURL = "https://staging.plane.lascade.com/api/search/"
+        
+        let parameters: [String: String] = [
+            "user_id": "-0",
+            "currency": service.currency,
+            "language": "en-GB",
+            "app_code": "D1WF"
+        ]
+        
+        let requestData: [String: Any] = [
+            "legs": legs,
+            "cabin_class": "economy",
+            "adults": 2,
+            "children_ages": [0]
+        ]
+        
+        var urlComponents = URLComponents(string: baseURL)!
+        urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
+        
+        var request = URLRequest(url: urlComponents.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("IN", forHTTPHeaderField: "country")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: requestData)
+        
+        // Reuse the same API flow - get search ID then poll for results
+        AF.request(request)
+            .validate()
+            .responseDecodable(of: SearchResponse.self) { [weak self] response in
+                guard let self = self else { return }
+                
+                switch response.result {
+                case .success(let searchResponse):
+                    print("Search successful, got searchId: \(searchResponse.searchId)")
+                    
+                    self.service.pollFlightResults(searchId: searchResponse.searchId)
+                        .receive(on: DispatchQueue.main)
+                        .sink(
+                            receiveCompletion: { [weak self] completion in
+                                self?.isLoadingDetailedFlights = false
+                                if case .failure(let error) = completion {
+                                    print("Flight search failed: \(error.localizedDescription)")
+                                    self?.detailedFlightError = error.localizedDescription
+                                }
+                            },
+                            receiveValue: { [weak self] pollResponse in
+                                guard let self = self else { return }
+                                
+                                // Same processing as in searchFlightsForDates
+                                if !pollResponse.results.isEmpty {
+                                    let existingIds = Set(self.detailedFlightResults.map { $0.id })
+                                    let newResults = pollResponse.results.filter { !existingIds.contains($0.id) }
+                                    
+                                    if !newResults.isEmpty {
+                                        self.detailedFlightResults.append(contentsOf: newResults)
+                                    }
+                                    
+                                    if !self.detailedFlightResults.isEmpty {
+                                        self.isLoadingDetailedFlights = false
+                                    }
+                                }
+                                
+                                if pollResponse.cache == true && self.detailedFlightResults.isEmpty {
+                                    self.isLoadingDetailedFlights = false
+                                }
+                            }
+                        )
+                        .store(in: &self.cancellables)
+                    
+                case .failure(let error):
+                    print("Search API error: \(error.localizedDescription)")
+                    self.isLoadingDetailedFlights = false
+                    self.detailedFlightError = error.localizedDescription
+                }
+            }
     }
     
     // Add this function to handle search and poll
@@ -1164,7 +1304,7 @@ struct ExploreScreen: View {
                 .padding(.top,5)
                 
                 // Search card with dynamic values
-                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip)
+                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
                     .padding(.horizontal)
                     .padding(.vertical, 8)
             }
@@ -1339,110 +1479,117 @@ struct SearchCard: View {
     
     @Binding var isRoundTrip: Bool
     
+    var selectedTab: Int
+    
     var body: some View {
-        VStack(spacing: 5) {
-            Divider()
-            // From row
-            HStack {
-                Button(action: {
-                    initialFocus = .origin
-                    showingSearchSheet = true
-                }) {
-                    Image(systemName: "airplane.departure")
-                        .foregroundColor(.blue)
-                    Text(viewModel.fromLocation)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.black)
-                }
-                
-                Spacer()
-                
-                ZStack {
-                    Circle()
-                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                        .frame(width: 20, height: 20)
-                    Image(systemName: "arrow.left.arrow.right")
-                        .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                        .font(.system(size: 8))
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    initialFocus = .destination
-                    showingSearchSheet = true
-                }) {
-                    Image(systemName: "airplane.arrival")
-                        .foregroundColor(.blue)
-                    Text(viewModel.toLocation)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.black)
-                }
-            }
-            .padding(4)
-            
-            Divider()
-
-            // Date and passengers row
-            HStack {
-                Button(action: {
-                    showingCalendar = true
-                }){
-                    Image(systemName: "calendar")
-                        .foregroundColor(.blue)
-                
-                    // Display selected dates if available, otherwise show "Anytime"
-                    if viewModel.dates.isEmpty {
-                        Text("Anytime")
-                            .foregroundColor(.primary)
+        if selectedTab == 2 {
+            // Multi-city search card
+            MultiCitySearchCard(viewModel: viewModel)
+        } else {
+            VStack(spacing: 5) {
+                Divider()
+                // From row
+                HStack {
+                    Button(action: {
+                        initialFocus = .origin
+                        showingSearchSheet = true
+                    }) {
+                        Image(systemName: "airplane.departure")
+                            .foregroundColor(.blue)
+                        Text(viewModel.fromLocation)
                             .font(.system(size: 14, weight: .medium))
-                    } else if viewModel.dates.count == 1 {
-                        Text(formatDate(viewModel.dates[0]))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    ZStack {
+                        Circle()
+                            .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                            .frame(width: 20, height: 20)
+                        Image(systemName: "arrow.left.arrow.right")
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                            .font(.system(size: 8))
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        initialFocus = .destination
+                        showingSearchSheet = true
+                    }) {
+                        Image(systemName: "airplane.arrival")
+                            .foregroundColor(.blue)
+                        Text(viewModel.toLocation)
                             .font(.system(size: 14, weight: .medium))
-                    } else if viewModel.dates.count >= 2 {
-                        Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
-                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.black)
                     }
                 }
+                .padding(4)
                 
-                Spacer()
+                Divider()
                 
-                Image(systemName: "person")
-                    .foregroundColor(.blue)
-                
-                Text("1, Economy")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .padding(.vertical, 4)
-        }
-        .sheet(isPresented: $showingSearchSheet) {
-            LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
-                .presentationDetents([.large])
-        }
-        .sheet(isPresented: $showingCalendar, onDismiss: {
-            // When calendar is dismissed, check if dates were selected and trigger search
-            if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
-                viewModel.updateDatesAndRunSearch()
-            }
-        }) {
-            
-            CalendarView(fromiatacode: $viewModel.fromIataCode, toiatacode:$viewModel.toIataCode, parentSelectedDates:$viewModel.dates,
-                      
-            )
-        }
-        .onAppear {
-                    // Ensure viewModel's isRoundTrip is in sync with the binding
-            viewModel.isRoundTrip = isRoundTrip
+                // Date and passengers row
+                HStack {
+                    Button(action: {
+                        showingCalendar = true
+                    }){
+                        Image(systemName: "calendar")
+                            .foregroundColor(.blue)
+                        
+                        // Display selected dates if available, otherwise show "Anytime"
+                        if viewModel.dates.isEmpty {
+                            Text("Anytime")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.count == 1 {
+                            Text(formatDate(viewModel.dates[0]))
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.count >= 2 {
+                            Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "person")
+                        .foregroundColor(.blue)
+                    
+                    Text("1, Economy")
+                        .font(.system(size: 14, weight: .medium))
                 }
-                .onChange(of: isRoundTrip) { newValue in
-                    // Update viewModel when isRoundTrip changes
-                    viewModel.isRoundTrip = newValue
-                    // If we have origin/destination and dates already set, trigger a new search
-                                if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
-                                    viewModel.updateDatesAndRunSearch()
-                                }
+                .padding(.vertical, 4)
+            }
+            .sheet(isPresented: $showingSearchSheet) {
+                LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
+                    .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showingCalendar, onDismiss: {
+                // When calendar is dismissed, check if dates were selected and trigger search
+                if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                    viewModel.updateDatesAndRunSearch()
                 }
+            }) {
+                
+                CalendarView(fromiatacode: $viewModel.fromIataCode, toiatacode:$viewModel.toIataCode, parentSelectedDates:$viewModel.dates,
+                             
+                )
+            }
+            .onAppear {
+                // Ensure viewModel's isRoundTrip is in sync with the binding
+                viewModel.isRoundTrip = isRoundTrip
+            }
+            .onChange(of: isRoundTrip) { newValue in
+                // Update viewModel when isRoundTrip changes
+                viewModel.isRoundTrip = newValue
+                // If we have origin/destination and dates already set, trigger a new search
+                if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
+                    viewModel.updateDatesAndRunSearch()
+                }
+            }
+        }
     }
     
     // Helper method to format date for display
@@ -1730,30 +1877,37 @@ struct TripTypeTabView: View {
             // Tab buttons row with consistent spacing
             HStack(spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
-                    Button(action: {
-                        selectedTab = index
-                        let newIsRoundTrip = (index == 0)
-                        
-                        // Only trigger a search if the trip type actually changed
-                        if isRoundTrip != newIsRoundTrip {
-                            isRoundTrip = newIsRoundTrip
-                            viewModel.isRoundTrip = newIsRoundTrip // Update viewModel directly
-                            
-                            // If we have origin/destination and dates selected, run the search right away
-                            if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
-                                // Clear current results first
-                                viewModel.detailedFlightResults = []
-                                viewModel.flightResults = []
+                            Button(action: {
+                                selectedTab = index
                                 
-                                // Force immediate search
-                                viewModel.updateDatesAndRunSearch()
-                            } else if viewModel.selectedCity != nil {
-                                // If a city was selected in explore view, re-fetch with new trip type
-                                viewModel.fetchFlightDetails(destination: viewModel.selectedCity!.location.iata)
-                            }
-                        } else {
-                            isRoundTrip = newIsRoundTrip
-                        }
+                                // Handle multi-city selection
+                                if index == 2 {
+                                    // Initialize multi city trips
+                                    viewModel.initializeMultiCityTrips()
+                                } else {
+                                    // Existing round trip/one way logic
+                                    let newIsRoundTrip = (index == 0)
+                                    
+                                    if isRoundTrip != newIsRoundTrip {
+                                        isRoundTrip = newIsRoundTrip
+                                        viewModel.isRoundTrip = newIsRoundTrip
+                                        
+                                        // Your existing search re-triggering logic
+                                        if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
+                                            // Clear current results first
+                                            viewModel.detailedFlightResults = []
+                                            viewModel.flightResults = []
+                                            
+                                            // Force immediate search
+                                            viewModel.updateDatesAndRunSearch()
+                                        } else if viewModel.selectedCity != nil {
+                                            // If a city was selected in explore view, re-fetch with new trip type
+                                            viewModel.fetchFlightDetails(destination: viewModel.selectedCity!.location.iata)
+                                        }
+                                    } else {
+                                        isRoundTrip = newIsRoundTrip
+                                    }
+                                }
                     }) {
                         Text(tabs[index])
                             .font(.system(size: 13, weight: selectedTab == index ? .semibold : .regular))
@@ -1791,6 +1945,213 @@ struct FilterTabButton: View {
                         .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
                 )
         }
+    }
+}
+
+struct MultiCitySearchCard: View {
+    @ObservedObject var viewModel: ExploreViewModel
+    @State private var showingSearchSheet = false
+    @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
+    @State private var showingCalendar = false
+    @State private var editingTripIndex: Int = 0
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Multi-city trips list
+            ForEach(0..<viewModel.multiCityTrips.count, id: \.self) { index in
+                VStack(spacing: 5) {
+                    Divider()
+                    
+                    HStack {
+                        // From location
+                        Button(action: {
+                            editingTripIndex = index
+                            initialFocus = .origin
+                            showingSearchSheet = true
+                        }) {
+                            Image(systemName: "airplane.departure")
+                                .foregroundColor(.blue)
+                            Text(viewModel.multiCityTrips[index].fromLocation.isEmpty ?
+                                 "From" : viewModel.multiCityTrips[index].fromLocation)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(viewModel.multiCityTrips[index].fromLocation.isEmpty ? .gray : .black)
+                        }
+                        
+                        Spacer()
+                        
+                        // To location
+                        Button(action: {
+                            editingTripIndex = index
+                            initialFocus = .destination
+                            showingSearchSheet = true
+                        }) {
+                            Image(systemName: "airplane.arrival")
+                                .foregroundColor(.blue)
+                            Text(viewModel.multiCityTrips[index].toLocation.isEmpty ?
+                                 "To" : viewModel.multiCityTrips[index].toLocation)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(viewModel.multiCityTrips[index].toLocation.isEmpty ? .gray : .black)
+                        }
+                        
+                        Spacer()
+                        
+                        // Date selector with formatted date
+                        Button(action: {
+                            editingTripIndex = index
+                            showingCalendar = true
+                        }) {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.blue)
+                            
+                            Text(formattedDate(viewModel.multiCityTrips[index].date))
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        
+                        // Delete button (only if more than 2 trips)
+                        if viewModel.multiCityTrips.count > 2 {
+                            Button(action: {
+                                removeTrip(at: index)
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                            }
+                            .padding(.leading, 8)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+            }
+            
+            Divider()
+            
+            // Add flight button (if less than 5 trips)
+            if viewModel.multiCityTrips.count < 5 {
+                Button(action: addTrip) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.blue)
+                        Text("Add flight")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.blue)
+                    }
+                    .padding()
+                }
+            }
+            
+            // Passenger info and search button
+            HStack {
+                Image(systemName: "person")
+                    .foregroundColor(.blue)
+                
+                Text("1, Economy")
+                    .font(.system(size: 14, weight: .medium))
+                
+                Spacer()
+                
+                // Search button
+                Button(action: searchMultiCityFlights) {
+                    Text("Search")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                }
+            }
+            .padding()
+        }
+        .sheet(isPresented: $showingSearchSheet) {
+            // Use existing LocationSearchSheet but with a custom handler
+            MultiCityLocationSheet(
+                viewModel: viewModel,
+                initialFocus: initialFocus,
+                tripIndex: editingTripIndex
+            )
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showingCalendar) {
+            // Use existing CalendarView but with single date selection mode
+            CalendarView(
+                fromiatacode: .constant(""),
+                toiatacode: .constant(""),
+                parentSelectedDates: .constant([]),
+                isMultiCity: true,
+                multiCityTripIndex: editingTripIndex,
+                multiCityViewModel: viewModel
+            )
+        }
+    }
+    
+    // Helper function to format date in a simple way
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+    
+    // Safe removal of trips (ensure we keep at least 2)
+    private func removeTrip(at index: Int) {
+        if viewModel.multiCityTrips.count > 2 {
+            withAnimation {
+                viewModel.multiCityTrips.remove(at: index)
+            }
+        }
+    }
+    
+    // Add a new trip based on the last trip
+    private func addTrip() {
+        if viewModel.multiCityTrips.count < 5, let lastTrip = viewModel.multiCityTrips.last {
+            withAnimation {
+                // Create new trip with defaults
+                let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
+                
+                let newTrip = MultiCityTrip(
+                    fromLocation: lastTrip.toLocation,
+                    fromIataCode: lastTrip.toIataCode,
+                    toLocation: "",
+                    toIataCode: "",
+                    date: nextDay
+                )
+                
+                viewModel.multiCityTrips.append(newTrip)
+            }
+        }
+    }
+    
+    // Validate and initiate search
+    private func searchMultiCityFlights() {
+        // Validate all trips have origin, destination and date
+        let isValid = viewModel.multiCityTrips.allSatisfy { trip in
+            return !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+        }
+        
+        if isValid {
+            viewModel.searchMultiCityFlights()
+        } else {
+            // Add an alert here if needed
+            print("Please fill in all origins and destinations")
+        }
+    }
+}
+
+// This is a simple wrapper around existing LocationSearchSheet
+struct MultiCityLocationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: ExploreViewModel
+    var initialFocus: LocationSearchSheet.SearchBarType
+    var tripIndex: Int
+    
+    @State private var searchText = ""
+    @State private var selectedLocation = ""
+    
+    var body: some View {
+        LocationSearchSheet(
+            viewModel: viewModel,
+            multiCityMode: true, multiCityTripIndex: tripIndex, initialFocus: initialFocus
+        )
     }
 }
 
@@ -2091,6 +2452,9 @@ struct LocationSearchSheet: View {
     @State private var searchError: String? = nil
     @State private var activeSearchBar: SearchBarType = .origin
     @FocusState private var focusedField: SearchBarType?
+    
+    var multiCityMode: Bool = false
+       var multiCityTripIndex: Int = 0
 
     enum SearchBarType {
         case origin
@@ -2356,49 +2720,62 @@ struct LocationSearchSheet: View {
     }
     
     private func selectOrigin(result: AutocompleteResult) {
-        viewModel.fromLocation = result.cityName
-        viewModel.fromIataCode = result.iataCode
-        originSearchText = result.cityName
-        
-        // Auto-focus the destination field
-        activeSearchBar = .destination
-        focusedField = .destination
-    }
+            if multiCityMode {
+                viewModel.multiCityTrips[multiCityTripIndex].fromLocation = result.cityName
+                viewModel.multiCityTrips[multiCityTripIndex].fromIataCode = result.iataCode
+            } else {
+                viewModel.fromLocation = result.cityName
+                viewModel.fromIataCode = result.iataCode
+                originSearchText = result.cityName
+            }
+            
+            // Auto-focus the destination field
+            activeSearchBar = .destination
+            focusedField = .destination
+        }
     
     private func selectDestination(result: AutocompleteResult) {
-        // Selected destination - update the view model
-        viewModel.toLocation = result.cityName
-        viewModel.toIataCode = result.iataCode
         
-        // Only proceed if we have both origin and destination
-        if !viewModel.fromIataCode.isEmpty {
-            // Dismiss the sheet
+        if multiCityMode {
+            viewModel.multiCityTrips[multiCityTripIndex].toLocation = result.cityName
+            viewModel.multiCityTrips[multiCityTripIndex].toIataCode = result.iataCode
             dismiss()
+        }
+        else{
+            // Selected destination - update the view model
+            viewModel.toLocation = result.cityName
+            viewModel.toIataCode = result.iataCode
             
-            // If user has selected dates in the calendar, use those dates for search
-            if !viewModel.dates.isEmpty {
-                // Let the view model handle date formatting and search
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    viewModel.updateDatesAndRunSearch()
-                }
-            } else {
-                // If no dates selected, use default dates
-                let departureDate = "2025-12-29"
-                let returnDate = "2025-12-30"
-                viewModel.selectedDepartureDatee = departureDate
-                viewModel.selectedReturnDatee = returnDate
+            // Only proceed if we have both origin and destination
+            if !viewModel.fromIataCode.isEmpty {
+                // Dismiss the sheet
+                dismiss()
                 
-                // Initiate flight search with default dates
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    viewModel.searchFlightsForDates(
-                        origin: viewModel.fromIataCode,
-                        destination: result.iataCode,
-                        returnDate: returnDate,
-                        departureDate: departureDate
-                    )
+                // If user has selected dates in the calendar, use those dates for search
+                if !viewModel.dates.isEmpty {
+                    // Let the view model handle date formatting and search
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        viewModel.updateDatesAndRunSearch()
+                    }
+                } else {
+                    // If no dates selected, use default dates
+                    let departureDate = "2025-12-29"
+                    let returnDate = "2025-12-30"
+                    viewModel.selectedDepartureDatee = departureDate
+                    viewModel.selectedReturnDatee = returnDate
+                    
+                    // Initiate flight search with default dates
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        viewModel.searchFlightsForDates(
+                            origin: viewModel.fromIataCode,
+                            destination: result.iataCode,
+                            returnDate: returnDate,
+                            departureDate: departureDate
+                        )
+                    }
                 }
             }
-        }
+    }
     }
     
 //    private func initiateSearch() {
