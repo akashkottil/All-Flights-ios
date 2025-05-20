@@ -220,6 +220,7 @@ struct CalendarView: View {
                     // Handle anytime selection
                 }
                 .foregroundColor(.blue)
+                .fontWeight(.semibold)
                 .padding()
             }
             .padding(.horizontal)
@@ -282,10 +283,9 @@ struct CalendarView: View {
                     if let departureDate = dateSelection.selectedDates.first {
                         // Departure date display
                         HStack {
-                            let dateFormatter = DateFormatter()
-//                            dateFormatter.dateFormat = "EEE, d MMM"
+
                             
-                            Text(dateFormatter.string(from: departureDate))
+                            Text(formatted(date: departureDate))
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                             
@@ -319,10 +319,7 @@ struct CalendarView: View {
                     // Return date if available
                     if dateSelection.selectedDates.count > 1, let returnDate = dateSelection.selectedDates.last {
                         HStack {
-                            let dateFormatter = DateFormatter()
-//                            dateFormatter.dateFormat = "EEE, d MMM"
-                            
-                            Text(dateFormatter.string(from: returnDate))
+                            Text(formatted(date: returnDate))
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                             
@@ -388,6 +385,12 @@ struct CalendarView: View {
         .background(Color.white)
     }
     
+    private func formatted(date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+    
     // MARK: - Weekday Header View
     private var weekdayHeaderView: some View {
         HStack(spacing: 0) {
@@ -399,6 +402,7 @@ struct CalendarView: View {
             }
         }
         .padding(.vertical, 10)
+       
         .background(Color.white)
         .overlay(
             Rectangle()
@@ -406,6 +410,7 @@ struct CalendarView: View {
                 .foregroundColor(Color.gray.opacity(0.3)),
             alignment: .bottom
         )
+        .padding(.bottom,10)
     }
     
     // MARK: - Month Section View
@@ -421,16 +426,19 @@ struct CalendarView: View {
                 Spacer()
                 
                 Button("Select Month") {
-                    // Handle month selection
+                    selectEntireMonth(date)
                 }
                 .foregroundColor(.blue)
                 .font(.subheadline)
+                .fontWeight(.semibold)
                 .padding(.trailing)
                 .padding(.top, 10)
             }
+            .padding(.top,20)
+            .padding(.bottom,20)
             
             // Calendar grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 15) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 20) {
                 let days = getDaysInMonth(for: date)
                 
                 ForEach(days, id: \.self) { day in
@@ -550,6 +558,63 @@ struct CalendarView: View {
                 return .primary
             }
         }
+    }
+    
+    private func selectEntireMonth(_ date: Date) {
+        let calendar = Calendar.current
+        
+        // Get the first day of the month
+        guard let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) else {
+            return
+        }
+        
+        // If this is a one-way trip (single date)
+        if !showReturnDateSelector {
+            // Select the first non-past day of the month
+            let today = calendar.startOfDay(for: Date())
+            var dayToSelect = firstDayOfMonth
+            
+            // Find the first non-past day
+            while calendar.compare(dayToSelect, to: today, toGranularity: .day) == .orderedAscending {
+                dayToSelect = calendar.date(byAdding: .day, value: 1, to: dayToSelect) ?? dayToSelect
+                
+                // If we've gone to the next month, there are no valid days to select
+                if calendar.component(.month, from: dayToSelect) != calendar.component(.month, from: date) {
+                    return
+                }
+            }
+            
+            // Select the first available day
+            dateSelection.selectedDates = [dayToSelect]
+            dateSelection.selectionState = .firstDateSelected
+        } else {
+            // This is a round-trip (range selection)
+            let today = calendar.startOfDay(for: Date())
+            
+            // Find the first non-past day
+            var startDate = firstDayOfMonth
+            while calendar.compare(startDate, to: today, toGranularity: .day) == .orderedAscending {
+                startDate = calendar.date(byAdding: .day, value: 1, to: startDate) ?? startDate
+                
+                // If we've gone to the next month, there are no valid days to select
+                if calendar.component(.month, from: startDate) != calendar.component(.month, from: date) {
+                    return
+                }
+            }
+            
+            // Get the last day of the month
+            let range = calendar.range(of: .day, in: .month, for: firstDayOfMonth)
+            guard let numberOfDaysInMonth = range?.count,
+                  let lastDayOfMonth = calendar.date(byAdding: .day, value: numberOfDaysInMonth - 1, to: firstDayOfMonth) else {
+                return
+            }
+            
+            // Select the range from the first available day to the last day of the month
+            dateSelection.selectedDates = [startDate, lastDayOfMonth]
+            dateSelection.selectionState = .rangeSelected
+        }
+        
+        
     }
     
     // Get the lowest price for the selected trip
