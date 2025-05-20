@@ -264,11 +264,19 @@ struct CalendarView: View {
                     if isMultiCity {
                         HStack(spacing: 15) {
                             VStack(alignment: .leading) {
-                                Text("Flight Date")
-                                    .font(.subheadline)
-                                    .foregroundColor(.primary)
-                                    .padding(.horizontal)
-                                    .padding(.top, 8)
+                                if dateSelection.selectedDates.isEmpty {
+                                               Text("Flight Date")
+                                                   .font(.subheadline)
+                                                   .foregroundColor(.primary)
+                                                   .padding(.horizontal)
+                                                   .padding(.top, 8)
+                                           } else {
+                                               Text("\(dateSelection.selectedDates[0])")
+                                                   .font(.subheadline)
+                                                   .foregroundColor(.primary)
+                                                   .padding(.horizontal)
+                                                   .padding(.top, 8)
+                                           }
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)

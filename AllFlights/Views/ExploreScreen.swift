@@ -3793,10 +3793,42 @@ struct ModifiedDetailedFlightListView: View {
         return "Selected dates"
     }
     
+    // Add a computed property to check if we're in multi-city mode
+    private var isMultiCity: Bool {
+        return viewModel.multiCityTrips.count >= 2
+    }
+    
+    // Helper to get display text for multi-city routes
+    private func multiCityRouteText() -> String {
+        if viewModel.multiCityTrips.count <= 1 {
+            return "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)"
+        }
+        
+        // For multiple cities, show first origin to last destination
+        let firstOrigin = viewModel.multiCityTrips.first?.fromIataCode ?? viewModel.selectedOriginCode
+        let lastDestination = viewModel.multiCityTrips.last?.toIataCode ?? viewModel.selectedDestinationCode
+        
+        return "\(firstOrigin) → ... → \(lastDestination)"
+    }
+    
+    // Helper to get formatted multi-city dates
+    private func multiCityDatesText() -> String {
+        if viewModel.multiCityTrips.isEmpty {
+            return formattedDates
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        
+        let firstDate = formatter.string(from: viewModel.multiCityTrips.first?.date ?? Date())
+        let lastDate = formatter.string(from: viewModel.multiCityTrips.last?.date ?? Date())
+        
+        return "\(firstDate) - \(lastDate)"
+    }
+    
     var body: some View {
         VStack {
             // Header
-            // In ModifiedDetailedFlightListView
             HStack {
                 Button(action: {
                     selectedFlightId = nil
@@ -3809,13 +3841,14 @@ struct ModifiedDetailedFlightListView: View {
                 
                 Spacer()
                 
-                Text("\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
+                // Use the appropriate route display based on mode
+                Text(isMultiCity ? multiCityRouteText() : "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
                     .font(.headline)
                 
                 Spacer()
                 
-                // Show selected dates if available, otherwise use fixed dates
-                Text(formattedDates)
+                // Use appropriate date display based on mode
+                Text(isMultiCity ? multiCityDatesText() : formattedDates)
                     .font(.subheadline)
                     .foregroundColor(.gray)
             }
@@ -3825,7 +3858,7 @@ struct ModifiedDetailedFlightListView: View {
             if viewModel.detailedFlightResults.isEmpty {
                 if viewModel.isLoadingDetailedFlights {
                     Spacer()
-                    ForEach(0..<4){_ in 
+                    ForEach(0..<4){_ in
                         DetailedFlightCardSkeleton()
                             .padding(.bottom,5)
                     }
@@ -3887,33 +3920,61 @@ struct ModifiedDetailedFlightListView: View {
                                 .padding(.horizontal)
                                 .padding(.bottom, 8)
                                 
-                                // Display flight details based on whether it's one-way or round-trip
-                                if let outboundLeg = selectedFlight.legs.first {
-                                    
-                                    // Outbound leg - check if direct or connecting
-                                    if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
-                                        // Direct flight
-                                        let segment = outboundLeg.segments.first!
-                                        displayDirectFlight(leg: outboundLeg, segment: segment)
-                                    } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
-                                        // Connecting flight
-                                        displayConnectingFlight(leg: outboundLeg)
-                                    }
-                                    
-                                    // Only display return leg if there's more than one leg (round trip)
-                                    // and if it's a different leg from outbound (one-way flights will have same leg repeated)
-                                    if selectedFlight.legs.count > 1,
-                                       let returnLeg = selectedFlight.legs.last,
-                                       returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+                                // Display flight details - handle legs differently based on mode
+                                if isMultiCity {
+                                    // For multi-city, display all legs in sequence
+                                    ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
+                                        let leg = selectedFlight.legs[legIndex]
                                         
-                                        // Return leg - check if direct or connecting
-                                        if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                        // Display leg header with city codes
+                                        HStack {
+                                            Text("Flight \(legIndex + 1): \(leg.originCode) → \(leg.destinationCode)")
+                                                .font(.headline)
+                                                .padding(.bottom, 4)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal)
+                                        .padding(.top, legIndex > 0 ? 16 : 0)
+                                        
+                                        // Display the leg details
+                                        if leg.stopCount == 0 && !leg.segments.isEmpty {
                                             // Direct flight
-                                            let segment = returnLeg.segments.first!
-                                            displayDirectFlight(leg: returnLeg, segment: segment)
-                                        } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                            let segment = leg.segments.first!
+                                            displayDirectFlight(leg: leg, segment: segment)
+                                        } else if leg.stopCount > 0 && leg.segments.count > 1 {
                                             // Connecting flight
-                                            displayConnectingFlight(leg: returnLeg)
+                                            displayConnectingFlight(leg: leg)
+                                        }
+                                        
+                                        // Add a divider between legs (except after the last one)
+                                        if legIndex < selectedFlight.legs.count - 1 {
+                                            Divider()
+                                                .padding(.horizontal)
+                                                .padding(.vertical, 8)
+                                        }
+                                    }
+                                } else {
+                                    // For regular flights (one-way/roundtrip), use existing logic
+                                    if let outboundLeg = selectedFlight.legs.first {
+                                        // Outbound leg
+                                        if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
+                                            let segment = outboundLeg.segments.first!
+                                            displayDirectFlight(leg: outboundLeg, segment: segment)
+                                        } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
+                                            displayConnectingFlight(leg: outboundLeg)
+                                        }
+                                        
+                                        // Only display return leg if it's different from outbound
+                                        if selectedFlight.legs.count > 1,
+                                           let returnLeg = selectedFlight.legs.last,
+                                           returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+                                            
+                                            if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                                let segment = returnLeg.segments.first!
+                                                displayDirectFlight(leg: returnLeg, segment: segment)
+                                            } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                                displayConnectingFlight(leg: returnLeg)
+                                            }
                                         }
                                     }
                                 }
@@ -3929,13 +3990,26 @@ struct ModifiedDetailedFlightListView: View {
                         ScrollView {
                             VStack(spacing: 16) {
                                 ForEach(viewModel.detailedFlightResults, id: \.id) { result in
-                                    DetailedFlightCardWrapper(
-                                        result: result, viewModel: viewModel,
-                                        onTap: {
-                                            selectedFlightId = result.id
-                                        }
-                                    )
-                                    .padding(.horizontal)
+                                    // Use a custom wrapper for multi-city or the existing one for regular flights
+                                    if isMultiCity {
+                                        MultiCityFlightCardWrapper(
+                                            result: result,
+                                            viewModel: viewModel,
+                                            onTap: {
+                                                selectedFlightId = result.id
+                                            }
+                                        )
+                                        .padding(.horizontal)
+                                    } else {
+                                        DetailedFlightCardWrapper(
+                                            result: result,
+                                            viewModel: viewModel,
+                                            onTap: {
+                                                selectedFlightId = result.id
+                                            }
+                                        )
+                                        .padding(.horizontal)
+                                    }
                                 }
                             }
                             .padding(.vertical)
@@ -4055,6 +4129,216 @@ struct ModifiedDetailedFlightListView: View {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
+}
+
+struct MultiCityFlightCardWrapper: View {
+    let result: FlightDetailResult
+    @ObservedObject var viewModel: ExploreViewModel
+    var onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack {
+                // Flight tags at the top
+                HStack(spacing: 4) {
+                    if result.isBest {
+                        FlightTagView(tag: FlightTag.best)
+                    }
+                    if result.isCheapest {
+                        FlightTagView(tag: FlightTag.cheapest)
+                    }
+                    if result.isFastest {
+                        FlightTagView(tag: FlightTag.fastest)
+                    }
+                    Spacer()
+                }
+                .padding(.bottom, 4)
+                
+                // Multi-city flight card
+                VStack(spacing: 0) {
+                    // Display each leg
+                    ForEach(0..<result.legs.count, id: \.self) { index in
+                        let leg = result.legs[index]
+                        
+                        if index > 0 {
+                            Divider()
+                                .padding(.horizontal, 16)
+                        }
+                        
+                        // Flight leg
+                        if let segment = leg.segments.first {
+                            MultiCityLegView(
+                                legIndex: index + 1,
+                                departureTime: formatTime(from: segment.departureTimeAirport),
+                                departureCode: segment.originCode,
+                                departureDate: formatDate(from: segment.departureTimeAirport),
+                                arrivalTime: formatTime(from: segment.arriveTimeAirport),
+                                arrivalCode: segment.destinationCode,
+                                arrivalDate: formatDate(from: segment.arriveTimeAirport),
+                                duration: formatDuration(minutes: leg.duration),
+                                isDirectFlight: leg.stopCount == 0,
+                                stopCount: leg.stopCount,
+                                airlineName: segment.airlineName
+                            )
+                            .padding(.vertical, 12)
+                        }
+                    }
+                    
+                    Divider()
+                        .padding(.horizontal, 16)
+                    
+                    // Price and total duration
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Total Duration: \(formatDuration(minutes: result.totalDuration))")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                            
+                            Text("₹\(Int(result.minPrice))")
+                                .font(.system(size: 20, weight: .bold))
+                            
+                            Text("per person")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    // Helper view for a single leg in the multi-city journey
+    struct MultiCityLegView: View {
+        let legIndex: Int
+        let departureTime: String
+        let departureCode: String
+        let departureDate: String
+        let arrivalTime: String
+        let arrivalCode: String
+        let arrivalDate: String
+        let duration: String
+        let isDirectFlight: Bool
+        let stopCount: Int
+        let airlineName: String
+        
+        var body: some View {
+            VStack(spacing: 8) {
+                // Leg number
+                HStack {
+                    Text("Flight \(legIndex)")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.blue)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+                
+                // Flight details
+                HStack(alignment: .top, spacing: 0) {
+                    // Departure
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(departureTime)
+                            .font(.system(size: 18, weight: .bold))
+                        Text(departureCode)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                        Text(departureDate)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 70, alignment: .leading)
+                    
+                    // Flight path
+                    VStack(spacing: 2) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .frame(width: 8, height: 8)
+                                .foregroundColor(.gray)
+                            
+                            Rectangle()
+                                .frame(height: 1)
+                                .foregroundColor(.gray)
+                            
+                            Circle()
+                                .frame(width: 8, height: 8)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Text(duration)
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        
+                        if isDirectFlight {
+                            Text("Direct")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.green)
+                        } else {
+                            Text("\(stopCount) \(stopCount == 1 ? "Stop" : "Stops")")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // Arrival
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(arrivalTime)
+                            .font(.system(size: 18, weight: .bold))
+                        Text(arrivalCode)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                        Text(arrivalDate)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 70, alignment: .trailing)
+                }
+                .padding(.horizontal, 16)
+                
+                // Airline info
+                HStack {
+                    Text(airlineName)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+            }
+        }
+    }
+    
+    // Helper functions for formatting
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDate(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
         return formatter.string(from: date)
     }
     
