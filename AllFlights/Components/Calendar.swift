@@ -517,6 +517,7 @@ struct CalendarView: View {
                             .fill(isSelected ? Color.clear : Color.clear)
                     )
                     .overlay(
+                        
                         RoundedRectangle(cornerRadius: 5)
                             .stroke(
                                 isPastDate ? Color.clear :
@@ -640,6 +641,7 @@ struct CalendarView: View {
                 let normalizedDate = calendar.startOfDay(for: date)
                 if let price = priceData[normalizedDate]?.0 {
                     totalPrice += price
+                
                 }
             }
             return totalPrice > 0 ? totalPrice : 198
