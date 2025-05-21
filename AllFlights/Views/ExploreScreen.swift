@@ -3,6 +3,45 @@ import Alamofire
 import Combine
 
 
+// Filter request model that matches the API requirements
+struct FlightFilterRequest: Codable {
+    var durationMax: Int?
+    var stopCountMax: Int?
+    var arrivalDepartureRanges: [ArrivalDepartureRange]?
+    var iataCodesExclude: [String]?
+    var iataCodesInclude: [String]?
+    var sortBy: String?
+    var sortOrder: String?
+    var agencyExclude: [String]?
+    var agencyInclude: [String]?
+    var priceMin: Int?
+    var priceMax: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case durationMax = "duration_max"
+        case stopCountMax = "stop_count_max"
+        case arrivalDepartureRanges = "arrival_departure_ranges"
+        case iataCodesExclude = "iata_codes_exclude"
+        case iataCodesInclude = "iata_codes_include"
+        case sortBy = "sort_by"
+        case sortOrder = "sort_order"
+        case agencyExclude = "agency_exclude"
+        case agencyInclude = "agency_include"
+        case priceMin = "price_min"
+        case priceMax = "price_max"
+    }
+}
+
+struct ArrivalDepartureRange: Codable {
+    var arrival: TimeRange?
+    var departure: TimeRange?
+}
+
+struct TimeRange: Codable {
+    var min: Int?
+    var max: Int?
+}
+
 struct MultiCityTrip: Identifiable {
     var id = UUID()
     var fromLocation: String = ""
@@ -367,6 +406,9 @@ struct ExploreDestination: Codable, Identifiable {
 class ExploreAPIService {
     static let shared = ExploreAPIService()
     
+    // At the top of ExploreAPIService
+    weak var viewModelReference: ExploreViewModel?
+    
     let currency:String = "INR"
     let country:String = "IN"
     
@@ -374,6 +416,241 @@ class ExploreAPIService {
     private let flightsURL = "https://staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
     private var currentFlightSearchRequest: DataRequest?
     private let session = Session()
+    
+    func pollFlightResultsWithFilters(searchId: String, filterRequest: FlightFilterRequest) -> AnyPublisher<FlightPollResponse, Error> {
+        let baseURL = "https://staging.plane.lascade.com/api/poll/"
+        
+        let parameters: [String: String] = [
+            "search_id": searchId
+        ]
+        
+        var urlComponents = URLComponents(string: baseURL)!
+        urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
+        
+        // Create a minimal request body that only includes the fields that have values
+        var requestDict: [String: Any] = [:]
+        
+        // Get isRoundTrip value from the viewModel reference
+        let isRoundTrip = viewModelReference?.isRoundTrip ?? true
+        
+        // Only add fields that are actually set and have valid values
+        if let durationMax = filterRequest.durationMax, durationMax > 0 {
+            requestDict["duration_max"] = durationMax
+        }
+        
+        if let stopCountMax = filterRequest.stopCountMax {
+            requestDict["stop_count_max"] = stopCountMax
+        }
+        
+        if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
+            var rangesArray: [[String: Any]] = []
+            
+            // Get the first range to use as a template
+            if let firstRange = ranges.first {
+                // Add the first range
+                var rangeDict: [String: Any] = [:]
+                
+                if let arrival = firstRange.arrival {
+                    var arrivalDict: [String: Any] = [:]
+                    if let min = arrival.min {
+                        arrivalDict["min"] = min
+                    }
+                    if let max = arrival.max {
+                        arrivalDict["max"] = max
+                    }
+                    if !arrivalDict.isEmpty {
+                        rangeDict["arrival"] = arrivalDict
+                    }
+                }
+                
+                if let departure = firstRange.departure {
+                    var departureDict: [String: Any] = [:]
+                    if let min = departure.min {
+                        departureDict["min"] = min
+                    }
+                    if let max = departure.max {
+                        departureDict["max"] = max
+                    }
+                    if !departureDict.isEmpty {
+                        rangeDict["departure"] = departureDict
+                    }
+                }
+                
+                // Add the first range
+                if !rangeDict.isEmpty {
+                    rangesArray.append(rangeDict)
+                    
+                    // If it's a round trip, add the same range again for the return leg
+                    if isRoundTrip {
+                        rangesArray.append(rangeDict)
+                    }
+                }
+            }
+            
+            // Only add arrays if they contain elements
+            if !rangesArray.isEmpty {
+                requestDict["arrival_departure_ranges"] = rangesArray
+            }
+        }
+        
+        // Only add non-empty arrays
+        if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
+            requestDict["iata_codes_exclude"] = exclude
+        }
+        
+        if let include = filterRequest.iataCodesInclude, !include.isEmpty {
+            requestDict["iata_codes_include"] = include
+        }
+        
+        // Only add sorting if it's specified AND it's a valid value
+        // Change in ExploreAPIService.pollFlightResultsWithFilters:
+        if let sortBy = filterRequest.sortBy {
+            // Add support for "best" as a valid sort option
+            if sortBy == "price" || sortBy == "duration" || sortBy == "best" {
+                requestDict["sort_by"] = sortBy
+                
+                // Add sort_order if needed
+                if let sortOrder = filterRequest.sortOrder {
+                    requestDict["sort_order"] = sortOrder
+                } else {
+                    // Default sort order is ascending
+                    requestDict["sort_order"] = "asc"
+                }
+            }
+        }
+        
+        // Only add non-empty arrays
+        if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
+            requestDict["agency_exclude"] = agencyExclude
+        }
+        
+        if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
+            requestDict["agency_include"] = agencyInclude
+        }
+        
+        // Only add price constraints if they're meaningful
+        if let priceMin = filterRequest.priceMin, priceMin > 0 {
+            requestDict["price_min"] = priceMin
+        }
+        
+        if let priceMax = filterRequest.priceMax, priceMax > 0 {
+            requestDict["price_max"] = priceMax
+        }
+        
+        var request = URLRequest(url: urlComponents.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("IN", forHTTPHeaderField: "country")  // Add country header
+        
+        // Debug log the complete request dictionary
+        print("Filter request dictionary: \(requestDict)")
+        
+        do {
+            // Convert the dictionary to JSON data
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+            if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
+                print("Filter request JSON: \(requestBody)")
+            }
+        } catch {
+            print("Error encoding filter request: \(error)")
+            // Instead of sending empty JSON, propagate the error
+            let progressiveResults = PassthroughSubject<FlightPollResponse, Error>()
+            progressiveResults.send(completion: .failure(error))
+            return progressiveResults.eraseToAnyPublisher()
+        }
+        
+        print("Starting filtered polling with search ID: \(searchId)")
+        
+        // Create a subject that will emit values as they come in
+        let progressiveResults = PassthroughSubject<FlightPollResponse, Error>()
+        
+        // Start polling with enhanced logging
+        pollProgressivelyAndSaveLatest(request: request, subject: progressiveResults)
+        
+        // Return the subject as a publisher
+        return progressiveResults.eraseToAnyPublisher()
+    }
+
+    // Add this helper function to include response logging
+    private func pollProgressivelyWithLogs(request: URLRequest, subject: PassthroughSubject<FlightPollResponse, Error>, attempt: Int = 0, seenResultIds: Set<String> = []) {
+        AF.request(request)
+            .validate()
+            .responseData { [weak self] response in
+                guard let self = self else { return }
+                
+                // Log response status and headers
+                print("Poll response status: \(response.response?.statusCode ?? 0)")
+                if let headers = response.response?.allHeaderFields {
+                    print("Poll response headers: \(headers)")
+                }
+                
+                switch response.result {
+                case .success(let data):
+                    do {
+                        // Log a sample of the response data
+                        if let responsePreview = String(data: data.prefix(200), encoding: .utf8) {
+                            print("Poll response preview: \(responsePreview)")
+                        }
+                        
+                        let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                        
+                        // Store the response in the view model
+                        self.viewModelReference?.lastPollResponse = pollResponse
+                        
+                        // Rest of your existing poll handling code...
+                        if pollResponse.cache == true {
+                            print("Poll completed: No flights available")
+                            subject.send(pollResponse)
+                            subject.send(completion: .finished)
+                            return
+                        }
+                        
+                        // Check if we have new results
+                        let currentResultIds = Set(pollResponse.results.map { $0.id })
+                        let newResultIds = currentResultIds.subtracting(seenResultIds)
+                        
+                        if !pollResponse.results.isEmpty {
+                            // We have results to show, send them
+                            print("Poll successful, found \(pollResponse.results.count) results, \(newResultIds.count) new")
+                            subject.send(pollResponse)
+                            
+                            // If we've seen all results or have enough, we can finish
+                            if newResultIds.isEmpty {
+                                print("All results received, polling complete")
+                                subject.send(completion: .finished)
+                                return
+                            }
+                        }
+                        
+                        // Continue polling for more results
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            self.pollProgressivelyWithLogs(
+                                request: request,
+                                subject: subject,
+                                attempt: attempt + 1,
+                                seenResultIds: currentResultIds
+                            )
+                        }
+                    } catch {
+                        print("Poll decoding error: \(error)")
+                        // Log the JSON that couldn't be decoded
+                        if let responseStr = String(data: data, encoding: .utf8) {
+                            print("Failed to decode response: \(responseStr)")
+                        }
+                        
+                        subject.send(completion: .failure(error))
+                    }
+                case .failure(let error):
+                    print("Poll API error: \(error)")
+                    // Log the response body if available
+                    if let data = response.data, let responseStr = String(data: data, encoding: .utf8) {
+                        print("Error response body: \(responseStr)")
+                    }
+                    
+                    subject.send(completion: .failure(error))
+                }
+            }
+    }
     
     
     func searchFlights(origin: String, destination: String, returndate: String, departuredate: String,
@@ -468,11 +745,69 @@ class ExploreAPIService {
         // Create a subject that will emit values as they come in
         let progressiveResults = PassthroughSubject<FlightPollResponse, Error>()
         
-        // Start polling
-        pollProgressively(request: request, subject: progressiveResults)
+        // Start polling - use a modified version that saves responses
+        pollProgressivelyAndSaveLatest(request: request, subject: progressiveResults)
         
         // Return the subject as a publisher
         return progressiveResults.eraseToAnyPublisher()
+    }
+    
+    // Add this new helper method
+    private func pollProgressivelyAndSaveLatest(request: URLRequest, subject: PassthroughSubject<FlightPollResponse, Error>, attempt: Int = 0, seenResultIds: Set<String> = []) {
+        AF.request(request)
+            .validate()
+            .responseData { [weak self] response in
+                guard let self = self else { return }
+                
+                switch response.result {
+                case .success(let data):
+                    do {
+                        let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                        
+                        // Store the response in the view model
+                        self.viewModelReference?.lastPollResponse = pollResponse
+                        
+                        // Rest of your existing poll handling code...
+                        if pollResponse.cache == true {
+                            print("Poll completed: No flights available")
+                            subject.send(pollResponse)
+                            subject.send(completion: .finished)
+                            return
+                        }
+                        
+                        // Check if we have new results
+                        let currentResultIds = Set(pollResponse.results.map { $0.id })
+                        let newResultIds = currentResultIds.subtracting(seenResultIds)
+                        
+                        if !pollResponse.results.isEmpty {
+                            // We have results to show, send them
+                            print("Poll successful, found \(pollResponse.results.count) results, \(newResultIds.count) new")
+                            subject.send(pollResponse)
+                            
+                            // If we've seen all results or have enough, we can finish
+                            if newResultIds.isEmpty  {
+                                print("All results received, polling complete")
+                                subject.send(completion: .finished)
+                                return
+                            }
+                        }
+                        
+                        // Continue polling for more results
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            self.pollProgressivelyAndSaveLatest(
+                                request: request,
+                                subject: subject,
+                                attempt: attempt + 1,
+                                seenResultIds: currentResultIds
+                            )
+                        }
+                    } catch {
+                        // Error handling code...
+                    }
+                case .failure(_): break
+                    // Error handling code...
+                }
+            }
     }
 
     // Helper method to handle progressive polling
@@ -714,6 +1049,136 @@ class ExploreViewModel: ObservableObject {
     @Published var selectedCabinClass = "Economy"
     @Published var showingPassengersSheet = false
     
+    // For storing filter state
+    private var _currentFilterRequest: FlightFilterRequest?
+    private var _lastPollResponse: FlightPollResponse?
+
+    // Public accessors
+    var currentFilterRequest: FlightFilterRequest? {
+        get {
+            return _currentFilterRequest
+        }
+        set {
+            _currentFilterRequest = newValue
+        }
+    }
+
+    var lastPollResponse: FlightPollResponse? {
+        get {
+            return _lastPollResponse
+        }
+        set {
+            _lastPollResponse = newValue
+        }
+    }
+    
+    func applyQuickFilter(_ filter: FlightFilterTabView.FilterOption) {
+        var filterRequest = FlightFilterRequest()
+        
+        switch filter {
+        case .all:
+            // No specific filters needed
+            currentFilterRequest = nil  // Clear the filter
+        case .best:
+            filterRequest.sortBy = "best"
+            currentFilterRequest = filterRequest
+        case .cheapest:
+            filterRequest.sortBy = "price"
+            filterRequest.sortOrder = "asc"
+            currentFilterRequest = filterRequest
+        case .fastest:
+            filterRequest.sortBy = "duration"
+            filterRequest.sortOrder = "asc"
+            currentFilterRequest = filterRequest
+        case .direct:
+            filterRequest.stopCountMax = 0
+            currentFilterRequest = filterRequest
+        }
+        
+        // Always trigger a new search if we have origin/destination data
+        if !self.selectedOriginCode.isEmpty && !self.selectedDestinationCode.isEmpty {
+            // Clear existing results
+            self.detailedFlightResults = []
+            
+            // Restart search with the current filter (or no filter for .all)
+            searchFlightsForDates(
+                origin: self.selectedOriginCode,
+                destination: self.selectedDestinationCode,
+                returnDate: self.isRoundTrip ? self.selectedReturnDatee : "",
+                departureDate: self.selectedDepartureDatee
+            )
+        }
+        
+        objectWillChange.send()
+    }
+    
+    func applyPollFilters(filterRequest: FlightFilterRequest) {
+        // Create a minimal filter request with only the specified fields
+        var minimalRequest = FlightFilterRequest()
+        
+        // Only include fields that are actually set
+        if let durationMax = filterRequest.durationMax {
+            minimalRequest.durationMax = durationMax
+        }
+        
+        if let stopCountMax = filterRequest.stopCountMax {
+            minimalRequest.stopCountMax = stopCountMax
+        }
+        
+        if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
+            minimalRequest.arrivalDepartureRanges = ranges
+        }
+        
+        if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
+            minimalRequest.iataCodesExclude = exclude
+        }
+        
+        if let include = filterRequest.iataCodesInclude, !include.isEmpty {
+            minimalRequest.iataCodesInclude = include
+        }
+        
+        if let sortBy = filterRequest.sortBy {
+            minimalRequest.sortBy = sortBy
+        }
+        
+        if let sortOrder = filterRequest.sortOrder {
+            minimalRequest.sortOrder = sortOrder
+        }
+        
+        if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
+            minimalRequest.agencyExclude = agencyExclude
+        }
+        
+        if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
+            minimalRequest.agencyInclude = agencyInclude
+        }
+        
+        if let priceMin = filterRequest.priceMin {
+            minimalRequest.priceMin = priceMin
+        }
+        
+        if let priceMax = filterRequest.priceMax {
+            minimalRequest.priceMax = priceMax
+        }
+        
+        // Store the filter request
+        self.currentFilterRequest = minimalRequest
+        
+        // If we already have search results, we need to restart the search with filters
+        if !self.selectedOriginCode.isEmpty && !self.selectedDestinationCode.isEmpty {
+            // Clear existing results
+            self.detailedFlightResults = []
+            
+            // Restart search with filters
+            searchFlightsForDates(
+                origin: self.selectedOriginCode,
+                destination: self.selectedDestinationCode,
+                returnDate: self.isRoundTrip ? self.selectedReturnDatee : "",
+                departureDate: self.selectedDepartureDatee
+            )
+        }
+    }
+    
     func updateChildrenAgesArray(for newCount: Int) {
         if newCount > childrenAges.count {
             // Add nil ages for new children
@@ -760,6 +1225,8 @@ class ExploreViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        
+        ExploreAPIService.shared.viewModelReference = self
     }
     
     func handleTripTypeChange() {
@@ -979,7 +1446,7 @@ class ExploreViewModel: ObservableObject {
     }
     
     // Add this function to handle search and poll
-    func searchFlightsForDates(origin: String, destination: String , returnDate: String , departureDate: String) {
+    func searchFlightsForDates(origin: String, destination: String, returnDate: String, departureDate: String) {
         isLoadingDetailedFlights = true
         detailedFlightError = nil
         detailedFlightResults = []
@@ -994,24 +1461,32 @@ class ExploreViewModel: ObservableObject {
         print("Searching flights: \(origin) to \(destination)")
         
         // Filter out nil values from childrenAges
-           let validChildrenAges = childrenAges.compactMap { $0 }
+        let validChildrenAges = childrenAges.compactMap { $0 }
         
         // First, get the search ID
         service.searchFlights(
-                origin: origin,
-                destination: destination,
-                returndate: isRoundTrip ? selectedReturnDatee : "", // Only pass return date if round trip
-                departuredate: selectedDepartureDatee,
-                roundTrip: isRoundTrip,
-                adults: adultsCount,
-                childrenAges: childrenAges,
-                cabinClass: selectedCabinClass
-            )
-            .receive(on: DispatchQueue.main)
-            .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
-                print("Search successful, got searchId: \(searchResponse.searchId)")
+            origin: origin,
+            destination: destination,
+            returndate: isRoundTrip ? selectedReturnDatee : "", // Only pass return date if round trip
+            departuredate: selectedDepartureDatee,
+            roundTrip: isRoundTrip,
+            adults: adultsCount,
+            childrenAges: childrenAges,
+            cabinClass: selectedCabinClass
+        )
+        .receive(on: DispatchQueue.main)
+        .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
+            print("Search successful, got searchId: \(searchResponse.searchId)")
+            
+            // Check if we need to apply filters
+            if let filterRequest = self._currentFilterRequest {
+                // Create poll request with filters
+                return self.service.pollFlightResultsWithFilters(searchId: searchResponse.searchId, filterRequest: filterRequest)
+            } else {
+                // Use regular poll without filters
                 return self.service.pollFlightResults(searchId: searchResponse.searchId)
             }
+        }
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
@@ -3910,6 +4385,8 @@ struct ModifiedDetailedFlightListView: View {
     
     @State private var showingFilterSheet = false
     
+    
+    
     private var formattedDates: String {
         if viewModel.dates.count >= 2 {
             let sortedDates = viewModel.dates.sorted()
@@ -4002,8 +4479,11 @@ struct ModifiedDetailedFlightListView: View {
                                 FlightFilterTabView(
                                     selectedFilter: selectedFilter,
                                     onSelectFilter: { filter in
+                                        // Just update the local filter selection
                                         selectedFilter = filter
-                                        applyFilters()
+                                        
+                                        // Apply local filtering
+                                        applyLocalFilters()
                                     }
                                 )
                                 
@@ -4202,31 +4682,41 @@ struct ModifiedDetailedFlightListView: View {
             }
         }
         .sheet(isPresented: $showingFilterSheet) {
-                    Text("Filter Sheet")
-                }
+            FlightFilterSheet(viewModel: viewModel)
+        }
         .onAppear {
                     // Initialize dates array from the API date strings
                     viewModel.initializeDatesFromStrings()
                     
-                    // Apply initial filters
-                    applyFilters()
-         
-                }
-        .onReceive(viewModel.$detailedFlightResults.map { $0.count }) { count in
-                    // Only reapply filters if the count has changed
-                    if count != resultCount {
-                        resultCount = count
-                        applyFilters()
+                    // Immediately set filteredResults to current detailedFlightResults
+                    filteredResults = viewModel.detailedFlightResults
+                    
+                    // Apply filters
+                    applyLocalFilters()
+                    
+                    // Add a delayed update to catch async loaded results
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        filteredResults = viewModel.detailedFlightResults
+                        applyLocalFilters()
                     }
+                }
+        .onReceive(viewModel.$detailedFlightResults) { newResults in
+                    // Explicitly update filteredResults with the new results first
+                    filteredResults = newResults
+                    
+                    // Then apply any filters
+                    applyLocalFilters()
                 }
         .background(Color(.systemBackground))
     }
     
-    private func applyFilters() {
+    // Local filtering function - this doesn't make API calls
+        private func applyLocalFilters() {
+            print("Applying local filters. Total results: \(viewModel.detailedFlightResults.count)")
+            
             switch selectedFilter {
             case .all:
                 filteredResults = viewModel.detailedFlightResults
-                
                 
             case .best:
                 filteredResults = viewModel.detailedFlightResults.filter { $0.isBest }
@@ -4254,13 +4744,19 @@ struct ModifiedDetailedFlightListView: View {
                 filteredResults = viewModel.detailedFlightResults.filter { flight in
                     flight.legs.allSatisfy { $0.stopCount == 0 }
                 }
-                // If no direct flights, show empty state with message
+                // If no direct flights, show empty state
                 if filteredResults.isEmpty && selectedFilter == .direct {
-                    // Add an empty state message
-                    // For now, just use all flights
                     filteredResults = []
                 }
             }
+            
+            if filteredResults.isEmpty && !viewModel.detailedFlightResults.isEmpty && selectedFilter != .direct {
+                        // Fallback to showing all results if filtering produced empty results
+                        // (except for the .direct filter which may intentionally show empty results)
+                        filteredResults = viewModel.detailedFlightResults
+                    }
+            
+            print("Local filtering complete. Filtered results count: \(filteredResults.count)")
         }
     
     @ViewBuilder
@@ -4852,5 +5348,570 @@ struct DetailedFlightCardSkeleton: View {
                 isAnimating.toggle()
             }
         }
+    }
+}
+
+
+
+struct FlightFilterSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: ExploreViewModel
+    
+    // Sort options
+    @State private var sortOption: SortOption = .best
+    
+    // Stop filters
+    @State private var directFlightsSelected = true
+    @State private var oneStopSelected = false
+    @State private var multiStopSelected = false
+    
+    // Price range
+    @State private var priceRange: [Double] = [0.0, 2000.0] // Default range in local currency
+    
+    // Time range sliders
+    @State private var departureTimes = [0.0, 24.0] // 24 hour format
+    @State private var arrivalTimes = [0.0, 24.0]
+    
+    // Duration slider
+    @State private var durationRange = [1.75, 8.5] // In hours
+    
+    // Airlines - populated from API response
+    @State private var selectedAirlines: Set<String> = []
+    @State private var availableAirlines: [(name: String, code: String, logo: String)] = []
+    
+    enum SortOption: String, CaseIterable {
+        case best = "Best"
+        case cheapest = "Cheapest"
+        case fastest = "Fastest"
+        case outboundTakeOff = "Outbound Take Off Time"
+        case outboundLanding = "Outbound Landing Time"
+    }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Sort options
+                    sortOptionsSection
+                    
+                    Divider()
+                    
+                    // Stops section
+                    stopsSection
+                    
+                    Divider()
+                    
+                    // Price range section
+                    priceRangeSection
+                    
+                    Divider()
+                    
+                    // Times section
+                    timesSection
+                    
+                    Divider()
+                    
+                    // Duration section
+                    durationSection
+                    
+                    Divider()
+                    
+                    // Airlines section - only show if we have airline data
+                    if !availableAirlines.isEmpty {
+                        airlinesSection
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Filter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Close button
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.primary)
+                    }
+                }
+                
+                // Clear all button
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Clear all") {
+                        resetFilters()
+                    }
+                    .foregroundColor(.blue)
+                }
+            }
+            // Apply button at the bottom
+            .safeAreaInset(edge: .bottom) {
+                Button(action: {
+                    applyFilters()
+                }) {
+                    Text("Apply Filters")
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                        .padding()
+                }
+                .background(Color(.systemBackground))
+            }
+        }
+        .onAppear {
+            // Load airlines from the viewModel's current results if available
+            populateAirlinesFromResults()
+            
+            // Set initial price range based on min/max prices from results if available
+            initializePriceRange()
+        }
+    }
+    
+    // MARK: - UI Sections
+    
+    private var priceRangeSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Price Range")
+                .font(.headline)
+            
+            Text("\(formatPrice(priceRange[0])) - \(formatPrice(priceRange[1]))")
+                .foregroundColor(.primary)
+            
+            RangeSliderView(values: $priceRange, minValue: 0, maxValue: max(2000, priceRange[1] * 1.2))
+            
+            HStack {
+                Text(formatPrice(priceRange[0]))
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                Text(formatPrice(priceRange[1]))
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+    }
+    
+    private var sortOptionsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Sort")
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            ForEach(SortOption.allCases, id: \.self) { option in
+                HStack {
+                    Text(option.rawValue)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    // Checkmark for selected option
+                    Image(systemName: sortOption == option ? "checkmark.square.fill" : "square")
+                        .foregroundColor(sortOption == option ? .blue : .gray)
+                        .onTapGesture {
+                            sortOption = option
+                        }
+                }
+            }
+        }
+    }
+    
+    private var stopsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Stops")
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            // Direct flights
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Direct flights")
+                        .foregroundColor(.primary)
+                    Text("From $32")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Image(systemName: directFlightsSelected ? "checkmark.square.fill" : "square")
+                    .foregroundColor(directFlightsSelected ? .blue : .gray)
+                    .onTapGesture {
+                        directFlightsSelected.toggle()
+                    }
+            }
+            
+            // 1 Stop
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("1 Stop")
+                        .foregroundColor(.primary)
+                    Text("From $32")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Image(systemName: oneStopSelected ? "checkmark.square.fill" : "square")
+                    .foregroundColor(oneStopSelected ? .blue : .gray)
+                    .onTapGesture {
+                        oneStopSelected.toggle()
+                    }
+            }
+            
+            // 2+ Stops
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("2+ Stops")
+                        .foregroundColor(.primary)
+                    Text("No Flights")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Image(systemName: multiStopSelected ? "checkmark.square.fill" : "square")
+                    .foregroundColor(multiStopSelected ? .blue : .gray)
+                    .onTapGesture {
+                        multiStopSelected.toggle()
+                    }
+            }
+        }
+    }
+    
+    private var timesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Times")
+                .font(.headline)
+            
+            Text("Kochi - Kannur")
+                .foregroundColor(.gray)
+            
+            // Departure time slider
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Kochi")
+                    .foregroundColor(.primary)
+                
+                RangeSliderView(values: $departureTimes, minValue: 0, maxValue: 24)
+                
+                HStack {
+                    Text(formatTime(hours: Int(departureTimes[0])))
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    Text(formatTime(hours: Int(departureTimes[1])))
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            // Arrival time slider
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Kannur")
+                    .foregroundColor(.primary)
+                
+                RangeSliderView(values: $arrivalTimes, minValue: 0, maxValue: 24)
+                
+                HStack {
+                    Text(formatTime(hours: Int(arrivalTimes[0])))
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    Text(formatTime(hours: Int(arrivalTimes[1])))
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private var durationSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Journey Duration")
+                .font(.headline)
+            
+            Text("\(formatDuration(hours: durationRange[0])) - \(formatDuration(hours: durationRange[1]))")
+                .foregroundColor(.primary)
+            
+            RangeSliderView(values: $durationRange, minValue: 1, maxValue: 8.5)
+            
+            HStack {
+                Text(formatDuration(hours: durationRange[0]))
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                Text(formatDuration(hours: durationRange[1]))
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+    }
+    
+    private var airlinesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Airlines")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Button("Clear all") {
+                    selectedAirlines.removeAll()
+                }
+                .foregroundColor(.blue)
+                .font(.subheadline)
+            }
+            
+            ForEach(availableAirlines, id: \.code) { airline in
+                HStack {
+                    // Airline logo using AsyncImage
+                    if !airline.logo.isEmpty {
+                        AsyncImage(url: URL(string: airline.logo)) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 24, height: 24)
+                            } else {
+                                // Placeholder for loading or failed loads
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 24, height: 24)
+                                    
+                                    Text(String(airline.code.prefix(1)))
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback if no logo URL
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 24, height: 24)
+                            
+                            Text(String(airline.code.prefix(1)))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    
+                    Text(airline.name)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    // Checkmark for selected airlines
+                    Image(systemName: selectedAirlines.contains(airline.code) ? "checkmark.square.fill" : "square")
+                        .foregroundColor(selectedAirlines.contains(airline.code) ? .blue : .gray)
+                        .onTapGesture {
+                            if selectedAirlines.contains(airline.code) {
+                                selectedAirlines.remove(airline.code)
+                            } else {
+                                selectedAirlines.insert(airline.code)
+                            }
+                        }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func formatTime(hours: Int) -> String {
+        let hour = hours % 12 == 0 ? 12 : hours % 12
+        let amPm = hours < 12 ? "am" : "pm"
+        return "\(hour):00 \(amPm)"
+    }
+    
+    private func formatDuration(hours: Double) -> String {
+        let wholeHours = Int(hours)
+        let minutes = Int((hours - Double(wholeHours)) * 60)
+        return "\(wholeHours)h \(minutes)m"
+    }
+    
+    private func formatPrice(_ price: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "₹" // Update based on user's locale or app settings
+        formatter.maximumFractionDigits = 0
+        
+        return formatter.string(from: NSNumber(value: price)) ?? "₹\(Int(price))"
+    }
+    
+    private func resetFilters() {
+        // Reset all filters to default values
+        sortOption = .best
+        directFlightsSelected = true
+        oneStopSelected = false
+        multiStopSelected = false
+        departureTimes = [0.0, 24.0]
+        arrivalTimes = [0.0, 24.0]
+        durationRange = [1.75, 8.5]
+        selectedAirlines.removeAll()
+        
+        // Reset price range based on available flights
+        initializePriceRange()
+    }
+    
+    private func populateAirlinesFromResults() {
+        // Get unique airlines from current flight results
+        if let pollResponse = viewModel.lastPollResponse {
+            self.availableAirlines = pollResponse.airlines.map { airline in
+                return (name: airline.airlineName, code: airline.airlineIata, logo: airline.airlineLogo)
+            }
+            
+            // If airlines were previously selected, filter to only include airlines that exist in the response
+            if !selectedAirlines.isEmpty {
+                let availableCodes = Set(availableAirlines.map { $0.code })
+                selectedAirlines = selectedAirlines.intersection(availableCodes)
+            }
+        }
+    }
+    
+    private func initializePriceRange() {
+        // Set price range based on min/max price in results
+        if let pollResponse = viewModel.lastPollResponse {
+            let minPrice = pollResponse.minPrice
+            let maxPrice = pollResponse.maxPrice
+            
+            // Only update if we have valid prices
+            if minPrice > 0 && maxPrice >= minPrice {
+                priceRange = [minPrice, maxPrice]
+            }
+        }
+    }
+    
+    private func applyFilters() {
+        // Create filter request object based on selections
+        var filterRequest = FlightFilterRequest()
+        
+        // Set sort options
+        switch sortOption {
+        case .best:
+            filterRequest.sortBy = "best"
+        case .cheapest:
+            filterRequest.sortBy = "price"
+            filterRequest.sortOrder = "asc"
+        case .fastest:
+            filterRequest.sortBy = "duration"
+            filterRequest.sortOrder = "asc"
+        case .outboundTakeOff:
+            filterRequest.sortBy = "departure"
+        case .outboundLanding:
+            filterRequest.sortBy = "arrival"
+        }
+        
+        // Set stop count based on selection
+        if directFlightsSelected && !oneStopSelected && !multiStopSelected {
+            filterRequest.stopCountMax = 0
+        } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
+            filterRequest.stopCountMax = 1
+        }
+        
+        // Set price range
+        filterRequest.priceMin = Int(priceRange[0])
+        filterRequest.priceMax = Int(priceRange[1])
+        
+        // Set duration max (convert hours to minutes)
+        filterRequest.durationMax = Int(durationRange[1] * 60)
+        
+        // Set time ranges
+        let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
+        let departureMax = Int(departureTimes[1] * 3600)
+        let arrivalMin = Int(arrivalTimes[0] * 3600)
+        let arrivalMax = Int(arrivalTimes[1] * 3600)
+        
+        let timeRange = ArrivalDepartureRange(
+            arrival: TimeRange(min: arrivalMin, max: arrivalMax),
+            departure: TimeRange(min: departureMin, max: departureMax)
+        )
+        filterRequest.arrivalDepartureRanges = [timeRange]
+        
+        // Set airline filters - use the IATA codes directly from our selection
+        if !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
+            filterRequest.iataCodesInclude = Array(selectedAirlines)
+        }
+        
+        // Apply the filter
+        viewModel.applyPollFilters(filterRequest: filterRequest)
+        
+        // Dismiss the sheet
+        dismiss()
+    }
+    
+    // Helper to convert airline names to IATA codes (no longer needed as we now store the codes directly)
+    private func getIataCode(for airlineCode: String) -> String? {
+        return airlineCode // Just return the code as-is since we're now storing the codes
+    }
+}
+
+// Custom Range Slider View
+struct RangeSliderView: View {
+    @Binding var values: [Double]
+    let minValue: Double
+    let maxValue: Double
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Track
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 4)
+                
+                // Selected Range
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(width: CGFloat((values[1] - values[0]) / (maxValue - minValue)) * geometry.size.width,
+                           height: 4)
+                    .offset(x: CGFloat((values[0] - minValue) / (maxValue - minValue)) * geometry.size.width)
+                
+                // Low Thumb
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 20, height: 20)
+                    .shadow(radius: 2)
+                    .offset(x: CGFloat((values[0] - minValue) / (maxValue - minValue)) * geometry.size.width - 10)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { gesture in
+                                let ratio = gesture.location.x / geometry.size.width
+                                let newValue = min(values[1] - 0.5, max(minValue, minValue + ratio * (maxValue - minValue)))
+                                values[0] = newValue
+                            }
+                    )
+                
+                // High Thumb
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 20, height: 20)
+                    .shadow(radius: 2)
+                    .offset(x: CGFloat((values[1] - minValue) / (maxValue - minValue)) * geometry.size.width - 10)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { gesture in
+                                let ratio = gesture.location.x / geometry.size.width
+                                let newValue = max(values[0] + 0.5, min(maxValue, minValue + ratio * (maxValue - minValue)))
+                                values[1] = newValue
+                            }
+                    )
+            }
+        }
+        .frame(height: 30)
     }
 }
