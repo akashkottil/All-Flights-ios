@@ -1945,6 +1945,7 @@ struct FilterTabButton: View {
                         .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
                 )
         }
+       
     }
 }
 
@@ -3770,10 +3771,84 @@ struct ConnectingFlightView: View {
     }
 }
 
+struct FilterButton: View {
+    var action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 14))
+                Text("Filter")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+            )
+        }
+        .foregroundColor(.primary)
+    }
+}
+
+struct FlightFilterTabView: View {
+    let selectedFilter: FilterOption
+    let onSelectFilter: (FilterOption) -> Void
+    
+    enum FilterOption: String, CaseIterable {
+
+        case all = "All"
+        case best = "Best"
+        case cheapest = "Cheapest"
+        case fastest = "Fastest"
+        case direct = "Direct"
+    }
+    
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(FilterOption.allCases, id: \.self) { filter in
+                    Button(action: {
+                        onSelectFilter(filter)
+                    }) {
+                        Text(filter.rawValue)
+                            .font(.system(size: 14, weight: selectedFilter == filter ? .semibold : .regular))
+                            .foregroundColor(selectedFilter == filter ? .blue : .black)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.white)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(selectedFilter == filter ? Color.blue : Color.black.opacity(0.3), lineWidth: selectedFilter == filter ? 1 : 0.5)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
 
 struct ModifiedDetailedFlightListView: View {
     @ObservedObject var viewModel: ExploreViewModel
     @State private var selectedFlightId: String? = nil
+    @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
+    
+    @State private var filteredResults: [FlightDetailResult] = []
+    
+    @State private var resultCount: Int = 0
+    
+    @State private var showingFilterSheet = false
     
     private var formattedDates: String {
         if viewModel.dates.count >= 2 {
@@ -3853,6 +3928,40 @@ struct ModifiedDetailedFlightListView: View {
                     .foregroundColor(.gray)
             }
             .padding()
+            
+            // Only show filter tabs when we have results and no flight is selected
+                        if !viewModel.detailedFlightResults.isEmpty && selectedFlightId == nil {
+                            // Filter tabs
+                            HStack {
+                                // New Filter button
+                                FilterButton {
+                                    showingFilterSheet = true
+                                }
+                                .padding(.leading,10)
+                                
+                                FlightFilterTabView(
+                                    selectedFilter: selectedFilter,
+                                    onSelectFilter: { filter in
+                                        selectedFilter = filter
+                                        applyFilters()
+                                    }
+                                )
+                                
+                                
+                                
+                            }
+                            .padding(.trailing, 16)
+                            
+                            // Show flight count
+                            HStack {
+                                Text("\(filteredResults.count) flights")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 8)
+                        }
             
             // Content
             if viewModel.detailedFlightResults.isEmpty {
@@ -3989,7 +4098,7 @@ struct ModifiedDetailedFlightListView: View {
                     else {
                         ScrollView {
                             VStack(spacing: 16) {
-                                ForEach(viewModel.detailedFlightResults, id: \.id) { result in
+                                ForEach(filteredResults, id: \.id) { result in
                                     // Use a custom wrapper for multi-city or the existing one for regular flights
                                     if isMultiCity {
                                         MultiCityFlightCardWrapper(
@@ -4032,12 +4141,67 @@ struct ModifiedDetailedFlightListView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingFilterSheet) {
+                    Text("Filter Sheet")
+                }
         .onAppear {
-            // Initialize dates array from the API date strings
-            viewModel.initializeDatesFromStrings()
-        }
+                    // Initialize dates array from the API date strings
+                    viewModel.initializeDatesFromStrings()
+                    
+                    // Apply initial filters
+                    applyFilters()
+         
+                }
+        .onReceive(viewModel.$detailedFlightResults.map { $0.count }) { count in
+                    // Only reapply filters if the count has changed
+                    if count != resultCount {
+                        resultCount = count
+                        applyFilters()
+                    }
+                }
         .background(Color(.systemBackground))
     }
+    
+    private func applyFilters() {
+            switch selectedFilter {
+            case .all:
+                filteredResults = viewModel.detailedFlightResults
+                
+                
+            case .best:
+                filteredResults = viewModel.detailedFlightResults.filter { $0.isBest }
+                // If no best flights, fallback to all
+                if filteredResults.isEmpty {
+                    filteredResults = viewModel.detailedFlightResults
+                }
+                
+            case .cheapest:
+                filteredResults = viewModel.detailedFlightResults.filter { $0.isCheapest }
+                // If no cheapest flights specifically marked, sort by price
+                if filteredResults.isEmpty {
+                    filteredResults = viewModel.detailedFlightResults.sorted { $0.minPrice < $1.minPrice }
+                }
+                
+            case .fastest:
+                filteredResults = viewModel.detailedFlightResults.filter { $0.isFastest }
+                // If no fastest flights specifically marked, sort by duration
+                if filteredResults.isEmpty {
+                    filteredResults = viewModel.detailedFlightResults.sorted { $0.totalDuration < $1.totalDuration }
+                }
+                
+            case .direct:
+                // Filter to only include flights where all legs are direct
+                filteredResults = viewModel.detailedFlightResults.filter { flight in
+                    flight.legs.allSatisfy { $0.stopCount == 0 }
+                }
+                // If no direct flights, show empty state with message
+                if filteredResults.isEmpty && selectedFilter == .direct {
+                    // Add an empty state message
+                    // For now, just use all flights
+                    filteredResults = []
+                }
+            }
+        }
     
     @ViewBuilder
     private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
