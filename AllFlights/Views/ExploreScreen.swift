@@ -1049,6 +1049,21 @@ class ExploreViewModel: ObservableObject {
     @Published var selectedCabinClass = "Economy"
     @Published var showingPassengersSheet = false
     
+    struct FilterSheetState {
+        var sortOption: FlightFilterTabView.FilterOption = .all
+        var directFlightsSelected: Bool = true
+        var oneStopSelected: Bool = false
+        var multiStopSelected: Bool = false
+        var priceRange: [Double] = [0.0, 2000.0]
+        var departureTimes: [Double] = [0.0, 24.0]
+        var arrivalTimes: [Double] = [0.0, 24.0]
+        var durationRange: [Double] = [1.75, 8.5]
+        var selectedAirlines: Set<String> = []
+        
+        // Add any other filter state variables you need to preserve
+    }
+    @Published var filterSheetState = FilterSheetState()
+    
     // For storing filter state
     private var _currentFilterRequest: FlightFilterRequest?
     private var _lastPollResponse: FlightPollResponse?
@@ -5393,6 +5408,34 @@ struct FlightFilterSheet: View {
         case outboundLanding = "Outbound Landing Time"
     }
     
+    // Map FlightFilterTabView.FilterOption to SortOption
+        private func mapFilterOptionToSortOption(_ option: FlightFilterTabView.FilterOption) -> SortOption {
+            switch option {
+            case .best:
+                return .best
+            case .cheapest:
+                return .cheapest
+            case .fastest:
+                return .fastest
+            default:
+                return .best
+            }
+        }
+        
+        // Map SortOption to FlightFilterTabView.FilterOption
+        private func mapSortOptionToFilterOption(_ option: SortOption) -> FlightFilterTabView.FilterOption {
+            switch option {
+            case .best:
+                return .best
+            case .cheapest:
+                return .cheapest
+            case .fastest:
+                return .fastest
+            default:
+                return .best
+            }
+        }
+    
     var body: some View {
         NavigationView {
             ScrollView {
@@ -5652,8 +5695,10 @@ struct FlightFilterSheet: View {
             
             // Set initial price range based on min/max prices from results if available
             initializePriceRange()
-        }
-    }
+            
+            // Load saved filter state from the viewModel
+            loadFilterStateFromViewModel()
+        }    }
     
     // MARK: - UI Sections
     
@@ -5808,75 +5853,108 @@ struct FlightFilterSheet: View {
     
     // Modified to only include filters that user has interacted with
     private func applyFilters() {
-        // Create an empty filter request
-        var filterRequest = FlightFilterRequest()
-        
-        // Only add sort options if changed by user
-        if hasSortChanged {
-            switch sortOption {
-            case .best:
-                filterRequest.sortBy = "best"
-            case .cheapest:
-                filterRequest.sortBy = "price"
-                filterRequest.sortOrder = "asc"
-            case .fastest:
-                filterRequest.sortBy = "duration"
-                filterRequest.sortOrder = "asc"
-            case .outboundTakeOff:
-                filterRequest.sortBy = "departure"
-            case .outboundLanding:
-                filterRequest.sortBy = "arrival"
-            }
-        }
-        
-        // Only add stop count if changed by user
-        if hasStopsChanged {
-            if directFlightsSelected && !oneStopSelected && !multiStopSelected {
-                filterRequest.stopCountMax = 0
-            } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
-                filterRequest.stopCountMax = 1
-            }
-        }
-        
-        // Only add price range if changed by user
-        if hasPriceChanged {
-            filterRequest.priceMin = Int(priceRange[0])
-            filterRequest.priceMax = Int(priceRange[1])
-        }
-        
-        // Only add duration if changed by user
-        if hasDurationChanged {
-            filterRequest.durationMax = Int(durationRange[1] * 60)
-        }
-        
-        // Only add time ranges if changed by user
-        if hasTimesChanged {
-            let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
-            let departureMax = Int(departureTimes[1] * 3600)
-            let arrivalMin = Int(arrivalTimes[0] * 3600)
-            let arrivalMax = Int(arrivalTimes[1] * 3600)
+            // Create an empty filter request
+            var filterRequest = FlightFilterRequest()
             
-            let timeRange = ArrivalDepartureRange(
-                arrival: TimeRange(min: arrivalMin, max: arrivalMax),
-                departure: TimeRange(min: departureMin, max: departureMax)
-            )
-            filterRequest.arrivalDepartureRanges = [timeRange]
+            // Only add sort options if changed by user
+            if hasSortChanged {
+                switch sortOption {
+                case .best:
+                    filterRequest.sortBy = "best"
+                case .cheapest:
+                    filterRequest.sortBy = "price"
+                    filterRequest.sortOrder = "asc"
+                case .fastest:
+                    filterRequest.sortBy = "duration"
+                    filterRequest.sortOrder = "asc"
+                case .outboundTakeOff:
+                    filterRequest.sortBy = "departure"
+                case .outboundLanding:
+                    filterRequest.sortBy = "arrival"
+                }
+            }
+            
+            // Only add stop count if changed by user
+            if hasStopsChanged {
+                if directFlightsSelected && !oneStopSelected && !multiStopSelected {
+                    filterRequest.stopCountMax = 0
+                } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
+                    filterRequest.stopCountMax = 1
+                }
+            }
+            
+            // Only add price range if changed by user
+            if hasPriceChanged {
+                filterRequest.priceMin = Int(priceRange[0])
+                filterRequest.priceMax = Int(priceRange[1])
+            }
+            
+            // Only add duration if changed by user
+            if hasDurationChanged {
+                filterRequest.durationMax = Int(durationRange[1] * 60)
+            }
+            
+            // Only add time ranges if changed by user
+            if hasTimesChanged {
+                let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
+                let departureMax = Int(departureTimes[1] * 3600)
+                let arrivalMin = Int(arrivalTimes[0] * 3600)
+                let arrivalMax = Int(arrivalTimes[1] * 3600)
+                
+                let timeRange = ArrivalDepartureRange(
+                    arrival: TimeRange(min: arrivalMin, max: arrivalMax),
+                    departure: TimeRange(min: departureMin, max: departureMax)
+                )
+                filterRequest.arrivalDepartureRanges = [timeRange]
+            }
+            
+            // Only add airline filters if changed by user
+            if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
+                filterRequest.iataCodesInclude = Array(selectedAirlines)
+            }
+            
+            // SAVE FILTER STATE TO VIEW MODEL
+            saveFilterStateToViewModel()
+            
+            // Debug log to see what filters are being applied
+            printAppliedFilters(filterRequest)
+            
+            // Apply the filter
+            viewModel.applyPollFilters(filterRequest: filterRequest)
+            
+            // Dismiss the sheet
+            dismiss()
+        }
+    
+    private func saveFilterStateToViewModel() {
+            viewModel.filterSheetState.sortOption = mapSortOptionToFilterOption(sortOption)
+            viewModel.filterSheetState.directFlightsSelected = directFlightsSelected
+            viewModel.filterSheetState.oneStopSelected = oneStopSelected
+            viewModel.filterSheetState.multiStopSelected = multiStopSelected
+            viewModel.filterSheetState.priceRange = priceRange
+            viewModel.filterSheetState.departureTimes = departureTimes
+            viewModel.filterSheetState.arrivalTimes = arrivalTimes
+            viewModel.filterSheetState.durationRange = durationRange
+            viewModel.filterSheetState.selectedAirlines = selectedAirlines
         }
         
-        // Only add airline filters if changed by user
-        if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
-            filterRequest.iataCodesInclude = Array(selectedAirlines)
+        private func loadFilterStateFromViewModel() {
+            sortOption = mapFilterOptionToSortOption(viewModel.filterSheetState.sortOption)
+            directFlightsSelected = viewModel.filterSheetState.directFlightsSelected
+            oneStopSelected = viewModel.filterSheetState.oneStopSelected
+            multiStopSelected = viewModel.filterSheetState.multiStopSelected
+            
+            // Only load price range if it's been previously set
+            if viewModel.filterSheetState.priceRange != [0.0, 2000.0] {
+                priceRange = viewModel.filterSheetState.priceRange
+            }
+            
+            departureTimes = viewModel.filterSheetState.departureTimes
+            arrivalTimes = viewModel.filterSheetState.arrivalTimes
+            durationRange = viewModel.filterSheetState.durationRange
+            selectedAirlines = viewModel.filterSheetState.selectedAirlines
         }
-        
-        // Debug log to see what filters are being applied
-        printAppliedFilters(filterRequest)
-        
-        // Apply the filter
-        viewModel.applyPollFilters(filterRequest: filterRequest)
-        
-        // Dismiss the sheet
-        dismiss()
-    }
+    
     
     // Helper method to print applied filters for debugging
     private func printAppliedFilters(_ request: FlightFilterRequest) {
@@ -5967,3 +6045,5 @@ struct RangeSliderView: View {
         .frame(height: 30)
     }
 }
+
+
