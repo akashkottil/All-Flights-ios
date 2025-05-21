@@ -5359,24 +5359,30 @@ struct FlightFilterSheet: View {
     
     // Sort options
     @State private var sortOption: SortOption = .best
+    @State private var hasSortChanged = false
     
     // Stop filters
     @State private var directFlightsSelected = true
     @State private var oneStopSelected = false
     @State private var multiStopSelected = false
+    @State private var hasStopsChanged = false
     
     // Price range
-    @State private var priceRange: [Double] = [0.0, 2000.0] // Default range in local currency
+    @State private var priceRange: [Double] = [0.0, 2000.0]
+    @State private var hasPriceChanged = false
     
     // Time range sliders
-    @State private var departureTimes = [0.0, 24.0] // 24 hour format
+    @State private var departureTimes = [0.0, 24.0]
     @State private var arrivalTimes = [0.0, 24.0]
+    @State private var hasTimesChanged = false
     
     // Duration slider
-    @State private var durationRange = [1.75, 8.5] // In hours
+    @State private var durationRange = [1.75, 8.5]
+    @State private var hasDurationChanged = false
     
     // Airlines - populated from API response
     @State private var selectedAirlines: Set<String> = []
+    @State private var hasAirlinesChanged = false
     @State private var availableAirlines: [(name: String, code: String, logo: String)] = []
     
     enum SortOption: String, CaseIterable {
@@ -5391,28 +5397,207 @@ struct FlightFilterSheet: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Sort options
-                    sortOptionsSection
+                    // Sort options section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Sort")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        ForEach(SortOption.allCases, id: \.self) { option in
+                            HStack {
+                                Text(option.rawValue)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                // Checkmark for selected option
+                                Image(systemName: sortOption == option ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(sortOption == option ? .blue : .gray)
+                                    .onTapGesture {
+                                        sortOption = option
+                                        hasSortChanged = true
+                                    }
+                            }
+                        }
+                    }
                     
                     Divider()
                     
                     // Stops section
-                    stopsSection
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Stops")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        // Direct flights
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("Direct flights")
+                                    .foregroundColor(.primary)
+                                Text("From ₹3200")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: directFlightsSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(directFlightsSelected ? .blue : .gray)
+                                .onTapGesture {
+                                    directFlightsSelected.toggle()
+                                    hasStopsChanged = true
+                                }
+                        }
+                        
+                        // 1 Stop
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("1 Stop")
+                                    .foregroundColor(.primary)
+                                Text("From ₹2800")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: oneStopSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(oneStopSelected ? .blue : .gray)
+                                .onTapGesture {
+                                    oneStopSelected.toggle()
+                                    hasStopsChanged = true
+                                }
+                        }
+                        
+                        // 2+ Stops
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("2+ Stops")
+                                    .foregroundColor(.primary)
+                                Text("From ₹2400")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: multiStopSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(multiStopSelected ? .blue : .gray)
+                                .onTapGesture {
+                                    multiStopSelected.toggle()
+                                    hasStopsChanged = true
+                                }
+                        }
+                    }
                     
                     Divider()
                     
                     // Price range section
-                    priceRangeSection
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Price Range")
+                            .font(.headline)
+                        
+                        Text("\(formatPrice(priceRange[0])) - \(formatPrice(priceRange[1]))")
+                            .foregroundColor(.primary)
+                        
+                        RangeSliderView(values: $priceRange, minValue: 0, maxValue: max(2000, priceRange[1] * 1.2), onChangeHandler: {
+                            hasPriceChanged = true
+                        })
+                        
+                        HStack {
+                            Text(formatPrice(priceRange[0]))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                            
+                            Text(formatPrice(priceRange[1]))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
                     
                     Divider()
                     
                     // Times section
-                    timesSection
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Times")
+                            .font(.headline)
+                        
+                        Text("\(viewModel.selectedOriginCode) - \(viewModel.selectedDestinationCode)")
+                            .foregroundColor(.gray)
+                        
+                        // Departure time slider
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Departure")
+                                .foregroundColor(.primary)
+                            
+                            RangeSliderView(values: $departureTimes, minValue: 0, maxValue: 24, onChangeHandler: {
+                                hasTimesChanged = true
+                            })
+                            
+                            HStack {
+                                Text(formatTime(hours: Int(departureTimes[0])))
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                
+                                Spacer()
+                                
+                                Text(formatTime(hours: Int(departureTimes[1])))
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                        // Arrival time slider
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Arrival")
+                                .foregroundColor(.primary)
+                            
+                            RangeSliderView(values: $arrivalTimes, minValue: 0, maxValue: 24, onChangeHandler: {
+                                hasTimesChanged = true
+                            })
+                            
+                            HStack {
+                                Text(formatTime(hours: Int(arrivalTimes[0])))
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                
+                                Spacer()
+                                
+                                Text(formatTime(hours: Int(arrivalTimes[1])))
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
                     
                     Divider()
                     
                     // Duration section
-                    durationSection
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Journey Duration")
+                            .font(.headline)
+                        
+                        Text("\(formatDuration(hours: durationRange[0])) - \(formatDuration(hours: durationRange[1]))")
+                            .foregroundColor(.primary)
+                        
+                        RangeSliderView(values: $durationRange, minValue: 1, maxValue: 8.5, onChangeHandler: {
+                            hasDurationChanged = true
+                        })
+                        
+                        HStack {
+                            Text(formatDuration(hours: durationRange[0]))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                            
+                            Text(formatDuration(hours: durationRange[1]))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
                     
                     Divider()
                     
@@ -5472,193 +5657,6 @@ struct FlightFilterSheet: View {
     
     // MARK: - UI Sections
     
-    private var priceRangeSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Price Range")
-                .font(.headline)
-            
-            Text("\(formatPrice(priceRange[0])) - \(formatPrice(priceRange[1]))")
-                .foregroundColor(.primary)
-            
-            RangeSliderView(values: $priceRange, minValue: 0, maxValue: max(2000, priceRange[1] * 1.2))
-            
-            HStack {
-                Text(formatPrice(priceRange[0]))
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                Text(formatPrice(priceRange[1]))
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-        }
-    }
-    
-    private var sortOptionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Sort")
-                .font(.headline)
-                .foregroundColor(.primary)
-            
-            ForEach(SortOption.allCases, id: \.self) { option in
-                HStack {
-                    Text(option.rawValue)
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                    
-                    // Checkmark for selected option
-                    Image(systemName: sortOption == option ? "checkmark.square.fill" : "square")
-                        .foregroundColor(sortOption == option ? .blue : .gray)
-                        .onTapGesture {
-                            sortOption = option
-                        }
-                }
-            }
-        }
-    }
-    
-    private var stopsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Stops")
-                .font(.headline)
-                .foregroundColor(.primary)
-            
-            // Direct flights
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Direct flights")
-                        .foregroundColor(.primary)
-                    Text("From $32")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                Image(systemName: directFlightsSelected ? "checkmark.square.fill" : "square")
-                    .foregroundColor(directFlightsSelected ? .blue : .gray)
-                    .onTapGesture {
-                        directFlightsSelected.toggle()
-                    }
-            }
-            
-            // 1 Stop
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("1 Stop")
-                        .foregroundColor(.primary)
-                    Text("From $32")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                Image(systemName: oneStopSelected ? "checkmark.square.fill" : "square")
-                    .foregroundColor(oneStopSelected ? .blue : .gray)
-                    .onTapGesture {
-                        oneStopSelected.toggle()
-                    }
-            }
-            
-            // 2+ Stops
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("2+ Stops")
-                        .foregroundColor(.primary)
-                    Text("No Flights")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                Image(systemName: multiStopSelected ? "checkmark.square.fill" : "square")
-                    .foregroundColor(multiStopSelected ? .blue : .gray)
-                    .onTapGesture {
-                        multiStopSelected.toggle()
-                    }
-            }
-        }
-    }
-    
-    private var timesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Times")
-                .font(.headline)
-            
-            Text("Kochi - Kannur")
-                .foregroundColor(.gray)
-            
-            // Departure time slider
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Kochi")
-                    .foregroundColor(.primary)
-                
-                RangeSliderView(values: $departureTimes, minValue: 0, maxValue: 24)
-                
-                HStack {
-                    Text(formatTime(hours: Int(departureTimes[0])))
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Spacer()
-                    
-                    Text(formatTime(hours: Int(departureTimes[1])))
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            
-            // Arrival time slider
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Kannur")
-                    .foregroundColor(.primary)
-                
-                RangeSliderView(values: $arrivalTimes, minValue: 0, maxValue: 24)
-                
-                HStack {
-                    Text(formatTime(hours: Int(arrivalTimes[0])))
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Spacer()
-                    
-                    Text(formatTime(hours: Int(arrivalTimes[1])))
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-        }
-    }
-    
-    private var durationSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Journey Duration")
-                .font(.headline)
-            
-            Text("\(formatDuration(hours: durationRange[0])) - \(formatDuration(hours: durationRange[1]))")
-                .foregroundColor(.primary)
-            
-            RangeSliderView(values: $durationRange, minValue: 1, maxValue: 8.5)
-            
-            HStack {
-                Text(formatDuration(hours: durationRange[0]))
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                Text(formatDuration(hours: durationRange[1]))
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-        }
-    }
-    
     private var airlinesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -5669,6 +5667,7 @@ struct FlightFilterSheet: View {
                 
                 Button("Clear all") {
                     selectedAirlines.removeAll()
+                    hasAirlinesChanged = true
                 }
                 .foregroundColor(.blue)
                 .font(.subheadline)
@@ -5724,6 +5723,7 @@ struct FlightFilterSheet: View {
                             } else {
                                 selectedAirlines.insert(airline.code)
                             }
+                            hasAirlinesChanged = true
                         }
                 }
             }
@@ -5756,16 +5756,26 @@ struct FlightFilterSheet: View {
     private func resetFilters() {
         // Reset all filters to default values
         sortOption = .best
+        hasSortChanged = false
+        
         directFlightsSelected = true
         oneStopSelected = false
         multiStopSelected = false
+        hasStopsChanged = false
+        
         departureTimes = [0.0, 24.0]
         arrivalTimes = [0.0, 24.0]
+        hasTimesChanged = false
+        
         durationRange = [1.75, 8.5]
+        hasDurationChanged = false
+        
         selectedAirlines.removeAll()
+        hasAirlinesChanged = false
         
         // Reset price range based on available flights
         initializePriceRange()
+        hasPriceChanged = false
     }
     
     private func populateAirlinesFromResults() {
@@ -5796,56 +5806,70 @@ struct FlightFilterSheet: View {
         }
     }
     
+    // Modified to only include filters that user has interacted with
     private func applyFilters() {
-        // Create filter request object based on selections
+        // Create an empty filter request
         var filterRequest = FlightFilterRequest()
         
-        // Set sort options
-        switch sortOption {
-        case .best:
-            filterRequest.sortBy = "best"
-        case .cheapest:
-            filterRequest.sortBy = "price"
-            filterRequest.sortOrder = "asc"
-        case .fastest:
-            filterRequest.sortBy = "duration"
-            filterRequest.sortOrder = "asc"
-        case .outboundTakeOff:
-            filterRequest.sortBy = "departure"
-        case .outboundLanding:
-            filterRequest.sortBy = "arrival"
+        // Only add sort options if changed by user
+        if hasSortChanged {
+            switch sortOption {
+            case .best:
+                filterRequest.sortBy = "best"
+            case .cheapest:
+                filterRequest.sortBy = "price"
+                filterRequest.sortOrder = "asc"
+            case .fastest:
+                filterRequest.sortBy = "duration"
+                filterRequest.sortOrder = "asc"
+            case .outboundTakeOff:
+                filterRequest.sortBy = "departure"
+            case .outboundLanding:
+                filterRequest.sortBy = "arrival"
+            }
         }
         
-        // Set stop count based on selection
-        if directFlightsSelected && !oneStopSelected && !multiStopSelected {
-            filterRequest.stopCountMax = 0
-        } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
-            filterRequest.stopCountMax = 1
+        // Only add stop count if changed by user
+        if hasStopsChanged {
+            if directFlightsSelected && !oneStopSelected && !multiStopSelected {
+                filterRequest.stopCountMax = 0
+            } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
+                filterRequest.stopCountMax = 1
+            }
         }
         
-        // Set price range
-        filterRequest.priceMin = Int(priceRange[0])
-        filterRequest.priceMax = Int(priceRange[1])
+        // Only add price range if changed by user
+        if hasPriceChanged {
+            filterRequest.priceMin = Int(priceRange[0])
+            filterRequest.priceMax = Int(priceRange[1])
+        }
         
-        // Set duration max (convert hours to minutes)
-        filterRequest.durationMax = Int(durationRange[1] * 60)
+        // Only add duration if changed by user
+        if hasDurationChanged {
+            filterRequest.durationMax = Int(durationRange[1] * 60)
+        }
         
-        // Set time ranges
-        let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
-        let departureMax = Int(departureTimes[1] * 3600)
-        let arrivalMin = Int(arrivalTimes[0] * 3600)
-        let arrivalMax = Int(arrivalTimes[1] * 3600)
+        // Only add time ranges if changed by user
+        if hasTimesChanged {
+            let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
+            let departureMax = Int(departureTimes[1] * 3600)
+            let arrivalMin = Int(arrivalTimes[0] * 3600)
+            let arrivalMax = Int(arrivalTimes[1] * 3600)
+            
+            let timeRange = ArrivalDepartureRange(
+                arrival: TimeRange(min: arrivalMin, max: arrivalMax),
+                departure: TimeRange(min: departureMin, max: departureMax)
+            )
+            filterRequest.arrivalDepartureRanges = [timeRange]
+        }
         
-        let timeRange = ArrivalDepartureRange(
-            arrival: TimeRange(min: arrivalMin, max: arrivalMax),
-            departure: TimeRange(min: departureMin, max: departureMax)
-        )
-        filterRequest.arrivalDepartureRanges = [timeRange]
-        
-        // Set airline filters - use the IATA codes directly from our selection
-        if !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
+        // Only add airline filters if changed by user
+        if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
             filterRequest.iataCodesInclude = Array(selectedAirlines)
         }
+        
+        // Debug log to see what filters are being applied
+        printAppliedFilters(filterRequest)
         
         // Apply the filter
         viewModel.applyPollFilters(filterRequest: filterRequest)
@@ -5854,17 +5878,43 @@ struct FlightFilterSheet: View {
         dismiss()
     }
     
-    // Helper to convert airline names to IATA codes (no longer needed as we now store the codes directly)
-    private func getIataCode(for airlineCode: String) -> String? {
-        return airlineCode // Just return the code as-is since we're now storing the codes
+    // Helper method to print applied filters for debugging
+    private func printAppliedFilters(_ request: FlightFilterRequest) {
+        var filterDescription = "Applied filters: "
+        
+        if let sortBy = request.sortBy {
+            filterDescription += "Sort by \(sortBy) "
+            if let sortOrder = request.sortOrder {
+                filterDescription += "(\(sortOrder)), "
+            }
+        }
+        
+        if let stopCountMax = request.stopCountMax {
+            filterDescription += "Max stops: \(stopCountMax), "
+        }
+        
+        if let priceMin = request.priceMin, let priceMax = request.priceMax {
+            filterDescription += "Price: \(priceMin)-\(priceMax), "
+        }
+        
+        if let durationMax = request.durationMax {
+            filterDescription += "Max duration: \(durationMax/60)h \(durationMax%60)m, "
+        }
+        
+        if let airlines = request.iataCodesInclude, !airlines.isEmpty {
+            filterDescription += "Airlines: \(airlines.joined(separator: ", ")), "
+        }
+        
+        print(filterDescription)
     }
 }
 
-// Custom Range Slider View
+// Updated RangeSliderView with callback for change detection
 struct RangeSliderView: View {
     @Binding var values: [Double]
     let minValue: Double
     let maxValue: Double
+    var onChangeHandler: (() -> Void)? = nil
     
     var body: some View {
         GeometryReader { geometry in
@@ -5893,6 +5943,7 @@ struct RangeSliderView: View {
                                 let ratio = gesture.location.x / geometry.size.width
                                 let newValue = min(values[1] - 0.5, max(minValue, minValue + ratio * (maxValue - minValue)))
                                 values[0] = newValue
+                                onChangeHandler?()
                             }
                     )
                 
@@ -5908,6 +5959,7 @@ struct RangeSliderView: View {
                                 let ratio = gesture.location.x / geometry.size.width
                                 let newValue = max(values[0] + 0.5, min(maxValue, minValue + ratio * (maxValue - minValue)))
                                 values[1] = newValue
+                                onChangeHandler?()
                             }
                     )
             }
