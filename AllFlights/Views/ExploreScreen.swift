@@ -376,7 +376,8 @@ class ExploreAPIService {
     private let session = Session()
     
     
-    func searchFlights(origin: String, destination: String , returndate: String , departuredate: String,   roundTrip: Bool = true) -> AnyPublisher<SearchResponse, Error> {
+    func searchFlights(origin: String, destination: String, returndate: String, departuredate: String,
+                      roundTrip: Bool = true, adults: Int = 1, childrenAges: [Int?] = [], cabinClass: String = "economy") -> AnyPublisher<SearchResponse, Error> {
         let baseURL = "https://staging.plane.lascade.com/api/search/"
         
         let parameters: [String: String] = [
@@ -407,11 +408,14 @@ class ExploreAPIService {
                    ])
                }
         
+        // Filter out nil values from childrenAges and convert to Int array
+           let validChildrenAges = childrenAges.compactMap { $0 }
+        
         let requestData: [String: Any] = [
             "legs": legs,
-            "cabin_class": "economy",
-            "adults": 2,
-            "children_ages": [0]
+            "cabin_class": cabinClass.lowercased(),
+            "adults": adults,
+            "children_ages": validChildrenAges
         ]
         
         // Create URL with query parameters
@@ -704,6 +708,21 @@ class ExploreViewModel: ObservableObject {
     @Published var multiCityTrips: [MultiCityTrip] = []
 
     
+    @Published var adultsCount = 1
+    @Published var childrenCount = 0
+    @Published var childrenAges: [Int?] = []
+    @Published var selectedCabinClass = "Economy"
+    @Published var showingPassengersSheet = false
+    
+    func updateChildrenAgesArray(for newCount: Int) {
+        if newCount > childrenAges.count {
+            // Add nil ages for new children
+            childrenAges.append(contentsOf: Array(repeating: nil, count: newCount - childrenAges.count))
+        } else if newCount < childrenAges.count {
+            // Remove excess ages
+            childrenAges = Array(childrenAges.prefix(newCount))
+        }
+    }
 
     // Initialize with default trips in viewModel's init() method
     func initializeMultiCityTrips() {
@@ -726,15 +745,21 @@ class ExploreViewModel: ObservableObject {
     init() {
         setupAvailableMonths()
         
+        // Initialize passenger data
+        adultsCount = 1
+        childrenCount = 0
+        childrenAges = [0]
+        selectedCabinClass = "Economy"
+        
         // Add observer for dates changes
-            $dates
-                .sink { [weak self] selectedDates in
-                    guard let self = self else { return }
-                    if !selectedDates.isEmpty {
-                        self.updateSelectedDates()
-                    }
+        $dates
+            .sink { [weak self] selectedDates in
+                guard let self = self else { return }
+                if !selectedDates.isEmpty {
+                    self.updateSelectedDates()
                 }
-                .store(in: &cancellables)
+            }
+            .store(in: &cancellables)
     }
     
     func handleTripTypeChange() {
@@ -872,6 +897,9 @@ class ExploreViewModel: ObservableObject {
         
         print("Searching with \(legs.count) legs")
         
+        // Filter out nil values from childrenAges
+           let validChildrenAges = childrenAges.compactMap { $0 }
+        
         // Use the same search API but with multiple legs
         let baseURL = "https://staging.plane.lascade.com/api/search/"
         
@@ -884,9 +912,9 @@ class ExploreViewModel: ObservableObject {
         
         let requestData: [String: Any] = [
             "legs": legs,
-            "cabin_class": "economy",
-            "adults": 2,
-            "children_ages": [0]
+            "cabin_class": selectedCabinClass.lowercased(),
+            "adults": adultsCount,
+            "children_ages": validChildrenAges
         ]
         
         var urlComponents = URLComponents(string: baseURL)!
@@ -965,14 +993,20 @@ class ExploreViewModel: ObservableObject {
         
         print("Searching flights: \(origin) to \(destination)")
         
+        // Filter out nil values from childrenAges
+           let validChildrenAges = childrenAges.compactMap { $0 }
+        
         // First, get the search ID
         service.searchFlights(
-                    origin: origin,
-                    destination: destination,
-                    returndate: isRoundTrip ? selectedReturnDatee : "", // Only pass return date if round trip
-                    departuredate: selectedDepartureDatee,
-                    roundTrip: isRoundTrip
-                )
+                origin: origin,
+                destination: destination,
+                returndate: isRoundTrip ? selectedReturnDatee : "", // Only pass return date if round trip
+                departuredate: selectedDepartureDatee,
+                roundTrip: isRoundTrip,
+                adults: adultsCount,
+                childrenAges: childrenAges,
+                cabinClass: selectedCabinClass
+            )
             .receive(on: DispatchQueue.main)
             .flatMap { searchResponse -> AnyPublisher<FlightPollResponse, Error> in
                 print("Search successful, got searchId: \(searchResponse.searchId)")
@@ -1554,11 +1588,19 @@ struct SearchCard: View {
                     
                     Spacer()
                     
-                    Image(systemName: "person")
-                        .foregroundColor(.blue)
-                    
-                    Text("1, Economy")
-                        .font(.system(size: 14, weight: .medium))
+                    // Passenger selection button - now clickable
+                                       Button(action: {
+                                           viewModel.showingPassengersSheet = true
+                                       }) {
+                                           HStack(spacing: 4) {
+                                               Image(systemName: "person")
+                                                   .foregroundColor(.blue)
+                                               
+                                               // Display the passenger and cabin class info
+                                               Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
+                                                   .font(.system(size: 14, weight: .medium))
+                                           }
+                                       }
                 }
                 .padding(.vertical, 4)
             }
@@ -1577,6 +1619,15 @@ struct SearchCard: View {
                              
                 )
             }
+            .sheet(isPresented: $viewModel.showingPassengersSheet) {
+                            // Show the PassengersAndClassSelector when needed
+                            PassengersAndClassSelector(
+                                adultsCount: $viewModel.adultsCount,
+                                childrenCount: $viewModel.childrenCount,
+                                selectedClass: $viewModel.selectedCabinClass,
+                                childrenAges: $viewModel.childrenAges
+                            )
+                        }
             .onAppear {
                 // Ensure viewModel's isRoundTrip is in sync with the binding
                 viewModel.isRoundTrip = isRoundTrip
@@ -2041,13 +2092,22 @@ struct MultiCitySearchCard: View {
                 }
             }
             
+            
             // Passenger info and search button
-            HStack {
-                Image(systemName: "person")
-                    .foregroundColor(.blue)
-                
-                Text("1, Economy")
-                    .font(.system(size: 14, weight: .medium))
+                        HStack {
+                            // Updated passenger info button - now clickable
+                            Button(action: {
+                                viewModel.showingPassengersSheet = true
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "person")
+                                        .foregroundColor(.blue)
+                                    
+                                    // Display the passenger and cabin class info
+                                    Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                            }
                 
                 Spacer()
                 

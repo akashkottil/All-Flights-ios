@@ -3,12 +3,14 @@ import SwiftUI
 struct PassengersAndClassSelector: View {
     @Environment(\.dismiss) private var dismiss
     
-    // Local state for UI control
-    @State private var adultsCount = 1
-    @State private var childrenCount = 0 // Default to 0 children
-    @State private var selectedClass = "Economy"
-    @State private var showInfoDetails = false
-    @State private var childrenAges: [Int?] = [] // Empty by default
+    // Use Bindings to ExploreViewModel properties
+        @Binding var adultsCount: Int
+        @Binding var childrenCount: Int
+        @Binding var selectedClass: String
+        @Binding var childrenAges: [Int?]
+        
+        // Local state for UI control
+        @State private var showInfoDetails = false
     
     // State for age selection
     @State private var isShowingAgeSelector = false
@@ -490,9 +492,4 @@ struct FigmaChildAgeRow: View {
     }
 }
 
-// MARK: - Preview
-struct PassengersAndClassSelector_Previews: PreviewProvider {
-    static var previews: some View {
-        PassengersAndClassSelector()
-    }
-}
+
