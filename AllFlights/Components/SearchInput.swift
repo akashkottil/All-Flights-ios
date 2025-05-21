@@ -102,8 +102,8 @@ struct SearchInput: View {
         }
         // Passengers and Class bottom sheet
         .sheet(isPresented: $showPassengersAndClassSheet) {
-            PassengersAndClassSelector(viewModel: viewModel)
-                .edgesIgnoringSafeArea(.all)
+//            PassengersAndClassSelector(viewModel: viewModel)
+//                .edgesIgnoringSafeArea(.all)
         }
         // Add animation modifier to the entire view
         .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.1), value: viewModel.tripType)
