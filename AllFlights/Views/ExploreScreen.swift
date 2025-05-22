@@ -4541,7 +4541,17 @@ struct ModifiedDetailedFlightListView: View {
                         .padding()
                     Spacer()
                 }
-            } else {
+            }
+            else if viewModel.isLoadingDetailedFlights || filteredResults.isEmpty {
+                    Spacer()
+                    ForEach(0..<4){_ in
+                        DetailedFlightCardSkeleton()
+                            .padding(.bottom,5)
+                    }
+                    Spacer()
+                }
+            
+            else {
                 VStack {
                     // If we have a selected flight, show the FlightDetailCard for it
                     if let selectedId = selectedFlightId,
@@ -5454,7 +5464,7 @@ struct FlightFilterSheet: View {
                                 Spacer()
                                 
                                 // Checkmark for selected option
-                                Image(systemName: sortOption == option ? "checkmark.square.fill" : "square")
+                                Image(systemName: sortOption == option ? "inset.filled.square" : "square")
                                     .foregroundColor(sortOption == option ? .blue : .gray)
                                     .onTapGesture {
                                         sortOption = option
