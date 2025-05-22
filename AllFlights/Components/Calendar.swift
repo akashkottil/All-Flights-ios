@@ -477,7 +477,7 @@ struct CalendarView: View {
         .padding(.bottom,10)
     }
     
-    // MARK: - Month Section View
+    // MARK: - Enhanced month section view with better price fetching
     private func monthSectionView(for date: Date) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             // Month header
@@ -505,8 +505,8 @@ struct CalendarView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 20) {
                 let days = getDaysInMonth(for: date)
                 
-                ForEach(days, id: \.self) { day in
-                    if let dayDate = day {
+                ForEach(days.indices, id: \.self) { index in
+                    if let dayDate = days[index] {
                         DayViewWithPrice(
                             date: dayDate,
                             isSelected: isDateSelected(dayDate),
@@ -516,34 +516,42 @@ struct CalendarView: View {
                             isRangeSelection: dateSelection.selectedDates.count > 1
                         )
                         .onTapGesture {
-                            if !isPastDate(dayDate) {
-                                handleDateSelection(dayDate)
-                                fetchMonthlyPrices(for: dayDate)
-                            }
+                            handleDateSelection(dayDate)
                         }
-                        .contentShape(Rectangle()) // Makes the entire cell tappable
                     } else {
-                        // Empty cell
+                        // Empty cell for padding
                         Color.clear
                             .frame(height: 50)
                     }
                 }
             }
             .padding(.bottom, 20)
+            .onAppear {
+                // Fetch prices when this month becomes visible
+                // Only fetch if we don't already have price data for this month
+                let firstOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
+                let normalizedFirst = calendar.startOfDay(for: firstOfMonth)
+                
+                // Check if we already have price data for this month
+                let hasDataForMonth = priceData.keys.contains { priceDate in
+                    calendar.isDate(priceDate, equalTo: normalizedFirst, toGranularity: .month)
+                }
+                
+                if !hasDataForMonth {
+                    print("🔄 Fetching prices for month: \(date)")
+                    fetchMonthlyPrices(for: date)
+                }
+            }
         }
     }
     
-    // MARK: - Day View with Price
+    // MARK: - Enhanced DayViewWithPrice with better debugging
     struct DayViewWithPrice: View {
         let date: Date
         let isSelected: Bool
         let calendar: Calendar
         let priceData: [Date: (Int, String)]
-        
-        // Check if this date is in a selected range (for highlighting dates between selections)
         let isInRange: Bool
-        
-        // Add a property to check if there are multiple dates selected (range selection)
         let isRangeSelection: Bool
         
         private var day: Int {
@@ -575,14 +583,12 @@ struct CalendarView: View {
                         isPastDate ? Color.gray.opacity(0.5) :
                             (isSelected ? Color(hex: "#0044AB") : .black)
                     )
-                    
                     .frame(width: 36, height: 36)
                     .background(
                         RoundedRectangle(cornerRadius: 5)
                             .fill(isSelected ? Color.clear : Color.clear)
                     )
                     .overlay(
-                        
                         RoundedRectangle(cornerRadius: 5)
                             .stroke(
                                 isPastDate ? Color.clear :
@@ -591,25 +597,25 @@ struct CalendarView: View {
                             )
                     )
                     .background(
-                        // Only apply the background highlight if NOT in range selection mode
                         RoundedRectangle(cornerRadius: 5)
                             .fill(isInRange && !isSelected && !isPastDate && isRangeSelection ?
                                   Color.blue.opacity(0.2) : Color.clear)
                     )
                 
-                // Price
+                // Price display
                 if let price = price, !isPastDate {
                     Text("$\(price)")
                         .font(.system(size: 12))
                         .foregroundColor(getPriceColor(for: priceCategory ?? "normal"))
                 } else {
-                    // Empty text to maintain spacing
+                    // Empty text to maintain consistent spacing
                     Text("")
                         .font(.system(size: 12))
                 }
             }
             .frame(height: 50)
             .opacity(isPastDate ? 0.5 : 1.0)
+            .contentShape(Rectangle()) // Ensure the entire cell is tappable
         }
         
         private func getPriceColor(for category: String) -> Color {
@@ -774,11 +780,21 @@ struct CalendarView: View {
         return false
     }
     
+    // MARK: - Enhanced handleDateSelection with better validation
     private func handleDateSelection(_ date: Date) {
+        // Ensure we can't select past dates
+        if isPastDate(date) {
+            print("🚫 Attempted to select past date: \(date)")
+            return
+        }
+        
+        print("📅 Date selected: \(date)")
+        
         // In multi-city mode, always enforce single date selection
         if isMultiCity {
             dateSelection.selectedDates = [date]
             dateSelection.selectionState = .firstDateSelected
+            print("✈️ Multi-city: Selected single date")
             return
         }
         
@@ -787,15 +803,18 @@ struct CalendarView: View {
             // Single date mode
             dateSelection.selectedDates = [date]
             dateSelection.selectionState = .firstDateSelected
+            print("📅 Single date mode: Selected \(date)")
         } else {
             // Two date selection mode
             switch dateSelection.selectionState {
             case .none:
                 dateSelection.selectedDates = [date]
                 dateSelection.selectionState = .firstDateSelected
+                print("📅 First date selected: \(date)")
                 
             case .firstDateSelected:
                 if calendar.isDate(date, inSameDayAs: dateSelection.selectedDates[0]) {
+                    print("📅 Same date selected, ignoring")
                     return // Same date, do nothing
                 }
                 
@@ -803,18 +822,25 @@ struct CalendarView: View {
                 let endDate = max(date, dateSelection.selectedDates[0])
                 dateSelection.selectedDates = [startDate, endDate]
                 dateSelection.selectionState = .rangeSelected
+                print("📅 Range selected: \(startDate) to \(endDate)")
                 
             case .rangeSelected:
                 // Start over with new date
                 dateSelection.selectedDates = [date]
                 dateSelection.selectionState = .firstDateSelected
+                print("📅 Range reset, new first date: \(date)")
             }
         }
     }
     
+   
+    // MARK: - Fixed getDaysInMonth method
     private func getDaysInMonth(for date: Date) -> [Date?] {
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
-        let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
+        
+        // Get the actual number of days in this specific month
+        let range = calendar.range(of: .day, in: .month, for: monthStart)!
+        let daysInMonth = range.count
         
         // Get the weekday of the first day (1 = Sunday, 2 = Monday, etc.)
         let firstWeekday = calendar.component(.weekday, from: monthStart)
@@ -829,10 +855,21 @@ struct CalendarView: View {
             }
         }
         
+        // Fill remaining cells to complete the week grid (ensures consistent layout)
+        let remainingCells = 7 - (days.count % 7)
+        if remainingCells < 7 {
+            for _ in 0..<remainingCells {
+                days.append(nil)
+            }
+        }
+        
         return days
     }
     
+    // MARK: - Fixed fetchMonthlyPrices method for bulk API response
     private func fetchMonthlyPrices(for selectedDate: Date) {
+        guard !fromiatacode.isEmpty && !toiatacode.isEmpty else { return }
+        
         guard let origin = fromiatacode.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let destination = toiatacode.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
         
@@ -859,21 +896,56 @@ struct CalendarView: View {
         guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else { return }
         request.httpBody = httpBody
 
+        print("🔍 Fetching prices for: \(formattedDate) (\(origin) → \(destination))")
+
         URLSession.shared.dataTask(with: request) { data, response, error in
-            guard let data = data else { return }
+            guard let data = data, error == nil else {
+                print("❌ API Error: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            
+            // Debug: Print raw response
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📡 API Response: \(responseString.prefix(200))...")
+            }
+            
             do {
                 let decoded = try JSONDecoder().decode(APIResponse.self, from: data)
+                print("✅ Decoded \(decoded.results.count) price entries")
+                
                 DispatchQueue.main.async {
                     var newPriceData: [Date: (Int, String)] = [:]
+                    
                     for item in decoded.results {
+                        // Convert Unix timestamp to Date
                         let date = Date(timeIntervalSince1970: item.date)
+                        // Normalize to start of day in local timezone
                         let normalizedDate = calendar.startOfDay(for: date)
                         newPriceData[normalizedDate] = (item.price, item.price_category)
+                        
+                        // Debug: Print some sample dates
+                        if newPriceData.count <= 5 {
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "yyyy-MM-dd"
+                            print("💰 Price for \(formatter.string(from: normalizedDate)): $\(item.price) (\(item.price_category))")
+                        }
                     }
-                    self.priceData = newPriceData
+                    
+                    print("📊 Total price data entries: \(newPriceData.count)")
+                    
+                    // Merge with existing price data (don't overwrite, just add new data)
+                    for (date, priceInfo) in newPriceData {
+                        self.priceData[date] = priceInfo
+                    }
+                    
+                    print("📈 Total price data after merge: \(self.priceData.count)")
                 }
             } catch {
-                print("Failed to decode API response:", error)
+                print("❌ Failed to decode API response:", error)
+                // Print the raw data for debugging
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("Raw response: \(responseString)")
+                }
             }
         }.resume()
     }
