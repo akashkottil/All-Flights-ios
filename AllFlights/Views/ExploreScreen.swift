@@ -1750,14 +1750,39 @@ class ExploreViewModel: ObservableObject {
         }
     }
     
+    func goBackToFlightResults() {
+        showingDetailedFlightList = false
+        detailedFlightResults = []
+        detailedFlightError = nil
+        isLoadingDetailedFlights = false
+        // Keep hasSearchedFlights = true to stay on flight results page
+    }
+
+    func goBackToCities() {
+        hasSearchedFlights = false
+        flightResults = []
+        flightSearchResponse = nil
+        selectedCity = nil
+        toLocation = "Anywhere"
+        // Keep showingCities = true to show cities
+        // Fetch cities again for the selected country
+        if let countryName = selectedCountryName,
+           let country = destinations.first(where: { $0.location.name == countryName }) {
+            fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
+        }
+    }
+    
     func goBackToCountries() {
         selectedCountryName = nil
         selectedCity = nil
         toLocation = "Anywhere"
         showingCities = false
         hasSearchedFlights = false
+        showingDetailedFlightList = false
         flightResults = []
         flightSearchResponse = nil
+        detailedFlightResults = []
+        detailedFlightError = nil
         fetchCountries()
     }
     
@@ -1797,6 +1822,18 @@ struct ExploreScreen: View {
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
 
+    private func handleBackNavigation() {
+        if viewModel.showingDetailedFlightList {
+            // Go back from detailed flight list to flight results
+            viewModel.goBackToFlightResults()
+        } else if viewModel.hasSearchedFlights {
+            // Go back from flight results to cities
+            viewModel.goBackToCities()
+        } else if viewModel.showingCities {
+            // Go back from cities to countries
+            viewModel.goBackToCountries()
+        }
+    }
     
     // MARK: - Body
     var body: some View {
@@ -1806,9 +1843,7 @@ struct ExploreScreen: View {
                 HStack {
                     // Back button
                     Button(action: {
-                        if viewModel.showingCities || viewModel.hasSearchedFlights {
-                            viewModel.goBackToCountries()
-                        }
+                        handleBackNavigation()
                     }) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.primary)
@@ -2299,6 +2334,10 @@ struct FlightResultCard: View {
             viewModel.selectedDepartureDatee = formattedCardDepartureDate
             viewModel.selectedReturnDatee = "" // Empty for one-way
         }
+        
+        // Update these stored dates in viewModel
+           viewModel.selectedDepartureDatee = formattedCardDepartureDate
+           viewModel.selectedReturnDatee = formattedCardReturnDate
         
         // Then call the search function with these dates
         viewModel.searchFlightsForDates(
@@ -4456,56 +4495,53 @@ struct ModifiedDetailedFlightListView: View {
     var body: some View {
         VStack {
             // Header
-            HStack {
-                Button(action: {
-                    selectedFlightId = nil
-                    viewModel.showingDetailedFlightList = false
-                }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(.primary)
-                        .font(.system(size: 18, weight: .semibold))
+            VStack {
+                HStack {
+                    
+                    
+                    Spacer()
+                    
+                    // Use the appropriate route display based on mode
+                    Text(isMultiCity ? multiCityRouteText() : "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Use appropriate date display based on mode
+                    Text(isMultiCity ? multiCityDatesText() : formattedDates)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                 }
+                .padding()
                 
-                Spacer()
-                
-                // Use the appropriate route display based on mode
-                Text(isMultiCity ? multiCityRouteText() : "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
-                    .font(.headline)
-                
-                Spacer()
-                
-                // Use appropriate date display based on mode
-                Text(isMultiCity ? multiCityDatesText() : formattedDates)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                // Filter tabs
+                HStack {
+                    // New Filter button
+                    FilterButton {
+                        showingFilterSheet = true
+                    }
+                    .padding(.leading,10)
+                    
+                    FlightFilterTabView(
+                        selectedFilter: selectedFilter,
+                        onSelectFilter: { filter in
+                            // Just update the local filter selection
+                            selectedFilter = filter
+                            
+                            // Apply local filtering
+                            applyLocalFilters()
+                        }
+                    )
+                    
+                    
+                    
+                }
+                .padding(.trailing, 16)
             }
-            .padding()
             
             // Only show filter tabs when we have results and no flight is selected
                         if !viewModel.detailedFlightResults.isEmpty && selectedFlightId == nil {
-                            // Filter tabs
-                            HStack {
-                                // New Filter button
-                                FilterButton {
-                                    showingFilterSheet = true
-                                }
-                                .padding(.leading,10)
-                                
-                                FlightFilterTabView(
-                                    selectedFilter: selectedFilter,
-                                    onSelectFilter: { filter in
-                                        // Just update the local filter selection
-                                        selectedFilter = filter
-                                        
-                                        // Apply local filtering
-                                        applyLocalFilters()
-                                    }
-                                )
-                                
-                                
-                                
-                            }
-                            .padding(.trailing, 16)
+                            
                             
                             // Show flight count
                             HStack {
