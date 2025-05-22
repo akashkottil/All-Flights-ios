@@ -2160,8 +2160,10 @@ struct SearchCard: View {
                                 isRoundTrip: isRoundTrip  // Pass the current trip type
                             )
             }
-            .sheet(isPresented: $viewModel.showingPassengersSheet) {
-                            // Show the PassengersAndClassSelector when needed
+            .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
+                            // ADDED: Trigger search when passenger sheet is dismissed (Apply clicked)
+                            triggerSearchAfterPassengerChange()
+                        }) {
                             PassengersAndClassSelector(
                                 adultsCount: $viewModel.adultsCount,
                                 childrenCount: $viewModel.childrenCount,
@@ -2183,6 +2185,27 @@ struct SearchCard: View {
             }
         }
     }
+    
+    // Helper function to trigger search after passenger changes
+       private func triggerSearchAfterPassengerChange() {
+           // Check if we have active search context
+           if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
+               // Clear existing results
+               viewModel.detailedFlightResults = []
+               
+               // Restart search with new passenger data
+               viewModel.searchFlightsForDates(
+                   origin: viewModel.selectedOriginCode,
+                   destination: viewModel.selectedDestinationCode,
+                   returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                   departureDate: viewModel.selectedDepartureDatee
+               )
+           }
+           // If we're in the explore flow with a selected city
+           else if let city = viewModel.selectedCity {
+               viewModel.fetchFlightDetails(destination: city.location.iata)
+           }
+       }
     
     // Helper method to format date for display
     private func formatDate(_ date: Date) -> String {
@@ -2699,7 +2722,32 @@ struct MultiCitySearchCard: View {
                 multiCityViewModel: viewModel
             )
         }
+        .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
+                    // ADDED: Trigger search when passenger sheet is dismissed for multi-city
+                    triggerMultiCitySearchAfterPassengerChange()
+                }) {
+                    PassengersAndClassSelector(
+                        adultsCount: $viewModel.adultsCount,
+                        childrenCount: $viewModel.childrenCount,
+                        selectedClass: $viewModel.selectedCabinClass,
+                        childrenAges: $viewModel.childrenAges
+                    )
+                }
     }
+    
+    // Helper function for multi-city search after passenger changes
+       private func triggerMultiCitySearchAfterPassengerChange() {
+           // Check if multi-city trips are valid
+           let isValid = viewModel.multiCityTrips.allSatisfy { trip in
+               return !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+           }
+           
+           if isValid {
+               // Clear existing results and trigger new multi-city search
+               viewModel.detailedFlightResults = []
+               viewModel.searchMultiCityFlights()
+           }
+       }
     
     // Helper function to format date in a simple way
     private func formattedDate(_ date: Date) -> String {
