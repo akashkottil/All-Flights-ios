@@ -109,6 +109,12 @@ struct CalendarView: View {
     @Binding var fromiatacode: String
     @Binding var toiatacode: String
     @Binding var parentSelectedDates: [Date]
+    
+    // Add callback for trip type changes
+       var onTripTypeChange: ((Bool) -> Void)? = nil
+    
+    // Add isRoundTrip parameter to know the current trip type
+        var isRoundTrip: Bool = true
    
    
     @State private var priceData: [Date: (Int, String)] = [:]
@@ -213,6 +219,8 @@ struct CalendarView: View {
                     currentMonth = tripDate
                 }
             } else {
+                singleDate = !isRoundTrip  // Use the parameter instead of viewModel
+                showReturnDateSelector = isRoundTrip
                 // Initialize dateSelection with parentSelectedDates
                 if !parentSelectedDates.isEmpty {
                     dateSelection.selectedDates = parentSelectedDates
@@ -327,6 +335,8 @@ struct CalendarView: View {
                             Button(action: {
                                 showReturnDateSelector = true
                                 singleDate = false
+                                // Notify parent about trip type change
+                                onTripTypeChange?(true) // true for round trip
                             }) {
                                 Text("Add Return")
                                     .font(.subheadline)
@@ -427,6 +437,9 @@ struct CalendarView: View {
                             Button(action: {
                                 showReturnDateSelector = true
                                 singleDate = false
+                                
+                                // Notify parent about trip type change
+                                onTripTypeChange?(true) // true for round trip
                             }) {
                                 Text("Add Return")
                                     .font(.subheadline)
@@ -798,14 +811,17 @@ struct CalendarView: View {
             return
         }
         
+        // Check if we're in one-way mode (either singleDate is true OR viewModel indicates one-way)
+        let isOneWayMode = singleDate || !isRoundTrip 
+        
         // Regular mode date selection logic
-        if singleDate && !showReturnDateSelector {
+        if isOneWayMode && !showReturnDateSelector {
             // Single date mode
             dateSelection.selectedDates = [date]
             dateSelection.selectionState = .firstDateSelected
             print("📅 Single date mode: Selected \(date)")
         } else {
-            // Two date selection mode
+            // Round-trip mode: allow range selection
             switch dateSelection.selectionState {
             case .none:
                 dateSelection.selectedDates = [date]
@@ -815,7 +831,7 @@ struct CalendarView: View {
             case .firstDateSelected:
                 if calendar.isDate(date, inSameDayAs: dateSelection.selectedDates[0]) {
                     print("📅 Same date selected, ignoring")
-                    return // Same date, do nothing
+                    return
                 }
                 
                 let startDate = min(date, dateSelection.selectedDates[0])

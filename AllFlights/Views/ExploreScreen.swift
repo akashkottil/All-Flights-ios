@@ -2148,9 +2148,17 @@ struct SearchCard: View {
                 }
             }) {
                 
-                CalendarView(fromiatacode: $viewModel.fromIataCode, toiatacode:$viewModel.toIataCode, parentSelectedDates:$viewModel.dates,
-                             
-                )
+                CalendarView(
+                                fromiatacode: $viewModel.fromIataCode,
+                                toiatacode: $viewModel.toIataCode,
+                                parentSelectedDates: $viewModel.dates,
+                                onTripTypeChange: { newIsRoundTrip in
+                                    // Update the trip type when calendar requests it
+                                    isRoundTrip = newIsRoundTrip
+                                    viewModel.isRoundTrip = newIsRoundTrip
+                                },
+                                isRoundTrip: isRoundTrip  // Pass the current trip type
+                            )
             }
             .sheet(isPresented: $viewModel.showingPassengersSheet) {
                             // Show the PassengersAndClassSelector when needed
@@ -2480,6 +2488,12 @@ struct TripTypeTabView: View {
                                         isRoundTrip = newIsRoundTrip
                                         viewModel.isRoundTrip = newIsRoundTrip
                                         
+                                        // Clear dates if switching from round trip to one way and we have 2+ dates
+                                                                    if !newIsRoundTrip && viewModel.dates.count > 1 {
+                                                                        // Keep only the first date for one-way
+                                                                        viewModel.dates = Array(viewModel.dates.prefix(1))
+                                                                    }
+                                        
                                         // Your existing search re-triggering logic
                                         if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
                                             // Clear current results first
@@ -2505,6 +2519,10 @@ struct TripTypeTabView: View {
                     }
                 }
             }
+            .onChange(of: isRoundTrip) { newValue in
+                        // Update selectedTab to match the trip type
+                        selectedTab = newValue ? 0 : 1 // 0 for "Return", 1 for "One way"
+                    }
         }
         .frame(width: totalWidth, height: 36)
         .padding(.horizontal, 4)
