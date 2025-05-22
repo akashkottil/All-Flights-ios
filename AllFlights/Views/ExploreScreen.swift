@@ -1064,6 +1064,32 @@ class ExploreViewModel: ObservableObject {
     }
     @Published var filterSheetState = FilterSheetState()
     
+    @Published var isDirectSearch: Bool = false
+    
+    func goBackToMainFromDirectSearch() {
+        // Reset all search-related states
+        isDirectSearch = false
+        showingDetailedFlightList = false
+        detailedFlightResults = []
+        detailedFlightError = nil
+        isLoadingDetailedFlights = false
+        
+        // Clear search data but keep the form filled
+        // Don't clear fromLocation, toLocation, fromIataCode, toIataCode, dates
+        // so user can search again easily
+        
+        // Make sure we're back to countries view
+        selectedCountryName = nil
+        selectedCity = nil
+        showingCities = false
+        hasSearchedFlights = false
+        flightResults = []
+        flightSearchResponse = nil
+        
+        // Fetch countries to show the main explore screen
+        fetchCountries()
+    }
+    
     // For storing filter state
     private var _currentFilterRequest: FlightFilterRequest?
     private var _lastPollResponse: FlightPollResponse?
@@ -1314,10 +1340,8 @@ class ExploreViewModel: ObservableObject {
                 returnDate = formatter.string(from: sortedDates[1])
             } else if dates.count == 1 || !isRoundTrip {
                 departureDate = formatter.string(from: dates[0])
-                // For one-way trip, set return date to empty string
                 returnDate = isRoundTrip ? formatter.string(from: Calendar.current.date(byAdding: .day, value: 1, to: dates[0])!) : ""
             } else {
-                // Default dates if somehow dates array is empty
                 departureDate = "2025-12-29"
                 returnDate = isRoundTrip ? "2025-12-30" : ""
             }
@@ -1326,12 +1350,13 @@ class ExploreViewModel: ObservableObject {
             selectedDepartureDatee = departureDate
             selectedReturnDatee = returnDate
             
-            // Initiate search with these dates
+            // Initiate search with these dates - mark as direct search
             searchFlightsForDates(
                 origin: fromIataCode,
                 destination: toIataCode,
                 returnDate: returnDate,
-                departureDate: departureDate
+                departureDate: departureDate,
+                isDirectSearch: true
             )
         }
     }
@@ -1461,7 +1486,8 @@ class ExploreViewModel: ObservableObject {
     }
     
     // Add this function to handle search and poll
-    func searchFlightsForDates(origin: String, destination: String, returnDate: String, departureDate: String) {
+    func searchFlightsForDates(origin: String, destination: String, returnDate: String, departureDate: String, isDirectSearch: Bool = false) {
+        self.isDirectSearch = isDirectSearch
         isLoadingDetailedFlights = true
         detailedFlightError = nil
         detailedFlightResults = []
@@ -1478,11 +1504,12 @@ class ExploreViewModel: ObservableObject {
         // Filter out nil values from childrenAges
         let validChildrenAges = childrenAges.compactMap { $0 }
         
+        // Rest of the existing method remains the same...
         // First, get the search ID
         service.searchFlights(
             origin: origin,
             destination: destination,
-            returndate: isRoundTrip ? selectedReturnDatee : "", // Only pass return date if round trip
+            returndate: isRoundTrip ? selectedReturnDatee : "",
             departuredate: selectedDepartureDatee,
             roundTrip: isRoundTrip,
             adults: adultsCount,
@@ -1495,53 +1522,42 @@ class ExploreViewModel: ObservableObject {
             
             // Check if we need to apply filters
             if let filterRequest = self._currentFilterRequest {
-                // Create poll request with filters
                 return self.service.pollFlightResultsWithFilters(searchId: searchResponse.searchId, filterRequest: filterRequest)
             } else {
-                // Use regular poll without filters
                 return self.service.pollFlightResults(searchId: searchResponse.searchId)
             }
         }
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    // This will only be called when polling is fully completed or fails
-                    self?.isLoadingDetailedFlights = false
-                    if case .failure(let error) = completion {
-                        print("Flight search failed: \(error.localizedDescription)")
-                        self?.detailedFlightError = error.localizedDescription
-                    }
-                },
-                receiveValue: { [weak self] pollResponse in
-                    guard let self = self else { return }
+        .receive(on: DispatchQueue.main)
+        .sink(
+            receiveCompletion: { [weak self] completion in
+                self?.isLoadingDetailedFlights = false
+                if case .failure(let error) = completion {
+                    print("Flight search failed: \(error.localizedDescription)")
+                    self?.detailedFlightError = error.localizedDescription
+                }
+            },
+            receiveValue: { [weak self] pollResponse in
+                guard let self = self else { return }
+                
+                if !pollResponse.results.isEmpty {
+                    let existingIds = Set(self.detailedFlightResults.map { $0.id })
+                    let newResults = pollResponse.results.filter { !existingIds.contains($0.id) }
                     
-                    // Received new results - update UI immediately
-                    if !pollResponse.results.isEmpty {
-  
-                        
-                        // Option 2: Append unique new results (preferred for progressive loading)
-                        let existingIds = Set(self.detailedFlightResults.map { $0.id })
-                        let newResults = pollResponse.results.filter { !existingIds.contains($0.id) }
-                        
-                        if !newResults.isEmpty {
-                            self.detailedFlightResults.append(contentsOf: newResults)
-                         
-                        }
-                        
-                        
-                        // Since we're showing results now, we can consider the loading as complete
-                        if !self.detailedFlightResults.isEmpty {
-                            self.isLoadingDetailedFlights = false
-                        }
+                    if !newResults.isEmpty {
+                        self.detailedFlightResults.append(contentsOf: newResults)
                     }
                     
-                    // If there are no results in the response and our array is still empty
-                    if pollResponse.cache == true && self.detailedFlightResults.isEmpty {
+                    if !self.detailedFlightResults.isEmpty {
                         self.isLoadingDetailedFlights = false
                     }
                 }
-            )
-            .store(in: &cancellables)
+                
+                if pollResponse.cache == true && self.detailedFlightResults.isEmpty {
+                    self.isLoadingDetailedFlights = false
+                }
+            }
+        )
+        .store(in: &cancellables)
     }
 
     // Add helper function to format date for API
@@ -1751,11 +1767,17 @@ class ExploreViewModel: ObservableObject {
     }
     
     func goBackToFlightResults() {
-        showingDetailedFlightList = false
-        detailedFlightResults = []
-        detailedFlightError = nil
-        isLoadingDetailedFlights = false
-        // Keep hasSearchedFlights = true to stay on flight results page
+        if isDirectSearch {
+            // If this was a direct search, go back to main screen
+            goBackToMainFromDirectSearch()
+        } else {
+            // If this came from exploration, go back to flight results
+            showingDetailedFlightList = false
+            detailedFlightResults = []
+            detailedFlightError = nil
+            isLoadingDetailedFlights = false
+            // Keep hasSearchedFlights = true to stay on flight results page
+        }
     }
 
     func goBackToCities() {
@@ -1887,147 +1909,133 @@ struct ExploreScreen: View {
            
             
             ScrollView {
-                VStack(alignment: .center, spacing: 16) {
-                    // Main content
-                    if !viewModel.hasSearchedFlights {
-                        // Original explore view content
-                        // Title with dynamic text based on view state
-                        Text(viewModel.showingCities ? "Explore \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
-                            .font(.system(size: 24, weight: .bold))
-                            .padding(.horizontal)
-                            .padding(.top, 16)
-                        
-                       
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(0..<filterOptions.count, id: \.self) { index in
-                                        FilterTabButton(
-                                            title: filterOptions[index],
-                                            isSelected: selectedFilterTab == index
-                                        ) {
-                                            selectedFilterTab = index
+                        VStack(alignment: .center, spacing: 16) {
+                            // Main content with updated priority
+                            if viewModel.showingDetailedFlightList {
+                                // Detailed flight list - highest priority
+                                ModifiedDetailedFlightListView(viewModel: viewModel)
+                                    .transition(.move(edge: .trailing))
+                                    .zIndex(1)
+                                    .edgesIgnoringSafeArea(.all)
+                                    .background(Color(.systemBackground))
+                            }
+                            else if !viewModel.hasSearchedFlights {
+                                // Original explore view content
+                                Text(viewModel.showingCities ? "Explore \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                                
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(0..<filterOptions.count, id: \.self) { index in
+                                            FilterTabButton(
+                                                title: filterOptions[index],
+                                                isSelected: selectedFilterTab == index
+                                            ) {
+                                                selectedFilterTab = index
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                }
+                                
+                                // Destination cards (destinations/cities)
+                                if !viewModel.isLoading && viewModel.errorMessage == nil {
+                                    VStack(spacing: 12) {
+                                        ForEach(viewModel.destinations) { destination in
+                                            APIDestinationCard(
+                                                item: destination,
+                                                currencySymbol: "₹",
+                                                onTap: {
+                                                    if !viewModel.showingCities {
+                                                        viewModel.fetchCitiesFor(
+                                                            countryId: destination.location.entityId,
+                                                            countryName: destination.location.name
+                                                        )
+                                                    } else {
+                                                        viewModel.selectCity(city: destination)
+                                                    }
+                                                }
+                                            )
+                                            .padding(.horizontal)
+                                        }
+                                    }
+                                    .padding(.bottom, 16)
+                                }
+                            }
+                            else {
+                                // Flight search results view (the old explore flow)
+                                VStack(alignment: .center, spacing: 16) {
+                                    Text("Explore \(viewModel.toLocation)")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .padding(.horizontal)
+                                        .padding(.top, 16)
+                                    
+                                    MonthSelectorView(
+                                        months: viewModel.availableMonths,
+                                        selectedIndex: viewModel.selectedMonthIndex,
+                                        onSelect: { index in
+                                            viewModel.selectMonth(at: index)
+                                        }
+                                    )
+                                    .padding(.top, 8)
+                                    
+                                    if viewModel.isLoadingFlights {
+                                        ForEach(0..<3, id: \.self) { _ in
+                                            SkeletonFlightResultCard()
+                                                .padding(.bottom, 8)
+                                        }
+                                    } else if viewModel.errorMessage != nil || viewModel.flightResults.isEmpty {
+                                        Text("No flights found")
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray)
+                                    } else {
+                                        ForEach(viewModel.flightResults) { result in
+                                            FlightResultCard(
+                                                departureDate: viewModel.formatDate(result.outbound.departure ?? 0),
+                                                returnDate: result.inbound != nil && result.inbound?.departure != nil ?
+                                                           viewModel.formatDate(result.inbound!.departure!) : "No return",
+                                                origin: result.outbound.origin.iata,
+                                                destination: result.outbound.destination.iata,
+                                                price: "₹\(result.price)",
+                                                isOutDirect: result.outbound.direct,
+                                                isInDirect: result.inbound?.direct ?? false,
+                                                tripDuration: viewModel.calculateTripDuration(result),
+                                                viewModel: viewModel
+                                            )
+                                            .padding(.bottom, 8)
                                         }
                                     }
                                 }
-                                .padding(.horizontal)
                             }
-                       
-                        
-                        
-                        // Destination cards (destinations/cities)
-                        if !viewModel.isLoading && viewModel.errorMessage == nil {
-                            VStack(spacing: 12) {
-                                ForEach(viewModel.destinations) { destination in
-                                    APIDestinationCard(
-                                        item: destination,
-                                        currencySymbol: "₹",
-                                        onTap: {
-                                            if !viewModel.showingCities {
-                                                viewModel.fetchCitiesFor(
-                                                    countryId: destination.location.entityId,
-                                                    countryName: destination.location.name
-                                                )
-                                            } else {
-                                                // Update selected city when tapped
-                                                viewModel.selectCity(city: destination)
-                                            }
-                                        }
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            }
-                            .padding(.bottom, 16)
-                        }
-                    }
-                   
-                    else if viewModel.showingDetailedFlightList {
-                                    ModifiedDetailedFlightListView(viewModel: viewModel)
-                                        .transition(.move(edge: .trailing))
-                                        .zIndex(1) // Make sure it's above the main content
-                                        .edgesIgnoringSafeArea(.all)
-                                        .background(Color(.systemBackground))
-                                }
-                    
-                    else {
-                        // Flight search results view
-                        VStack(alignment: .center, spacing: 16) {
-                             Text("Explore \(viewModel.toLocation)")
-                                .font(.system(size: 24, weight: .bold))
-                                .padding(.horizontal)
-                                .padding(.top, 16)
-                            MonthSelectorView(
-                                months: viewModel.availableMonths,
-                                selectedIndex: viewModel.selectedMonthIndex,
-                                onSelect: { index in
-                                    viewModel.selectMonth(at: index)
-                                }
-                            )
-                            .padding(.top, 8)
                             
-                            if viewModel.isLoadingFlights {
-                                // Show loading skeleton for flights
-                                ForEach(0..<3, id: \.self) { _ in
-                                    SkeletonFlightResultCard()
-                                        .padding(.bottom, 8)
+                            // Loading and error displays
+                            if viewModel.isLoading {
+                                VStack(spacing: 12) {
+                                    ForEach(0..<5, id: \.self) { _ in
+                                        SkeletonDestinationCard()
+                                    }
                                 }
-                            } else if viewModel.errorMessage != nil || viewModel.flightResults.isEmpty{
-
-                               
-                                    Text("No flights found")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-
-
-                            } else {
-                                // Display flight results
-                                ForEach(viewModel.flightResults) { result in
-                                    // Create a FlightResultCard for each result
-                                    FlightResultCard(
-                                        departureDate: viewModel.formatDate(result.outbound.departure ?? 0),
-                                        returnDate: result.inbound != nil && result.inbound?.departure != nil ?
-                                                           viewModel.formatDate(result.inbound!.departure!) : "No return",
-                                        origin: result.outbound.origin.iata,
-                                        destination: result.outbound.destination.iata,
-                                        price: "₹\(result.price)",
-                                        isOutDirect: result.outbound.direct,
-                                        isInDirect: result.inbound?.direct ?? false,
-                                        tripDuration: viewModel.calculateTripDuration(result),
-                                        viewModel: viewModel
-                                    )
-                                    .padding(.bottom, 8)
-                                }
+                                .padding(.bottom, 16)
                             }
                         }
+                        .background(Color("scroll"))
                     }
-                    
-                    // Loading and error displays
-                    if viewModel.isLoading {
-                        VStack(spacing: 12) {
-                            ForEach(0..<5, id: \.self) { _ in
-                                SkeletonDestinationCard()
-                            }
-                        }
-                        .padding(.bottom, 16)
-                    }
+                    .background(Color(.systemBackground))
                 }
-                .background(
-                    Color("scroll")
-                )
-                
+                .ignoresSafeArea(edges: .bottom)
+                .onAppear {
+                    if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
+                        viewModel.fetchCountries()
+                    }
+                    viewModel.setupAvailableMonths()
+                }
             }
-            .background(Color(.systemBackground))
-        }
-        .ignoresSafeArea(edges: .bottom)
-        .onAppear {
-            if !viewModel.hasSearchedFlights {
-                viewModel.fetchCountries()
-            }
-            viewModel.setupAvailableMonths()
-        }
 
         
     }
-}
+
 
 // MARK: - Search Card Component
 struct SearchCard: View {
@@ -3325,13 +3333,11 @@ struct LocationSearchSheet: View {
         }
     
     private func selectDestination(result: AutocompleteResult) {
-        
         if multiCityMode {
             viewModel.multiCityTrips[multiCityTripIndex].toLocation = result.cityName
             viewModel.multiCityTrips[multiCityTripIndex].toIataCode = result.iataCode
             dismiss()
-        }
-        else{
+        } else {
             // Selected destination - update the view model
             viewModel.toLocation = result.cityName
             viewModel.toIataCode = result.iataCode
@@ -3348,24 +3354,36 @@ struct LocationSearchSheet: View {
                         viewModel.updateDatesAndRunSearch()
                     }
                 } else {
-                    // If no dates selected, use default dates
-                    let departureDate = "2025-12-29"
-                    let returnDate = "2025-12-30"
+                    // If no dates selected, use dynamic default dates (tomorrow and day after)
+                    let calendar = Calendar.current
+                    let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                    let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+                    
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    
+                    let departureDate = formatter.string(from: tomorrow)
+                    let returnDate = formatter.string(from: dayAfterTomorrow)
+                    
                     viewModel.selectedDepartureDatee = departureDate
                     viewModel.selectedReturnDatee = returnDate
                     
-                    // Initiate flight search with default dates
+                    // Also update the dates array to keep calendar in sync
+                    viewModel.dates = [tomorrow, dayAfterTomorrow]
+                    
+                    // Initiate flight search with dynamic default dates - mark as direct search
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         viewModel.searchFlightsForDates(
                             origin: viewModel.fromIataCode,
                             destination: result.iataCode,
                             returnDate: returnDate,
-                            departureDate: departureDate
+                            departureDate: departureDate,
+                            isDirectSearch: true
                         )
                     }
                 }
             }
-    }
+        }
     }
     
 //    private func initiateSearch() {
