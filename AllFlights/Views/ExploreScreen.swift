@@ -4624,54 +4624,43 @@ struct ModifiedDetailedFlightListView: View {
             }
             
             // Only show filter tabs when we have results and no flight is selected
-                        if !viewModel.detailedFlightResults.isEmpty && selectedFlightId == nil {
-                            
-                            
-                            // Show flight count
-                            HStack {
-                                Text("\(filteredResults.count) flights")
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                                Spacer()
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 8)
-                        }
-            
-            // Content
-            if viewModel.detailedFlightResults.isEmpty {
-                if viewModel.isLoadingDetailedFlights {
-                    Spacer()
-                    ForEach(0..<4){_ in
-                        DetailedFlightCardSkeleton()
-                            .padding(.bottom,5)
-                    }
+            if !filteredResults.isEmpty && selectedFlightId == nil {
                 
+                
+                // Show flight count
+                HStack {
+                    Text("\(filteredResults.count) flights")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                     Spacer()
-                } else if let error = viewModel.detailedFlightError {
-                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+            
+            // Content - FIXED CONDITION LOGIC
+            if viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
+                // Only show skeleton when actually loading AND no results yet
+                Spacer()
+                ForEach(0..<4, id: \.self) { _ in
+                    DetailedFlightCardSkeleton()
+                        .padding(.bottom, 5)
+                }
+                Spacer()
+            } else if !viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
+                // Show error/no results only when not loading and no results
+                Spacer()
+                if let error = viewModel.detailedFlightError {
                     Text("Error: \(error)")
                         .foregroundColor(.red)
                         .padding()
-                    Spacer()
                 } else {
-                    Spacer()
                     Text("No flights found for these dates")
                         .foregroundColor(.gray)
                         .padding()
-                    Spacer()
                 }
-            }
-            else if viewModel.isLoadingDetailedFlights || filteredResults.isEmpty {
-                    Spacer()
-                    ForEach(0..<4){_ in
-                        DetailedFlightCardSkeleton()
-                            .padding(.bottom,5)
-                    }
-                    Spacer()
-                }
-            
-            else {
+                Spacer()
+            } else {
                 VStack {
                     // If we have a selected flight, show the FlightDetailCard for it
                     if let selectedId = selectedFlightId,
@@ -4830,79 +4819,68 @@ struct ModifiedDetailedFlightListView: View {
             FlightFilterSheet(viewModel: viewModel)
         }
         .onAppear {
-                    // Initialize dates array from the API date strings
-                    viewModel.initializeDatesFromStrings()
-                    
-                    // Immediately set filteredResults to current detailedFlightResults
-                    filteredResults = viewModel.detailedFlightResults
-                    
-                    // Apply filters
-                    applyLocalFilters()
-                    
-                    // Add a delayed update to catch async loaded results
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        filteredResults = viewModel.detailedFlightResults
-                        applyLocalFilters()
-                    }
-                }
+            print("ModifiedDetailedFlightListView onAppear - detailedFlightResults count: \(viewModel.detailedFlightResults.count)")
+            
+            // Initialize dates array from the API date strings
+            viewModel.initializeDatesFromStrings()
+            
+            // Force immediate update of filtered results
+            updateFilteredResults()
+        }
         .onReceive(viewModel.$detailedFlightResults) { newResults in
-                    // Explicitly update filteredResults with the new results first
-                    filteredResults = newResults
-                    
-                    // Then apply any filters
-                    applyLocalFilters()
-                }
+            print("Received new results: \(newResults.count) flights")
+            
+            // Force immediate UI update
+            DispatchQueue.main.async {
+                updateFilteredResults()
+            }
+        }
         .background(Color(.systemBackground))
     }
     
-    // Local filtering function - this doesn't make API calls
-        private func applyLocalFilters() {
-            print("Applying local filters. Total results: \(viewModel.detailedFlightResults.count)")
+    // FIXED: Consolidated function to update filtered results
+    private func updateFilteredResults() {
+        print("Updating filtered results - Source count: \(viewModel.detailedFlightResults.count), Current filter: \(selectedFilter)")
+        
+        // Always update filteredResults first, regardless of filter
+        filteredResults = viewModel.detailedFlightResults
+        
+        // Then apply the current filter
+        applyLocalFilters()
+        
+        print("Updated filtered results - Final count: \(filteredResults.count)")
+    }
+    
+    // FIXED: Simplified local filtering function
+    private func applyLocalFilters() {
+        print("Applying local filters. Total results: \(viewModel.detailedFlightResults.count), Selected filter: \(selectedFilter)")
+        
+        let sourceResults = viewModel.detailedFlightResults
+        
+        switch selectedFilter {
+        case .all:
+            filteredResults = sourceResults
             
-            switch selectedFilter {
-            case .all:
-                filteredResults = viewModel.detailedFlightResults
-                
-            case .best:
-                filteredResults = viewModel.detailedFlightResults.filter { $0.isBest }
-                // If no best flights, fallback to all
-                if filteredResults.isEmpty {
-                    filteredResults = viewModel.detailedFlightResults
-                }
-                
-            case .cheapest:
-                filteredResults = viewModel.detailedFlightResults.filter { $0.isCheapest }
-                // If no cheapest flights specifically marked, sort by price
-                if filteredResults.isEmpty {
-                    filteredResults = viewModel.detailedFlightResults.sorted { $0.minPrice < $1.minPrice }
-                }
-                
-            case .fastest:
-                filteredResults = viewModel.detailedFlightResults.filter { $0.isFastest }
-                // If no fastest flights specifically marked, sort by duration
-                if filteredResults.isEmpty {
-                    filteredResults = viewModel.detailedFlightResults.sorted { $0.totalDuration < $1.totalDuration }
-                }
-                
-            case .direct:
-                // Filter to only include flights where all legs are direct
-                filteredResults = viewModel.detailedFlightResults.filter { flight in
-                    flight.legs.allSatisfy { $0.stopCount == 0 }
-                }
-                // If no direct flights, show empty state
-                if filteredResults.isEmpty && selectedFilter == .direct {
-                    filteredResults = []
-                }
+        case .best:
+            let bestResults = sourceResults.filter { $0.isBest }
+            filteredResults = bestResults.isEmpty ? sourceResults : bestResults
+            
+        case .cheapest:
+            let cheapestResults = sourceResults.filter { $0.isCheapest }
+            filteredResults = cheapestResults.isEmpty ? sourceResults.sorted { $0.minPrice < $1.minPrice } : cheapestResults
+            
+        case .fastest:
+            let fastestResults = sourceResults.filter { $0.isFastest }
+            filteredResults = fastestResults.isEmpty ? sourceResults.sorted { $0.totalDuration < $1.totalDuration } : fastestResults
+            
+        case .direct:
+            filteredResults = sourceResults.filter { flight in
+                flight.legs.allSatisfy { $0.stopCount == 0 }
             }
-            
-            if filteredResults.isEmpty && !viewModel.detailedFlightResults.isEmpty && selectedFilter != .direct {
-                        // Fallback to showing all results if filtering produced empty results
-                        // (except for the .direct filter which may intentionally show empty results)
-                        filteredResults = viewModel.detailedFlightResults
-                    }
-            
-            print("Local filtering complete. Filtered results count: \(filteredResults.count)")
         }
+        
+        print("Local filtering complete. Filtered results count: \(filteredResults.count)")
+    }
     
     @ViewBuilder
     private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
