@@ -179,7 +179,7 @@ struct PassengersAndClassSelector: View {
                 subtitle: "<12 years",
                 count: $childrenCount,
                 min: 0,
-                max: 3,
+                max: 10,
                 onChange: { newValue in
                     // Ensure childrenAges array has the right count
                     updateChildrenAgesArray(for: newValue)
@@ -244,21 +244,23 @@ struct PassengersAndClassSelector: View {
     }
     
     private var childAgeSelectionView: some View {
-        VStack(spacing: 10) {
-            ForEach(0..<childrenCount, id: \.self) { index in
-                FigmaChildAgeRow(
-                    childNumber: index + 1,
-                    selectedAge: index < childrenAges.count ? childrenAges[index] : nil,
-                    onSelectTapped: {
-                        // Show age selection for this child
-                        currentEditingChildIndex = index
-                        isShowingAgeSelector = true
-                    }
-                )
-                .padding(.horizontal)
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(0..<childrenCount, id: \.self) { index in
+                    FigmaChildAgeRow(
+                        childNumber: index + 1,
+                        selectedAge: index < childrenAges.count ? childrenAges[index] : nil,
+                        onSelectTapped: {
+                            // Show age selection for this child
+                            currentEditingChildIndex = index
+                            isShowingAgeSelector = true
+                        }
+                    )
+                    .padding(.horizontal)
+                }
             }
+            .padding(.top, 8)
         }
-        .padding(.top, 8)
     }
     
     // MARK: - Helper Methods
