@@ -3,6 +3,45 @@ import Alamofire
 import Combine
 
 
+// MARK: - Updated Models for the new API Response Structure
+struct ExploreApiResponse: Codable {
+    let origin: String
+    let currency: CurrencyDetail
+    let data: [ExploreDestinationData]
+}
+
+struct CurrencyDetail: Codable {
+    let code: String
+    let symbol: String
+    let thousandsSeparator: String
+    let decimalSeparator: String
+    let symbolOnLeft: Bool
+    let spaceBetweenAmountAndSymbol: Bool
+    let decimalDigits: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case code
+        case symbol
+        case thousandsSeparator = "thousands_separator"
+        case decimalSeparator = "decimal_separator"
+        case symbolOnLeft = "symbol_on_left"
+        case spaceBetweenAmountAndSymbol = "space_between_amount_and_symbol"
+        case decimalDigits = "decimal_digits"
+    }
+}
+
+struct ExploreDestinationData: Codable {
+    let price: Int
+    let location: ExploreLocationData
+    let is_direct: Bool
+}
+
+struct ExploreLocationData: Codable {
+    let entityId: String
+    let name: String
+    let iata: String
+}
+
 // Filter request model that matches the API requirements
 struct FlightFilterRequest: Codable {
     var durationMax: Int?
@@ -405,6 +444,8 @@ struct ExploreDestination: Codable, Identifiable {
 // MARK: - API Service
 class ExploreAPIService {
     static let shared = ExploreAPIService()
+    
+    private(set) var lastFetchedCurrencyInfo: CurrencyDetail?
     
     // At the top of ExploreAPIService
     weak var viewModelReference: ExploreViewModel?
@@ -923,37 +964,69 @@ class ExploreAPIService {
     }
     
     func fetchDestinations(country: String = "IN",
-                          currency: String = "INR",
-                          departure: String = "COK",
-                          language: String = "en-GB",
-                          arrivalType: String = "country",
-                          arrivalId: String? = nil) -> AnyPublisher<[ExploreDestination], Error> {
-        
-        var parameters: [String: Any] = [
-            "country": country,
-            "currency": currency,
-            "departure": departure,
-            "language": language,
-            "arrival_type": arrivalType
-        ]
-        
-        if let arrivalId = arrivalId {
-            parameters["arrival_id"] = arrivalId
-        }
-        
-        return Future<[ExploreDestination], Error> { promise in
-            AF.request(self.baseURL, parameters: parameters)
-                .validate()
-                .responseDecodable(of: [ExploreDestination].self) { response in
-                    switch response.result {
-                    case .success(let destinations):
-                        promise(.success(destinations))
-                    case .failure(let error):
-                        promise(.failure(error))
+                              currency: String = "INR",
+                              departure: String = "COK",
+                              language: String = "en-GB",
+                              arrivalType: String = "country",
+                              arrivalId: String? = nil) -> AnyPublisher<[ExploreDestination], Error> {
+            
+            // Create URL components for the updated API endpoint
+            var urlComponents = URLComponents(string: self.baseURL)!
+            
+            // Add query parameters
+            var queryItems = [
+                URLQueryItem(name: "country", value: country),
+                URLQueryItem(name: "currency", value: currency),
+                URLQueryItem(name: "departure", value: departure),
+                URLQueryItem(name: "language", value: language),
+                URLQueryItem(name: "arrival_type", value: arrivalType)
+            ]
+            
+            // Add optional arrivalId if provided
+            if let arrivalId = arrivalId {
+                queryItems.append(URLQueryItem(name: "arrival_id", value: arrivalId))
+            }
+            
+            urlComponents.queryItems = queryItems
+            
+            // Create the URL request
+            let request = URLRequest(url: urlComponents.url!)
+            
+            return Future<[ExploreDestination], Error> { promise in
+                AF.request(request)
+                    .validate()
+                    .responseDecodable(of: ExploreApiResponse.self) { response in
+                        switch response.result {
+                        case .success(let apiResponse):
+                            // Convert the new API response to the existing ExploreDestination model
+                            let destinations = apiResponse.data.map { item -> ExploreDestination in
+                                return ExploreDestination(
+                                    price: item.price,
+                                    location: ExploreLocation(
+                                        entityId: item.location.entityId,
+                                        name: item.location.name,
+                                        iata: item.location.iata
+                                    ),
+                                    is_direct: item.is_direct
+                                )
+                            }
+                            promise(.success(destinations))
+                            
+                        case .failure(let error):
+                            print("API error: \(error.localizedDescription)")
+                            if let data = response.data, let responseString = String(data: data, encoding: .utf8) {
+                                print("Response body: \(responseString)")
+                            }
+                            promise(.failure(error))
+                        }
                     }
-                }
-        }.eraseToAnyPublisher()
-    }
+            }.eraseToAnyPublisher()
+        }
+    
+    // Add a helper method to get the currency symbol from API response
+       func getCurrencySymbol(from apiResponse: ExploreApiResponse) -> String {
+           return apiResponse.currency.symbol
+       }
     
     func fetchFlightDetails(
         origin: String = "MOB", // Using Mumbai as default
@@ -1048,6 +1121,31 @@ class ExploreViewModel: ObservableObject {
     @Published var childrenAges: [Int?] = []
     @Published var selectedCabinClass = "Economy"
     @Published var showingPassengersSheet = false
+    
+    @Published var currencyInfo: CurrencyDetail?
+    
+    // Helper method to format price with the correct currency symbol
+        func formatPrice(_ price: Int) -> String {
+            if let currencyInfo = currencyInfo {
+                let symbol = currencyInfo.symbol
+                let hasSpace = currencyInfo.spaceBetweenAmountAndSymbol
+                let spacer = hasSpace ? " " : ""
+                
+                if currencyInfo.symbolOnLeft {
+                    return "\(symbol)\(spacer)\(price)"
+                } else {
+                    return "\(price)\(spacer)\(symbol)"
+                }
+            } else {
+                // Fallback to default format
+                return "₹\(price)"
+            }
+        }
+    
+    // Add this method to update currency info when receiving API response
+        func updateCurrencyInfo(_ info: CurrencyDetail) {
+            self.currencyInfo = info
+        }
     
     struct FilterSheetState {
         var sortOption: FlightFilterTabView.FilterOption = .all
@@ -1577,21 +1675,28 @@ class ExploreViewModel: ObservableObject {
        }
     
     func fetchCountries() {
-        isLoading = true
-        errorMessage = nil
-        
-        service.fetchDestinations()
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoading = false
-                if case .failure(let error) = completion {
-                    self?.errorMessage = error.localizedDescription
-                }
-            }, receiveValue: { [weak self] destinations in
-                self?.destinations = destinations
-            })
-            .store(in: &cancellables)
-    }
+           isLoading = true
+           errorMessage = nil
+           
+           service.fetchDestinations()
+               .receive(on: DispatchQueue.main)
+               .sink(receiveCompletion: { [weak self] completion in
+                   self?.isLoading = false
+                   if case .failure(let error) = completion {
+                       self?.errorMessage = error.localizedDescription
+                   }
+               }, receiveValue: { [weak self] destinations in
+                   self?.destinations = destinations
+                   
+                   // You should also update the currency info here if you've modified
+                   // the service to return it separately
+                   if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
+                       self?.updateCurrencyInfo(currencyInfo)
+                   }
+               })
+               .store(in: &cancellables)
+       }
+    
     
     func fetchCitiesFor(countryId: String, countryName: String) {
         isLoading = true
@@ -1946,7 +2051,7 @@ struct ExploreScreen: View {
                                         ForEach(viewModel.destinations) { destination in
                                             APIDestinationCard(
                                                 item: destination,
-                                                currencySymbol: "₹",
+                                                viewModel: viewModel, // Pass the view model
                                                 onTap: {
                                                     if !viewModel.showingCities {
                                                         viewModel.fetchCitiesFor(
@@ -2391,7 +2496,7 @@ struct FlightResultCard: View {
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
     let item: ExploreDestination
-    let currencySymbol: String
+    let viewModel: ExploreViewModel // Added reference to view model for currency formatting
     let onTap: () -> Void
     
     var body: some View {
@@ -2417,14 +2522,12 @@ struct APIDestinationCard: View {
                     Text(item.is_direct ? "Direct" : "Connecting")
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
-                        
-                        
                 }
                 
                 Spacer()
                 
-                // Price
-                Text("\(currencySymbol)\(item.price)")
+                // Price with dynamic currency formatting
+                Text(viewModel.formatPrice(item.price))
                     .font(.system(size: 20, weight: .bold))
             }
             .padding(12)
