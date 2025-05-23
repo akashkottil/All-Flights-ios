@@ -134,8 +134,8 @@ struct PassengersAndClassSelector: View {
                     
                     ClassButton(
                         title: "Premium Business",
-                        isSelected: selectedClass == "Premium Business",
-                        action: { selectedClass = "Premium Business" }
+                        isSelected: selectedClass == "First",
+                        action: { selectedClass = "First" }
                     )
                     
                     Spacer()
@@ -145,8 +145,8 @@ struct PassengersAndClassSelector: View {
                 HStack {
                     ClassButton(
                         title: "Premium Economy",
-                        isSelected: selectedClass == "Premium Economy",
-                        action: { selectedClass = "Premium Economy" }
+                        isSelected: selectedClass == "Premium",
+                        action: { selectedClass = "Premium" }
                     )
                     
                     Spacer()

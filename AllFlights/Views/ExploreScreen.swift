@@ -3287,7 +3287,13 @@ struct LocationSearchSheet: View {
             if isSearching {
                 searchingView()
             } else if let error = searchError {
-                errorView(error: error)
+                // Make the error more visible to the user
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding()
             } else if shouldShowNoResults() {
                 noResultsView()
             } else {
@@ -3379,11 +3385,23 @@ struct LocationSearchSheet: View {
         if activeSearchBar == .origin {
             selectOrigin(result: result)
         } else {
+            // Check if the selected destination is the same as origin
+            if result.iataCode == viewModel.fromIataCode {
+                // Don't allow selection of the same destination as origin
+                // Show a message to the user
+                searchError = "Origin and destination cannot be the same"
+                return
+            }
             selectDestination(result: result)
         }
     }
     
     private func selectOrigin(result: AutocompleteResult) {
+        // Check if this would match the current destination
+            if !viewModel.toIataCode.isEmpty && result.iataCode == viewModel.toIataCode {
+                searchError = "Origin and destination cannot be the same"
+                return
+            }
         if multiCityMode {
             viewModel.multiCityTrips[multiCityTripIndex].fromLocation = result.cityName
             viewModel.multiCityTrips[multiCityTripIndex].fromIataCode = result.iataCode
