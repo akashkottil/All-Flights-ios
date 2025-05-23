@@ -3384,19 +3384,46 @@ struct LocationSearchSheet: View {
     }
     
     private func selectOrigin(result: AutocompleteResult) {
-            if multiCityMode {
-                viewModel.multiCityTrips[multiCityTripIndex].fromLocation = result.cityName
-                viewModel.multiCityTrips[multiCityTripIndex].fromIataCode = result.iataCode
-            } else {
-                viewModel.fromLocation = result.cityName
-                viewModel.fromIataCode = result.iataCode
-                originSearchText = result.cityName
-            }
-            
-            // Auto-focus the destination field
-            activeSearchBar = .destination
-            focusedField = .destination
+        if multiCityMode {
+            viewModel.multiCityTrips[multiCityTripIndex].fromLocation = result.cityName
+            viewModel.multiCityTrips[multiCityTripIndex].fromIataCode = result.iataCode
+        } else {
+            viewModel.fromLocation = result.cityName
+            viewModel.fromIataCode = result.iataCode
+            originSearchText = result.cityName
         }
+        
+        // Check if we should proceed with search or just dismiss
+        if multiCityMode {
+            // For multi-city, just auto-focus destination if it's empty
+            if viewModel.multiCityTrips[multiCityTripIndex].toIataCode.isEmpty {
+                activeSearchBar = .destination
+                focusedField = .destination
+            } else {
+                dismiss()
+            }
+        } else {
+            // For regular mode, check if we have both locations for automatic search
+            if !viewModel.toIataCode.isEmpty {
+                // Both origin and destination are selected, dismiss and potentially search
+                dismiss()
+                
+                // If user has selected dates, trigger search
+                if !viewModel.dates.isEmpty {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        viewModel.updateDatesAndRunSearch()
+                    }
+                } else {
+                    // If no dates selected, use dynamic default dates for search
+                    initiateSearchWithDefaultDates()
+                }
+            } else {
+                // Only origin selected, auto-focus the destination field
+                activeSearchBar = .destination
+                focusedField = .destination
+            }
+        }
+    }
     
     private func selectDestination(result: AutocompleteResult) {
         if multiCityMode {
@@ -3404,65 +3431,62 @@ struct LocationSearchSheet: View {
             viewModel.multiCityTrips[multiCityTripIndex].toIataCode = result.iataCode
             dismiss()
         } else {
-            // Selected destination - update the view model
+            // Update the destination in view model
             viewModel.toLocation = result.cityName
             viewModel.toIataCode = result.iataCode
+            destinationSearchText = result.cityName
             
-            // Only proceed if we have both origin and destination
+            // Check if we should proceed with search or just dismiss
             if !viewModel.fromIataCode.isEmpty {
-                // Dismiss the sheet
+                // Both origin and destination are selected, dismiss and potentially search
                 dismiss()
                 
-                // If user has selected dates in the calendar, use those dates for search
+                // If user has selected dates, trigger search
                 if !viewModel.dates.isEmpty {
-                    // Let the view model handle date formatting and search
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         viewModel.updateDatesAndRunSearch()
                     }
                 } else {
-                    // If no dates selected, use dynamic default dates (tomorrow and day after)
-                    let calendar = Calendar.current
-                    let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-                    let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
-                    
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    
-                    let departureDate = formatter.string(from: tomorrow)
-                    let returnDate = formatter.string(from: dayAfterTomorrow)
-                    
-                    viewModel.selectedDepartureDatee = departureDate
-                    viewModel.selectedReturnDatee = returnDate
-                    
-                    // Also update the dates array to keep calendar in sync
-                    viewModel.dates = [tomorrow, dayAfterTomorrow]
-                    
-                    // Initiate flight search with dynamic default dates - mark as direct search
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        viewModel.searchFlightsForDates(
-                            origin: viewModel.fromIataCode,
-                            destination: result.iataCode,
-                            returnDate: returnDate,
-                            departureDate: departureDate,
-                            isDirectSearch: true
-                        )
-                    }
+                    // If no dates selected, use dynamic default dates for search
+                    initiateSearchWithDefaultDates()
                 }
+            } else {
+                // Only destination selected, auto-focus the origin field
+                activeSearchBar = .origin
+                focusedField = .origin
             }
         }
     }
     
-//    private func initiateSearch() {
-//        // Dismiss the sheet
-//        dismiss()
-//        
-//        // Initiate flight search with fixed dates
-//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-//            viewModel.searchFlightsForDates(origin: viewModel.fromIataCode, destination: viewModel.toIataCode, returnDate: "2025-12-12", departureDate: "2025-12-20"
-//                
-//            )
-//        }
-//    }
+    // Add this helper function to handle default date search
+    private func initiateSearchWithDefaultDates() {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        
+        let departureDate = formatter.string(from: tomorrow)
+        let returnDate = formatter.string(from: dayAfterTomorrow)
+        
+        viewModel.selectedDepartureDatee = departureDate
+        viewModel.selectedReturnDatee = returnDate
+        
+        // Also update the dates array to keep calendar in sync
+        viewModel.dates = [tomorrow, dayAfterTomorrow]
+        
+        // Initiate flight search with dynamic default dates - mark as direct search
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            viewModel.searchFlightsForDates(
+                origin: viewModel.fromIataCode,
+                destination: viewModel.toIataCode,
+                returnDate: returnDate,
+                departureDate: departureDate,
+                isDirectSearch: true
+            )
+        }
+    }
 
     private func searchLocations(query: String) {
         guard !query.isEmpty else {
