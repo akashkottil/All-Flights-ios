@@ -1864,6 +1864,8 @@ class ExploreViewModel: ObservableObject {
     // Update the month selector method to preserve dates
     func selectMonth(at index: Int) {
         if index >= 0 && index < availableMonths.count {
+            // Exit anytime mode when selecting a specific month
+                    isAnytimeMode = false
             selectedMonthIndex = index
             
             // If we have origin, destination and dates set, perform a search with the new month
@@ -1932,6 +1934,7 @@ class ExploreViewModel: ObservableObject {
     }
     
     func goBackToFlightResults() {
+        isAnytimeMode = false
         if isDirectSearch {
             // If this was a direct search, go back to main screen
             goBackToMainFromDirectSearch()
@@ -1946,6 +1949,7 @@ class ExploreViewModel: ObservableObject {
     }
 
     func goBackToCities() {
+        isAnytimeMode = false
         hasSearchedFlights = false
         flightResults = []
         flightSearchResponse = nil
@@ -1960,6 +1964,7 @@ class ExploreViewModel: ObservableObject {
     }
     
     func goBackToCountries() {
+        isAnytimeMode = false
         selectedCountryName = nil
         selectedCity = nil
         toLocation = "Anywhere"
@@ -2147,24 +2152,14 @@ struct ExploreScreen: View {
                                                 }
                                             )
                                             .padding(.top, 8)
-                                        } 
-                                    if !viewModel.isAnytimeMode {
-                                        MonthSelectorView(
-                                            months: viewModel.availableMonths,
-                                            selectedIndex: viewModel.selectedMonthIndex,
-                                            onSelect: { index in
-                                                viewModel.selectMonth(at: index)
-                                            }
-                                        )
-                                        .padding(.top, 8)
-                                    } else {
-                                        // When in anytime mode, show a message about best prices
-                                        Text("Best prices for the next 3 months")
-                                            .font(.subheadline)
-                                            .foregroundColor(.gray)
-                                            .padding(.top, 8)
-                                            .padding(.bottom, 8)
-                                    }
+                                        } else {
+                                            // When in anytime mode, show a message about best prices
+                                            Text("Best prices for the next 3 months")
+                                                .font(.subheadline)
+                                                .foregroundColor(.gray)
+                                                .padding(.top, 8)
+                                                .padding(.bottom, 8)
+                                        }
                                     
                                     if viewModel.isLoadingFlights {
                                         ForEach(0..<3, id: \.self) { _ in
