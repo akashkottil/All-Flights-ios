@@ -1124,6 +1124,66 @@ class ExploreViewModel: ObservableObject {
     
     @Published var currencyInfo: CurrencyDetail?
     
+    @Published var isAnytimeMode: Bool = false
+    
+    func handleAnytimeResults(_ results: [FlightResult]) {
+        // Set anytime mode flag
+           self.isAnytimeMode = true
+        // Reset all detailed view flags to ensure they don't activate
+        self.detailedFlightResults = []
+        self.showingDetailedFlightList = false
+        self.isLoadingDetailedFlights = false
+        self.detailedFlightError = nil
+        self.isDirectSearch = false
+        
+        // Set up the flight results display
+        self.flightResults = results
+        self.hasSearchedFlights = true
+        self.isLoadingFlights = false
+        
+        // If we got results, update the to/from location display
+        if let firstResult = results.first {
+            self.fromLocation = firstResult.outbound.origin.name
+            self.toLocation = firstResult.outbound.destination.name
+            
+            self.fromIataCode = firstResult.outbound.origin.iata
+            self.toIataCode = firstResult.outbound.destination.iata
+            
+            // Save search details for later use
+            self.selectedOriginCode = firstResult.outbound.origin.iata
+            self.selectedDestinationCode = firstResult.outbound.destination.iata
+            
+            if let outboundDeparture = firstResult.outbound.departure {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                let departureDate = Date(timeIntervalSince1970: TimeInterval(outboundDeparture))
+                self.selectedDepartureDatee = formatter.string(from: departureDate)
+                
+                if let inboundDeparture = firstResult.inbound?.departure {
+                    let returnDate = Date(timeIntervalSince1970: TimeInterval(inboundDeparture))
+                    self.selectedReturnDatee = formatter.string(from: returnDate)
+                }
+            }
+        }
+        
+        // Clear these to ensure we're in the right state
+        self.selectedCity = nil
+        self.showingCities = false
+        
+        // Set dates array to empty to show "Anytime" in the date field
+        self.dates = []
+        
+        // Update error message based on results
+        if results.isEmpty {
+            self.errorMessage = "No flights found for this route"
+        } else {
+            self.errorMessage = nil
+        }
+        
+        // Force an update to ensure changes are processed
+        self.objectWillChange.send()
+    }
+    
     // Helper method to format price with the correct currency symbol
         func formatPrice(_ price: Int) -> String {
             if let currencyInfo = currencyInfo {
@@ -2077,14 +2137,34 @@ struct ExploreScreen: View {
                                         .padding(.horizontal)
                                         .padding(.top, 16)
                                     
-                                    MonthSelectorView(
-                                        months: viewModel.availableMonths,
-                                        selectedIndex: viewModel.selectedMonthIndex,
-                                        onSelect: { index in
-                                            viewModel.selectMonth(at: index)
-                                        }
-                                    )
-                                    .padding(.top, 8)
+                                    // Only show month selector when NOT in anytime mode
+                                        if !viewModel.isAnytimeMode {
+                                            MonthSelectorView(
+                                                months: viewModel.availableMonths,
+                                                selectedIndex: viewModel.selectedMonthIndex,
+                                                onSelect: { index in
+                                                    viewModel.selectMonth(at: index)
+                                                }
+                                            )
+                                            .padding(.top, 8)
+                                        } 
+                                    if !viewModel.isAnytimeMode {
+                                        MonthSelectorView(
+                                            months: viewModel.availableMonths,
+                                            selectedIndex: viewModel.selectedMonthIndex,
+                                            onSelect: { index in
+                                                viewModel.selectMonth(at: index)
+                                            }
+                                        )
+                                        .padding(.top, 8)
+                                    } else {
+                                        // When in anytime mode, show a message about best prices
+                                        Text("Best prices for the next 3 months")
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray)
+                                            .padding(.top, 8)
+                                            .padding(.bottom, 8)
+                                    }
                                     
                                     if viewModel.isLoadingFlights {
                                         ForEach(0..<3, id: \.self) { _ in
@@ -2209,19 +2289,23 @@ struct SearchCard: View {
                     }){
                         Image(systemName: "calendar")
                             .foregroundColor(.blue)
-                        
-                        // Display selected dates if available, otherwise show "Anytime"
-                        if viewModel.dates.isEmpty {
-                            Text("Anytime")
-                                .foregroundColor(.primary)
-                                .font(.system(size: 14, weight: .medium))
-                        } else if viewModel.dates.count == 1 {
-                            Text(formatDate(viewModel.dates[0]))
-                                .font(.system(size: 14, weight: .medium))
-                        } else if viewModel.dates.count >= 2 {
-                            Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
-                                .font(.system(size: 14, weight: .medium))
-                        }
+                      
+                        // Display "Anytime" if using anytime results, otherwise show selected dates
+                               if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
+                                   Text("Anytime")
+                                       .foregroundColor(.primary)
+                                       .font(.system(size: 14, weight: .medium))
+                               } else if viewModel.dates.isEmpty {
+                                   Text("Anytime")
+                                       .foregroundColor(.primary)
+                                       .font(.system(size: 14, weight: .medium))
+                               } else if viewModel.dates.count == 1 {
+                                   Text(formatDate(viewModel.dates[0]))
+                                       .font(.system(size: 14, weight: .medium))
+                               } else if viewModel.dates.count >= 2 {
+                                   Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
+                                       .font(.system(size: 14, weight: .medium))
+                               }
                     }
                     
                     Spacer()
@@ -2254,16 +2338,19 @@ struct SearchCard: View {
             }) {
                 
                 CalendarView(
-                                fromiatacode: $viewModel.fromIataCode,
-                                toiatacode: $viewModel.toIataCode,
-                                parentSelectedDates: $viewModel.dates,
-                                onTripTypeChange: { newIsRoundTrip in
-                                    // Update the trip type when calendar requests it
-                                    isRoundTrip = newIsRoundTrip
-                                    viewModel.isRoundTrip = newIsRoundTrip
-                                },
-                                isRoundTrip: isRoundTrip  // Pass the current trip type
-                            )
+                        fromiatacode: $viewModel.fromIataCode,
+                        toiatacode: $viewModel.toIataCode,
+                        parentSelectedDates: $viewModel.dates,
+                        onAnytimeSelection: { results in
+                            // Handle flight results from "Anytime" button
+                            viewModel.handleAnytimeResults(results)
+                        }, onTripTypeChange: { newIsRoundTrip in
+                            // Update the trip type when calendar requests it
+                            isRoundTrip = newIsRoundTrip
+                            viewModel.isRoundTrip = newIsRoundTrip
+                        },
+                        isRoundTrip: isRoundTrip
+                    )
             }
             .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
                             // ADDED: Trigger search when passenger sheet is dismissed (Apply clicked)

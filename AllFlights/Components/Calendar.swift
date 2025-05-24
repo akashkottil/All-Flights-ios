@@ -110,6 +110,9 @@ struct CalendarView: View {
     @Binding var toiatacode: String
     @Binding var parentSelectedDates: [Date]
     
+    // Add this new callback for handling Anytime selection
+        var onAnytimeSelection: (([FlightResult]) -> Void)? = nil
+    
     // Add callback for trip type changes
        var onTripTypeChange: ((Bool) -> Void)? = nil
     
@@ -260,6 +263,12 @@ struct CalendarView: View {
                 if !isMultiCity {
                                Button("Anytime") {
                                    // Handle anytime selection
+                                       fetchAnytimePrices { results in
+                                           // Dismiss the calendar view
+                                           dismiss()
+                                           // Pass the results to the parent view
+                                           onAnytimeSelection?(results)
+                                       }
                                }
                                .foregroundColor(.blue)
                                .fontWeight(.semibold)
@@ -460,6 +469,73 @@ struct CalendarView: View {
             }
         }
         .background(Color.white)
+    }
+    
+    private func fetchAnytimePrices(completion: @escaping ([FlightResult]) -> Void) {
+        guard !fromiatacode.isEmpty && !toiatacode.isEmpty else {
+            completion([])
+            return
+        }
+        
+        // Fix: Don't use guard let for non-optional values
+        let origin = fromiatacode.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fromiatacode
+        let destination = toiatacode.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? toiatacode
+        
+        // Rest of the method remains the same
+        let currentDate = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd-MM-yyyy"
+        let formattedDate = dateFormatter.string(from: currentDate)
+        
+        let urlString = "https://staging.plane.lascade.com/api/price/?currency=INR&country=IN"
+        guard let url = URL(string: urlString) else {
+            completion([])
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("IN", forHTTPHeaderField: "country")
+        
+        let payload: [String: Any] = [
+            "origin": origin,
+            "destination": destination,
+            "departure": formattedDate,
+            "round_trip": isRoundTrip
+        ]
+        
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else {
+            completion([])
+            return
+        }
+        request.httpBody = httpBody
+        
+        print("🔍 Fetching anytime prices for \(origin) → \(destination)")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data, error == nil else {
+                print("❌ API Error: \(error?.localizedDescription ?? "Unknown error")")
+                completion([])
+                return
+            }
+            
+            do {
+                let decoded = try JSONDecoder().decode(FlightSearchResponse.self, from: data)
+                print("✅ Decoded \(decoded.results.count) flight entries")
+                
+                DispatchQueue.main.async {
+                    completion(decoded.results)
+                }
+            } catch {
+                print("❌ Failed to decode API response:", error)
+                // Print the raw data for debugging
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("Raw response: \(responseString)")
+                }
+                completion([])
+            }
+        }.resume()
     }
     
     private func formatted(date: Date) -> String {
