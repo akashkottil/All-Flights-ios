@@ -15,9 +15,9 @@ struct RootTabView: View {
                     Label("Home", systemImage: "house")
                 }
 
-            FlightListView()
+            AlertsView()
                 .tabItem {
-                    Label("Flights", systemImage: "airplane")
+                    Label("Alert", systemImage: "bell.badge.fill")
                 }
 
             ExploreScreen()
@@ -25,9 +25,9 @@ struct RootTabView: View {
                     Label("Explore", systemImage: "globe")
                 }
 
-            ProfileView()
+            FlightTrackerScreen()
                 .tabItem {
-                    Label("Profile", systemImage: "person")
+                    Label("Track Flight", systemImage: "paperplane.circle.fill")
                 }
         }
     }
