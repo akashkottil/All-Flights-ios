@@ -2031,50 +2031,62 @@ struct ExploreScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             // Custom navigation bar
-            VStack(spacing: 0) {
-                HStack {
-                    // Back button
-                    Button(action: {
-                        handleBackNavigation()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.primary)
-                            .font(.system(size: 18, weight: .semibold))
+            VStack {
+                VStack(spacing: 0) {
+                    HStack {
+                        // Back button
+                        Button(action: {
+                            handleBackNavigation()
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        
+                        Spacer()
+                        
+                        // Centered trip type tabs with more balanced width
+                        TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
+                            .frame(width: UIScreen.main.bounds.width * 0.55) // Reduced from 0.6 to 0.55
+                        
+                        Spacer()
                     }
-                    
-                    Spacer()
-                                
-                                // Centered trip type tabs with more balanced width
-                    TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
-                                    .frame(width: UIScreen.main.bounds.width * 0.55) // Reduced from 0.6 to 0.55
-                                
-                                Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .padding(.top,5)
-                
-                // Search card with dynamic values
-                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
                     .padding(.horizontal)
                     .padding(.vertical, 8)
+                    .padding(.top,5)
+                    
+                    // Search card with dynamic values
+                    SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                }
+                .background(
+                    ZStack {
+                        // Background fill
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemBackground))
+                        
+                        // Animated or static stroke based on loading state
+                        if viewModel.isLoading || viewModel.isLoadingFlights {
+                            LoadingBorderView()
+                        } else {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.orange, lineWidth: 1)
+                        }
+                    }
+                )
+                .padding()
             }
             .background(
-                ZStack {
-                    // Background fill
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemBackground))
-                    
-                    // Animated or static stroke based on loading state
-                    if viewModel.isLoading || viewModel.isLoadingFlights {
-                        LoadingBorderView()
-                    } else {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 1)
+                GeometryReader { geo in
+                    VStack(spacing: 0) {
+                        Color("searchcardBackground")
+                            .frame(height: geo.size.height)
+                        Color("scroll")
                     }
+                    .edgesIgnoringSafeArea(.all)
                 }
             )
-            .padding()
             
            
             
