@@ -217,7 +217,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Rating Prompt
+    // MARK: - Rating Prompt (original style)
     var ratingPrompt: some View {
         ZStack {
             LinearGradient(
@@ -225,18 +225,28 @@ struct HomeView: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
+            .cornerRadius(12)
+            
             HStack {
                 Image("starImg")
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                
                 Spacer()
+                
                 VStack(alignment: .leading) {
                     Text("How do you feel?")
                         .font(.system(size: 22))
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                     Text("Rate us On Appstore")
                         .font(.system(size: 14))
                         .fontWeight(.semibold)
+                        .foregroundColor(.white)
                 }
+                
                 Spacer()
+                
                 Button(action: {}) {
                     Text("Rate Us")
                         .font(.system(size: 14))
@@ -251,107 +261,52 @@ struct HomeView: View {
             .padding()
         }
         .padding(.horizontal)
-        .cornerRadius(12)
     }
 }
 
-// MARK: - Enhanced Search Input Component
+// MARK: - Enhanced Search Input Component (exact UI match)
 struct EnhancedSearchInput: View {
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
     @State private var showingFromLocationSheet = false
     @State private var showingToLocationSheet = false
     @State private var showingCalendar = false
     @State private var showingPassengersSheet = false
+    @State private var directFlightsOnly = false
+    @State private var editingTripIndex = 0
+    @State private var editingFromOrTo: LocationType = .from
+    
+    enum LocationType {
+        case from, to
+    }
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 16) {
             // Trip Type Tabs
-            HomeTripTypeTabsView(searchViewModel: searchViewModel)
-                .padding(.bottom, 16)
+            tripTypeTabs
             
-            VStack(spacing: 12) {
-                // From and To locations
-                HStack(spacing: 12) {
-                    // From location
-                    Button(action: {
-                        showingFromLocationSheet = true
-                    }) {
-                        HomeLocationButtonView(
-                            icon: "airplane.departure",
-                            title: "From",
-                            location: searchViewModel.fromLocation,
-                            isFrom: true
-                        )
-                    }
-                    
-                    // Swap button
-                    Button(action: swapLocations) {
-                        Image(systemName: "arrow.left.arrow.right")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 18, weight: .semibold))
-                            .frame(width: 40, height: 40)
-                            .background(Color.white)
-                            .clipShape(Circle())
-                            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-                    }
-                    
-                    // To location
-                    Button(action: {
-                        showingToLocationSheet = true
-                    }) {
-                        HomeLocationButtonView(
-                            icon: "airplane.arrival",
-                            title: "To",
-                            location: searchViewModel.toLocation,
-                            isFrom: false
-                        )
-                    }
-                }
-                
-                // Date and passenger selection
-                HStack(spacing: 12) {
-                    // Date button
-                    Button(action: {
-                        showingCalendar = true
-                    }) {
-                        HomeDateButtonView(searchViewModel: searchViewModel)
-                    }
-                    
-                    // Passengers button
-                    Button(action: {
-                        showingPassengersSheet = true
-                    }) {
-                        HomePassengerButtonView(searchViewModel: searchViewModel)
-                    }
-                }
-                
-                // Search button
-                Button(action: performSearch) {
-                    Text("Search Flights")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(canSearch ? Color.blue : Color.gray)
-                        .cornerRadius(12)
-                }
-                .disabled(!canSearch)
-                .opacity(canSearch ? 1.0 : 0.6)
+            if searchViewModel.selectedTab == 2 {
+                multiCityInterface
+            } else {
+                regularInterface
             }
-            .padding(16)
-            .background(Color.white)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
         }
+        .padding(20)
+        .background(Color.white)
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.orange, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
         .padding(.horizontal, 16)
         .sheet(isPresented: $showingFromLocationSheet) {
-            HomeFromLocationSearchSheet(searchViewModel: searchViewModel)
+            fromLocationSheet
         }
         .sheet(isPresented: $showingToLocationSheet) {
-            HomeToLocationSearchSheet(searchViewModel: searchViewModel)
+            toLocationSheet
         }
         .sheet(isPresented: $showingCalendar) {
-            HomeCalendarSheet(searchViewModel: searchViewModel)
+            calendarSheet
         }
         .sheet(isPresented: $showingPassengersSheet) {
             PassengersAndClassSelector(
@@ -363,202 +318,12 @@ struct EnhancedSearchInput: View {
         }
     }
     
-    private var canSearch: Bool {
-        !searchViewModel.fromIataCode.isEmpty &&
-        !searchViewModel.toIataCode.isEmpty &&
-        !searchViewModel.selectedDates.isEmpty
-    }
+    // MARK: - Computed Views
     
-    private func swapLocations() {
-        let tempLocation = searchViewModel.fromLocation
-        let tempCode = searchViewModel.fromIataCode
-        
-        searchViewModel.fromLocation = searchViewModel.toLocation
-        searchViewModel.fromIataCode = searchViewModel.toIataCode
-        
-        searchViewModel.toLocation = tempLocation
-        searchViewModel.toIataCode = tempCode
-    }
-    
-    private func performSearch() {
-        searchViewModel.executeSearch()
-    }
-}
-
-// MARK: - Home Collapsible Search Input (renamed to avoid conflicts)
-struct HomeCollapsibleSearchInput: View {
-    @Binding var isExpanded: Bool
-    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
-    
-    var body: some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                isExpanded = true
-            }
-        }) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(searchViewModel.fromLocation) → \(searchViewModel.toLocation)")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    
-                    if !searchViewModel.selectedDates.isEmpty {
-                        Text(formatDatesForDisplay())
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Select dates")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.blue)
-            }
-            .padding(12)
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-        }
-        .padding(.horizontal, 16)
-    }
-    
-    private func formatDatesForDisplay() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        
-        if searchViewModel.selectedDates.count >= 2 {
-            let sortedDates = searchViewModel.selectedDates.sorted()
-            return "\(formatter.string(from: sortedDates[0])) - \(formatter.string(from: sortedDates[1]))"
-        } else if searchViewModel.selectedDates.count == 1 {
-            return formatter.string(from: searchViewModel.selectedDates[0])
-        }
-        return "Select dates"
-    }
-}
-
-// MARK: - Home Location Button View (renamed to avoid conflicts)
-struct HomeLocationButtonView: View {
-    let icon: String
-    let title: String
-    let location: String
-    let isFrom: Bool
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundColor(.blue)
-                .frame(width: 20)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                
-                Text(location)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(8)
-    }
-}
-
-// MARK: - Home Date Button View (renamed to avoid conflicts)
-struct HomeDateButtonView: View {
-    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "calendar")
-                .foregroundColor(.blue)
-                .frame(width: 20)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Date")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                
-                Text(dateDisplayText)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(8)
-    }
-    
-    private var dateDisplayText: String {
-        if searchViewModel.selectedDates.isEmpty {
-            return "Select dates"
-        } else if searchViewModel.selectedDates.count == 1 {
-            return formatDate(searchViewModel.selectedDates[0])
-        } else {
-            let sortedDates = searchViewModel.selectedDates.sorted()
-            return "\(formatDate(sortedDates[0])) - \(formatDate(sortedDates[1]))"
-        }
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: date)
-    }
-}
-
-// MARK: - Home Passenger Button View (renamed to avoid conflicts)
-struct HomePassengerButtonView: View {
-    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person")
-                .foregroundColor(.blue)
-                .frame(width: 20)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Passenger & Class")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                
-                Text("\(searchViewModel.adultsCount + searchViewModel.childrenCount), \(searchViewModel.selectedCabinClass)")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(8)
-    }
-}
-
-// MARK: - Home Trip Type Tabs (renamed to avoid conflicts)
-struct HomeTripTypeTabsView: View {
-    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
-    let tabs = ["Return", "One way", "Multi city"]
-    
-    var body: some View {
+    private var tripTypeTabs: some View {
         HStack(spacing: 0) {
-            ForEach(0..<tabs.count, id: \.self) { index in
+            ForEach(0..<3, id: \.self) { index in
+                let titles = ["Return", "One way", "Multi city"]
                 Button(action: {
                     searchViewModel.selectedTab = index
                     
@@ -573,24 +338,756 @@ struct HomeTripTypeTabsView: View {
                         }
                     }
                 }) {
-                    Text(tabs[index])
-                        .font(.system(size: 14, weight: searchViewModel.selectedTab == index ? .semibold : .regular))
-                        .foregroundColor(searchViewModel.selectedTab == index ? .blue : .black)
+                    Text(titles[index])
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(searchViewModel.selectedTab == index ? .blue : .gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(
-                            searchViewModel.selectedTab == index ?
-                            Color.white : Color.clear
-                        )
-                        .cornerRadius(6)
                 }
             }
         }
-        .padding(4)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(10)
+        .padding(.bottom, 8)
+    }
+    
+    private var multiCityInterface: some View {
+        VStack(spacing: 12) {
+            // Multiple flight segments
+            ForEach(0..<searchViewModel.multiCityTrips.count, id: \.self) { index in
+                HomeMultiCitySegmentView(
+                    trip: searchViewModel.multiCityTrips[index],
+                    index: index,
+                    canRemove: searchViewModel.multiCityTrips.count > 2,
+                    onFromTap: {
+                        editingTripIndex = index
+                        editingFromOrTo = .from
+                        showingFromLocationSheet = true
+                    },
+                    onToTap: {
+                        editingTripIndex = index
+                        editingFromOrTo = .to
+                        showingToLocationSheet = true
+                    },
+                    onDateTap: {
+                        editingTripIndex = index
+                        showingCalendar = true
+                    },
+                    onRemove: {
+                        removeTrip(at: index)
+                    }
+                )
+            }
+            
+            // Add flight button
+            if searchViewModel.multiCityTrips.count < 5 {
+                addFlightButton
+            }
+            
+            passengerButton
+            searchButton
+            directFlightsToggle
+        }
+    }
+    
+    private var regularInterface: some View {
+        VStack(spacing: 12) {
+            fromLocationButton
+            swapButton
+            toLocationButton
+            dateButton
+            passengerButton
+            searchButton
+            directFlightsToggle
+        }
+    }
+    
+    private var fromLocationButton: some View {
+        Button(action: {
+            showingFromLocationSheet = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "airplane.departure")
+                    .foregroundColor(.gray)
+                    .frame(width: 20, height: 20)
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                    Text(searchViewModel.fromLocation)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+    }
+    
+    private var swapButton: some View {
+        HStack {
+            Spacer()
+            Button(action: swapLocations) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 16, weight: .medium))
+                    .frame(width: 32, height: 32)
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            }
+            Spacer()
+        }
+        .offset(y: -6)
+    }
+    
+    private var toLocationButton: some View {
+        Button(action: {
+            showingToLocationSheet = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "airplane.arrival")
+                    .foregroundColor(.gray)
+                    .frame(width: 20, height: 20)
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                    Text(searchViewModel.toLocation)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+        .offset(y: -12)
+    }
+    
+    private var dateButton: some View {
+        Button(action: {
+            showingCalendar = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar")
+                    .foregroundColor(.gray)
+                    .frame(width: 20, height: 20)
+                
+                Text(dateDisplayText)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+        .offset(y: -12)
+    }
+    
+    private var passengerButton: some View {
+        Button(action: {
+            showingPassengersSheet = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "person")
+                    .foregroundColor(.gray)
+                    .frame(width: 20, height: 20)
+                
+                Text(passengerDisplayText)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
+    }
+    
+    private var searchButton: some View {
+        Button(action: performSearch) {
+            Text("Search Flights")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(canSearch ? Color.orange : Color.gray)
+                .cornerRadius(8)
+        }
+        .disabled(!canSearch)
+        .opacity(canSearch ? 1.0 : 0.6)
+        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
+    }
+    
+    private var directFlightsToggle: some View {
+        HStack {
+            Text("Direct flights only")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Toggle("", isOn: $directFlightsOnly)
+                .toggleStyle(SwitchToggleStyle(tint: .blue))
+        }
+        .padding(.horizontal, 4)
+        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
+    }
+    
+    private var addFlightButton: some View {
+        Button(action: addTrip) {
+            HStack {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 16))
+                Text("Add flight")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.blue)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+        }
+    }
+    
+    // MARK: - Sheet Views
+    
+    @ViewBuilder
+    private var fromLocationSheet: some View {
+        if searchViewModel.selectedTab == 2 {
+            HomeMultiCityLocationSheet(
+                searchViewModel: searchViewModel,
+                tripIndex: editingTripIndex,
+                isFromLocation: editingFromOrTo == .from
+            )
+        } else {
+            HomeFromLocationSearchSheet(searchViewModel: searchViewModel)
+        }
+    }
+    
+    @ViewBuilder
+    private var toLocationSheet: some View {
+        if searchViewModel.selectedTab == 2 {
+            HomeMultiCityLocationSheet(
+                searchViewModel: searchViewModel,
+                tripIndex: editingTripIndex,
+                isFromLocation: false
+            )
+        } else {
+            HomeToLocationSearchSheet(searchViewModel: searchViewModel)
+        }
+    }
+    
+    @ViewBuilder
+    private var calendarSheet: some View {
+        if searchViewModel.selectedTab == 2 {
+            HomeMultiCityCalendarSheet(
+                searchViewModel: searchViewModel,
+                tripIndex: editingTripIndex
+            )
+        } else {
+            HomeCalendarSheet(searchViewModel: searchViewModel)
+        }
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var canSearch: Bool {
+        if searchViewModel.selectedTab == 2 {
+            return searchViewModel.multiCityTrips.allSatisfy { trip in
+                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+            }
+        } else {
+            return !searchViewModel.fromIataCode.isEmpty &&
+                   !searchViewModel.toIataCode.isEmpty &&
+                   !searchViewModel.selectedDates.isEmpty
+        }
+    }
+    
+    private var dateDisplayText: String {
+        if searchViewModel.selectedDates.isEmpty {
+            return "Select dates"
+        } else if searchViewModel.selectedDates.count == 1 {
+            return formatDateForDisplay(searchViewModel.selectedDates[0])
+        } else {
+            let sortedDates = searchViewModel.selectedDates.sorted()
+            return "\(formatDateForDisplay(sortedDates[0])) - \(formatDateForDisplay(sortedDates[1]))"
+        }
+    }
+    
+    private var passengerDisplayText: String {
+        let totalPassengers = searchViewModel.adultsCount + searchViewModel.childrenCount
+        return "\(totalPassengers) Adult\(totalPassengers > 1 ? "s" : "") - \(searchViewModel.selectedCabinClass)"
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func formatDateForDisplay(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E,d MMM"
+        return formatter.string(from: date)
+    }
+    
+    private func swapLocations() {
+        let tempLocation = searchViewModel.fromLocation
+        let tempCode = searchViewModel.fromIataCode
+        
+        searchViewModel.fromLocation = searchViewModel.toLocation
+        searchViewModel.fromIataCode = searchViewModel.toIataCode
+        
+        searchViewModel.toLocation = tempLocation
+        searchViewModel.toIataCode = tempCode
+    }
+    
+    private func addTrip() {
+        if searchViewModel.multiCityTrips.count < 5, let lastTrip = searchViewModel.multiCityTrips.last {
+            let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
+            
+            let newTrip = MultiCityTrip(
+                fromLocation: lastTrip.toLocation,
+                fromIataCode: lastTrip.toIataCode,
+                toLocation: "Where to?",
+                toIataCode: "",
+                date: nextDay
+            )
+            
+            searchViewModel.multiCityTrips.append(newTrip)
+        }
+    }
+    
+    private func removeTrip(at index: Int) {
+        if searchViewModel.multiCityTrips.count > 2 {
+            searchViewModel.multiCityTrips.remove(at: index)
+        }
+    }
+    
+    private func performSearch() {
+        searchViewModel.executeSearch()
     }
 }
+
+// MARK: - Home Multi-City Segment View (renamed to avoid conflicts)
+struct HomeMultiCitySegmentView: View {
+    let trip: MultiCityTrip
+    let index: Int
+    let canRemove: Bool
+    let onFromTap: () -> Void
+    let onToTap: () -> Void
+    let onDateTap: () -> Void
+    let onRemove: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // From Location with Remove button
+            HStack {
+                Button(action: onFromTap) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "airplane.departure")
+                            .foregroundColor(.gray)
+                            .frame(width: 20, height: 20)
+                        
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(trip.fromIataCode.isEmpty ? "FROM" : trip.fromIataCode)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.gray)
+                            Text(trip.fromLocation)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                }
+                
+                if canRemove {
+                    Button(action: onRemove) {
+                        Text("Remove")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.red)
+                    }
+                    .padding(.leading, 8)
+                }
+            }
+            
+            // To Location
+            Button(action: onToTap) {
+                HStack(spacing: 12) {
+                    Image(systemName: "airplane.arrival")
+                        .foregroundColor(.gray)
+                        .frame(width: 20, height: 20)
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(trip.toIataCode.isEmpty ? "TO" : trip.toIataCode)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.gray)
+                        Text(trip.toLocation)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            }
+            
+            // Date Selection
+            Button(action: onDateTap) {
+                HStack(spacing: 12) {
+                    Image(systemName: "calendar")
+                        .foregroundColor(.gray)
+                        .frame(width: 20, height: 20)
+                    
+                    Text(trip.displayDate)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            }
+        }
+        .padding(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.orange, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Home Multi-City Location Sheet (renamed to avoid conflicts)
+struct HomeMultiCityLocationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
+    let tripIndex: Int
+    let isFromLocation: Bool
+    
+    @State private var searchText = ""
+    @State private var results: [AutocompleteResult] = []
+    @State private var isSearching = false
+    @State private var searchError: String? = nil
+    @FocusState private var isTextFieldFocused: Bool
+    @State private var cancellables = Set<AnyCancellable>()
+    
+    private let searchDebouncer = SearchDebouncer(delay: 0.3)
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                }
+                
+                Spacer()
+                
+                Text(isFromLocation ? "From Where?" : "Where to?")
+                    .font(.headline)
+                
+                Spacer()
+                
+                // Empty space to balance the X button
+                Image(systemName: "xmark")
+                    .font(.system(size: 18))
+                    .foregroundColor(.clear)
+            }
+            .padding()
+            
+            // Search bar
+            HStack {
+                TextField(isFromLocation ? "Origin City, Airport or place" : "Destination City, Airport or place", text: $searchText)
+                    .padding(12)
+                    .background(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.orange, lineWidth: 2)
+                    )
+                    .cornerRadius(8)
+                    .focused($isTextFieldFocused)
+                    .onChange(of: searchText) {
+                        handleTextChange()
+                    }
+                
+                if !searchText.isEmpty {
+                    Button(action: {
+                        searchText = ""
+                        results = []
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            
+            Divider()
+                .padding(.top)
+            
+            // Results
+            if isSearching {
+                VStack {
+                    ProgressView()
+                    Text("Searching...")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .padding()
+                Spacer()
+            } else if let error = searchError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding()
+                Spacer()
+            } else if shouldShowNoResults() {
+                Text("No results found")
+                    .foregroundColor(.gray)
+                    .padding()
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(results) { result in
+                            LocationResultRow(result: result)
+                                .onTapGesture {
+                                    selectLocation(result: result)
+                                }
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color.white)
+        .onAppear {
+            isTextFieldFocused = true
+        }
+    }
+    
+    private func handleTextChange() {
+        if !searchText.isEmpty {
+            searchDebouncer.debounce {
+                searchLocations(query: searchText)
+            }
+        } else {
+            results = []
+        }
+    }
+    
+    private func shouldShowNoResults() -> Bool {
+        return results.isEmpty && !searchText.isEmpty
+    }
+    
+    private func selectLocation(result: AutocompleteResult) {
+        if isFromLocation {
+            searchViewModel.multiCityTrips[tripIndex].fromLocation = result.cityName
+            searchViewModel.multiCityTrips[tripIndex].fromIataCode = result.iataCode
+        } else {
+            searchViewModel.multiCityTrips[tripIndex].toLocation = result.cityName
+            searchViewModel.multiCityTrips[tripIndex].toIataCode = result.iataCode
+        }
+        
+        searchText = result.cityName
+        dismiss()
+    }
+    
+    private func searchLocations(query: String) {
+        guard !query.isEmpty else {
+            results = []
+            return
+        }
+        
+        isSearching = true
+        searchError = nil
+        
+        ExploreAPIService.shared.fetchAutocomplete(query: query)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                isSearching = false
+                if case .failure(let error) = completion {
+                    searchError = error.localizedDescription
+                }
+            }, receiveValue: { results in
+                self.results = results
+            })
+            .store(in: &cancellables)
+    }
+}
+
+// MARK: - Home Multi-City Calendar Sheet (renamed to avoid conflicts)
+struct HomeMultiCityCalendarSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
+    let tripIndex: Int
+    @State private var tempSelectedDate: Date = Date()
+    
+    var body: some View {
+        VStack {
+            // Header
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.blue)
+                
+                Spacer()
+                
+                Text("Select Date")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Button("Done") {
+                    searchViewModel.multiCityTrips[tripIndex].date = tempSelectedDate
+                    dismiss()
+                }
+                .foregroundColor(.blue)
+                .fontWeight(.semibold)
+            }
+            .padding()
+            
+            // Simple date picker for multi-city
+            DatePicker(
+                "Select Date",
+                selection: $tempSelectedDate,
+                in: Date()...,
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(GraphicalDatePickerStyle())
+            .padding()
+            
+            Spacer()
+        }
+        .onAppear {
+            tempSelectedDate = searchViewModel.multiCityTrips[tripIndex].date
+        }
+    }
+}
+
+// MARK: - Home Collapsible Search Input (matching style)
+struct HomeCollapsibleSearchInput: View {
+    @Binding var isExpanded: Bool
+    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
+    
+    var body: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                isExpanded = true
+            }
+        }) {
+            VStack(spacing: 12) {
+                // Trip type tabs (collapsed version)
+                HStack(spacing: 0) {
+                    ForEach(0..<3, id: \.self) { index in
+                        let titles = ["Return", "One way", "Multi city"]
+                        Text(titles[index])
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(searchViewModel.selectedTab == index ? .blue : .gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                }
+                
+                // Route display
+                HStack(spacing: 8) {
+                    // From
+                    HStack(spacing: 4) {
+                        Image(systemName: "airplane.departure")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 12))
+                        Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Image(systemName: "arrow.right")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 12))
+                    
+                    // To
+                    HStack(spacing: 4) {
+                        Image(systemName: "airplane.arrival")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 12))
+                        Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 16))
+                }
+                
+                // Date display (if selected)
+                if !searchViewModel.selectedDates.isEmpty {
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 12))
+                        Text(formatDatesForDisplay())
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                }
+            }
+            .padding(16)
+            .background(Color.white)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.orange, lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    private func formatDatesForDisplay() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E,d MMM"
+        
+        if searchViewModel.selectedDates.count >= 2 {
+            let sortedDates = searchViewModel.selectedDates.sorted()
+            return "\(formatter.string(from: sortedDates[0])) - \(formatter.string(from: sortedDates[1]))"
+        } else if searchViewModel.selectedDates.count == 1 {
+            return formatter.string(from: searchViewModel.selectedDates[0])
+        }
+        return "Select dates"
+    }
+}
+
+
 
 // MARK: - Home Location Search Sheets (renamed to avoid conflicts)
 struct HomeFromLocationSearchSheet: View {
