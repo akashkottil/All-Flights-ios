@@ -2026,6 +2026,20 @@ struct ExploreScreen: View {
             viewModel.goBackToCountries()
         }
     }
+
+    private func getCurrentMonthName() -> String {
+        if !viewModel.isAnytimeMode && viewModel.selectedMonthIndex < viewModel.availableMonths.count {
+            let selectedMonth = viewModel.availableMonths[viewModel.selectedMonthIndex]
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM"
+            return formatter.string(from: selectedMonth)
+        } else {
+            // Fallback to current month
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM"
+            return formatter.string(from: Date())
+        }
+    }
     
     // MARK: - Body
     var body: some View {
@@ -2155,23 +2169,23 @@ struct ExploreScreen: View {
                                         .padding(.top, 16)
                                     
                                     // Only show month selector when NOT in anytime mode
-                                        if !viewModel.isAnytimeMode {
-                                            MonthSelectorView(
-                                                months: viewModel.availableMonths,
-                                                selectedIndex: viewModel.selectedMonthIndex,
-                                                onSelect: { index in
-                                                    viewModel.selectMonth(at: index)
-                                                }
-                                            )
+                                    if !viewModel.isAnytimeMode {
+                                        MonthSelectorView(
+                                            months: viewModel.availableMonths,
+                                            selectedIndex: viewModel.selectedMonthIndex,
+                                            onSelect: { index in
+                                                viewModel.selectMonth(at: index)
+                                            }
+                                        )
+                                        .padding(.top, 8)
+                                    } else {
+                                        // When in anytime mode, show a message about best prices
+                                        Text("Best prices for the next 3 months")
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray)
                                             .padding(.top, 8)
-                                        } else {
-                                            // When in anytime mode, show a message about best prices
-                                            Text("Best prices for the next 3 months")
-                                                .font(.subheadline)
-                                                .foregroundColor(.gray)
-                                                .padding(.top, 8)
-                                                .padding(.bottom, 8)
-                                        }
+                                            .padding(.bottom, 8)
+                                    }
                                     
                                     if viewModel.isLoadingFlights {
                                         ForEach(0..<3, id: \.self) { _ in
@@ -2183,6 +2197,15 @@ struct ExploreScreen: View {
                                             .font(.subheadline)
                                             .foregroundColor(.gray)
                                     } else {
+                                        // ADD THIS TEXT HERE - Estimated cheapest price during current month
+                                        if !viewModel.isAnytimeMode && !viewModel.flightResults.isEmpty {
+                                            Text("Estimated cheapest price during \(getCurrentMonthName())")
+                                                .font(.subheadline)
+                                                .foregroundColor(.primary)
+                                                .padding(.horizontal)
+                                                .padding(.bottom, 8)
+                                        }
+                                        
                                         ForEach(viewModel.flightResults) { result in
                                             FlightResultCard(
                                                 departureDate: viewModel.formatDate(result.outbound.departure ?? 0),
@@ -2254,10 +2277,10 @@ struct SearchCard: View {
                         showingSearchSheet = true
                     }) {
                         Image(systemName: "airplane.departure")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.primary)
                         Text(viewModel.fromLocation)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                     }
                     
                     Spacer()
@@ -2268,7 +2291,7 @@ struct SearchCard: View {
                             .frame(width: 20, height: 20)
                         Image(systemName: "arrow.left.arrow.right")
                             .fontWeight(.bold)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.primary)
                             .font(.system(size: 8))
                     }
                     
@@ -2279,10 +2302,10 @@ struct SearchCard: View {
                         showingSearchSheet = true
                     }) {
                         Image(systemName: "airplane.arrival")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.primary)
                         Text(viewModel.toLocation)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                     }
                 }
                 .padding(4)
@@ -2295,7 +2318,7 @@ struct SearchCard: View {
                         showingCalendar = true
                     }){
                         Image(systemName: "calendar")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.primary)
                       
                         // Display "Anytime" if using anytime results, otherwise show selected dates
                                if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
@@ -2308,9 +2331,11 @@ struct SearchCard: View {
                                        .font(.system(size: 14, weight: .medium))
                                } else if viewModel.dates.count == 1 {
                                    Text(formatDate(viewModel.dates[0]))
+                                       .foregroundColor(.primary)
                                        .font(.system(size: 14, weight: .medium))
                                } else if viewModel.dates.count >= 2 {
                                    Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
+                                       .foregroundColor(.primary)
                                        .font(.system(size: 14, weight: .medium))
                                }
                     }
@@ -2322,12 +2347,13 @@ struct SearchCard: View {
                                            viewModel.showingPassengersSheet = true
                                        }) {
                                            HStack(spacing: 4) {
-                                               Image(systemName: "person")
-                                                   .foregroundColor(.blue)
+                                               Image(systemName: "person.fill")
+                                                   .foregroundColor(.black)
                                                
                                                // Display the passenger and cabin class info
                                                Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
                                                    .font(.system(size: 14, weight: .medium))
+                                                   .foregroundColor(.black)
                                            }
                                        }
                 }
@@ -2415,7 +2441,8 @@ struct SearchCard: View {
 }
 
 
-// MARK: - Flight Result Card (matching screenshot)
+
+// MARK: - Flight Result Card
 struct FlightResultCard: View {
     let departureDate: String
     let returnDate: String
@@ -2427,120 +2454,143 @@ struct FlightResultCard: View {
     let tripDuration: String
     @ObservedObject var viewModel: ExploreViewModel
     
+    // Helper function to check if we should hide the card
+    private var shouldHideCard: Bool {
+        let currentDate = Date()
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: currentDate)
+        
+        // Check if current time is after 7 PM (19:00)
+        guard currentHour >= 19 else { return false }
+        
+        // Parse the departure date string
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM yyyy"
+        
+        guard let flightDate = formatter.date(from: departureDate) else { return false }
+        
+        // Check if the flight date is today
+        return calendar.isDate(flightDate, inSameDayAs: currentDate)
+    }
+    
     var body: some View {
-        VStack(spacing: 0) {
-            // Departure section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Departure")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                
-                HStack {
-                    Text(departureDate.dropLast(5))
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 4) {
-                        Text(origin)
-                            .font(.headline)
-                        
-                        Image(systemName: "arrow.right")
-                            .font(.caption)
-                        
-                        Text(destination)
-                            .font(.headline)
-                    }
-                    
-                    Spacer()
-                    
-                    Text(isOutDirect ? "Direct" : "Connecting")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.green)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            
-            
-            // Return section
-            if viewModel.isRoundTrip {
-                Divider()
+        // If we should hide the card, return empty view
+        if shouldHideCard {
+            EmptyView()
+        } else {
+            VStack(spacing: 0) {
+                // Departure section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Return")
+                    Text("Departure")
                         .font(.subheadline)
                         .foregroundColor(.gray)
                     
                     HStack {
-                        Text(returnDate.dropLast(5))
+                        Text(departureDate.dropLast(5))
                             .font(.headline)
                         
                         Spacer()
                         
                         HStack(spacing: 4) {
-                            Text(destination)
+                            Text(origin)
                                 .font(.headline)
                             
                             Image(systemName: "arrow.right")
                                 .font(.caption)
                             
-                            Text(origin)
+                            Text(destination)
                                 .font(.headline)
                         }
                         
                         Spacer()
                         
-                        Text(isInDirect ? "Direct" : "Connecting")
+                        Text(isOutDirect ? "Direct" : "Connecting")
                             .font(.subheadline)
-                            .foregroundColor(.green)
                             .fontWeight(.bold)
+                            .foregroundColor(.green)
                     }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
-            }
-            
-            Divider()
-            
-            // Price section
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Flights from")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    
-                    Text(price)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text(viewModel.isRoundTrip ? tripDuration : "One way trip")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+                
+                // Return section
+                if viewModel.isRoundTrip {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Return")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        HStack {
+                            Text(returnDate.dropLast(5))
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            HStack(spacing: 4) {
+                                Text(destination)
+                                    .font(.headline)
+                                
+                                Image(systemName: "arrow.right")
+                                    .font(.caption)
+                                
+                                Text(origin)
+                                    .font(.headline)
+                            }
+                            
+                            Spacer()
+                            
+                            Text(isInDirect ? "Direct" : "Connecting")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                                .fontWeight(.bold)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
                 }
                 
-                Spacer()
+                Divider()
                 
-                Button(action: {
-                    searchFlights()
-                }) {
-                    Text("View these dates")
-                        .font(.subheadline)
-                        .foregroundColor(.white)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 16)
-                        .background(Color("primarycolor"))
-                        .cornerRadius(8)
+                // Price section
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Flights from")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        Text(price)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        Text(viewModel.isRoundTrip ? tripDuration : "One way trip")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        searchFlights()
+                    }) {
+                        Text("View these dates")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 16)
+                            .background(Color.orange)
+                            .cornerRadius(8)
+                    }
                 }
-               
+                .padding()
             }
-            .padding()
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .padding(.horizontal)
         }
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-        .padding(.horizontal)
     }
+    
     private func searchFlights() {
         // Use the formatted dates from the view model if available, otherwise fallback to card dates
         let departureDate: String
@@ -2574,8 +2624,8 @@ struct FlightResultCard: View {
         }
         
         // Update these stored dates in viewModel
-           viewModel.selectedDepartureDatee = formattedCardDepartureDate
-           viewModel.selectedReturnDatee = formattedCardReturnDate
+        viewModel.selectedDepartureDatee = formattedCardDepartureDate
+        viewModel.selectedReturnDatee = formattedCardReturnDate
         
         // Then call the search function with these dates
         viewModel.searchFlightsForDates(
@@ -3990,6 +4040,8 @@ static let fastest = FlightTag(title: "Fastest", color: Color.purple)
 
 
 
+// Updated Flight Card Components to match the UI design
+
 struct DetailedFlightCardWrapper: View {
     let result: FlightDetailResult
     @ObservedObject var viewModel: ExploreViewModel
@@ -4006,63 +4058,69 @@ struct DetailedFlightCardWrapper: View {
             let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
             
             Button(action: onTap) {
-                VStack {
-                    // Flight tags
-                    HStack(spacing: 4) {
-                        if result.isBest {
-                            FlightTagView(tag: FlightTag.best)
-                        }
-                        if result.isCheapest {
-                            FlightTagView(tag: FlightTag.cheapest)
-                        }
-                        if result.isFastest {
-                            FlightTagView(tag: FlightTag.fastest)
-                        }
-                    }
-                    .padding(.trailing, -40)
-                    .zIndex(1)
-                    
-                    if viewModel.isRoundTrip && returnLeg != nil && returnSegment != nil {
-                        // Round trip flight card
-                        LastFlightCard(
-                            departureTime: outboundDepartureTime,
-                            departureCode: outboundSegment.originCode,
-                            departureDate: formatDate(from: outboundSegment.departureTimeAirport),
-                            arrivalTime: outboundArrivalTime,
-                            arrivalCode: outboundSegment.destinationCode,
-                            arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
-                            duration: formatDuration(minutes: outboundLeg.duration),
-                            isOutboundDirect: outboundLeg.stopCount == 0,
-                            
-                            returnDepartureTime: formatTime(from: returnSegment!.departureTimeAirport),
-                            returnDepartureCode: returnSegment!.originCode,
-                            returnDepartureDate: formatDate(from: returnSegment!.departureTimeAirport),
-                            returnArrivalTime: formatTime(from: returnSegment!.arriveTimeAirport),
-                            returnArrivalCode: returnSegment!.destinationCode,
-                            returnArrivalDate: formatDate(from: returnSegment!.arriveTimeAirport),
-                            returnDuration: formatDuration(minutes: returnLeg!.duration),
-                            isReturnDirect: returnLeg!.stopCount == 0,
-                            
-                            airline: outboundSegment.airlineName,
-                            price: "₹\(Int(result.minPrice))",
-                            priceDetail: "per person"
-                        )
-                    } else {
-                        // One way flight card
-                        OneWayFlightCard(
-                            departureTime: outboundDepartureTime,
-                            departureCode: outboundSegment.originCode,
-                            departureDate: formatDate(from: outboundSegment.departureTimeAirport),
-                            arrivalTime: outboundArrivalTime,
-                            arrivalCode: outboundSegment.destinationCode,
-                            arrivalDate: formatDate(from: outboundSegment.arriveTimeAirport),
-                            duration: formatDuration(minutes: outboundLeg.duration),
-                            isOutboundDirect: outboundLeg.stopCount == 0,
-                            airline: outboundSegment.airlineName,
-                            price: "₹\(Int(result.minPrice))",
-                            priceDetail: "per person"
-                        )
-                    }
+                if viewModel.isRoundTrip && returnLeg != nil && returnSegment != nil {
+                    // Round trip flight card
+                    ModernFlightCard(
+                        // Tags
+                        isBest: result.isBest,
+                        isCheapest: result.isCheapest,
+                        isFastest: result.isFastest,
+                        
+                        // Outbound flight
+                        outboundDepartureTime: outboundDepartureTime,
+                        outboundDepartureCode: outboundSegment.originCode,
+                        outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
+                        outboundArrivalTime: outboundArrivalTime,
+                        outboundArrivalCode: outboundSegment.destinationCode,
+                        outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
+                        outboundDuration: formatDuration(minutes: outboundLeg.duration),
+                        isOutboundDirect: outboundLeg.stopCount == 0,
+                        outboundStops: outboundLeg.stopCount,
+                        
+                        // Return flight
+                        returnDepartureTime: formatTime(from: returnSegment!.departureTimeAirport),
+                        returnDepartureCode: returnSegment!.originCode,
+                        returnDepartureDate: formatDateShort(from: returnSegment!.departureTimeAirport),
+                        returnArrivalTime: formatTime(from: returnSegment!.arriveTimeAirport),
+                        returnArrivalCode: returnSegment!.destinationCode,
+                        returnArrivalDate: formatDateShort(from: returnSegment!.arriveTimeAirport),
+                        returnDuration: formatDuration(minutes: returnLeg!.duration),
+                        isReturnDirect: returnLeg!.stopCount == 0,
+                        returnStops: returnLeg!.stopCount,
+                        
+                        // Airline and price
+                        airline: outboundSegment.airlineName,
+                        price: "₹\(Int(result.minPrice))",
+                        priceDetail: "For 2 People ₹\(Int(result.minPrice * 2))",
+                        
+                        isRoundTrip: true
+                    )
+                } else {
+                    // One way flight card
+                    ModernFlightCard(
+                        // Tags
+                        isBest: result.isBest,
+                        isCheapest: result.isCheapest,
+                        isFastest: result.isFastest,
+                        
+                        // Outbound flight
+                        outboundDepartureTime: outboundDepartureTime,
+                        outboundDepartureCode: outboundSegment.originCode,
+                        outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
+                        outboundArrivalTime: outboundArrivalTime,
+                        outboundArrivalCode: outboundSegment.destinationCode,
+                        outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
+                        outboundDuration: formatDuration(minutes: outboundLeg.duration),
+                        isOutboundDirect: outboundLeg.stopCount == 0,
+                        outboundStops: outboundLeg.stopCount,
+                        
+                        // Airline and price
+                        airline: outboundSegment.airlineName,
+                        price: "₹\(Int(result.minPrice))",
+                        priceDetail: "For 2 People ₹\(Int(result.minPrice * 2))",
+                        
+                        isRoundTrip: false
+                    )
                 }
             }
             .buttonStyle(PlainButtonStyle())
@@ -4081,10 +4139,10 @@ struct DetailedFlightCardWrapper: View {
         return formatter.string(from: date)
     }
     
-    private func formatDate(from timestamp: Int) -> String {
+    private func formatDateShort(from timestamp: Int) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, d MMM yyyy"
+        formatter.dateFormat = "d MMM"
         return formatter.string(from: date)
     }
     
@@ -4094,6 +4152,250 @@ struct DetailedFlightCardWrapper: View {
         return "\(hours)h \(mins)m"
     }
 }
+
+struct ModernFlightCard: View {
+    // Tags
+    let isBest: Bool
+    let isCheapest: Bool
+    let isFastest: Bool
+    
+    // Outbound flight
+    let outboundDepartureTime: String
+    let outboundDepartureCode: String
+    let outboundDepartureDate: String
+    let outboundArrivalTime: String
+    let outboundArrivalCode: String
+    let outboundArrivalDate: String
+    let outboundDuration: String
+    let isOutboundDirect: Bool
+    let outboundStops: Int
+    
+    // Return flight (optional)
+    var returnDepartureTime: String? = nil
+    var returnDepartureCode: String? = nil
+    var returnDepartureDate: String? = nil
+    var returnArrivalTime: String? = nil
+    var returnArrivalCode: String? = nil
+    var returnArrivalDate: String? = nil
+    var returnDuration: String? = nil
+    var isReturnDirect: Bool? = nil
+    var returnStops: Int? = nil
+    
+    // Airline and price
+    let airline: String
+    let price: String
+    let priceDetail: String
+    
+    let isRoundTrip: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tags at the top inside the card
+            if isBest || isCheapest || isFastest {
+                HStack(spacing: 6) {
+                    if isBest {
+                        TagView(text: "Best", color: .blue)
+                    }
+                    if isCheapest {
+                        TagView(text: "Cheapest", color: .green)
+                    }
+                    if isFastest {
+                        TagView(text: "Fastest", color: .purple)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            }
+            
+            // Outbound flight
+            FlightRowView(
+                departureTime: outboundDepartureTime,
+                departureCode: outboundDepartureCode,
+                departureDate: outboundDepartureDate,
+                arrivalTime: outboundArrivalTime,
+                arrivalCode: outboundArrivalCode,
+                arrivalDate: outboundArrivalDate,
+                duration: outboundDuration,
+                isDirect: isOutboundDirect,
+                stops: outboundStops
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            
+            // Return flight (if round trip)
+            if isRoundTrip,
+               let retDepTime = returnDepartureTime,
+               let retDepCode = returnDepartureCode,
+               let retDepDate = returnDepartureDate,
+               let retArrTime = returnArrivalTime,
+               let retArrCode = returnArrivalCode,
+               let retArrDate = returnArrivalDate,
+               let retDuration = returnDuration,
+               let retDirect = isReturnDirect,
+               let retStops = returnStops {
+                
+                Divider()
+                    .padding(.horizontal, 16)
+                
+                FlightRowView(
+                    departureTime: retDepTime,
+                    departureCode: retDepCode,
+                    departureDate: retDepDate,
+                    arrivalTime: retArrTime,
+                    arrivalCode: retArrCode,
+                    arrivalDate: retArrDate,
+                    duration: retDuration,
+                    isDirect: retDirect,
+                    stops: retStops
+                )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+            
+            // Bottom section with airline and price
+            Divider()
+                .padding(.horizontal, 16)
+            
+            HStack {
+                Text(airline)
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.black)
+                    
+                    Text(priceDetail)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+    }
+}
+
+struct FlightRowView: View {
+    let departureTime: String
+    let departureCode: String
+    let departureDate: String
+    let arrivalTime: String
+    let arrivalCode: String
+    let arrivalDate: String
+    let duration: String
+    let isDirect: Bool
+    let stops: Int
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            // Departure section
+            VStack(alignment: .leading, spacing: 4) {
+                Text(departureTime)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.black)
+                
+                Text(departureCode)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.black)
+                
+                Text(departureDate)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+            }
+            .frame(width: 60, alignment: .leading)
+            
+            Spacer()
+            
+            // Flight path section
+            VStack(spacing: 6) {
+                // Flight path visualization
+                HStack(spacing: 0) {
+                    Circle()
+                        .fill(Color.gray)
+                        .frame(width: 6, height: 6)
+                    
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(height: 1)
+                        .frame(maxWidth: .infinity)
+                    
+                    Circle()
+                        .fill(Color.gray)
+                        .frame(width: 6, height: 6)
+                }
+                .frame(width: 80)
+                
+                // Duration
+                Text(duration)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                
+                // Direct/Stops indicator
+                if isDirect {
+                    Text("Direct")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(4)
+                } else {
+                    Text("\(stops) Stop\(stops > 1 ? "s" : "")")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
+            
+            Spacer()
+            
+            // Arrival section
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(arrivalTime)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.black)
+                
+                Text(arrivalCode)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.black)
+                
+                Text(arrivalDate)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+            }
+            .frame(width: 60, alignment: .trailing)
+        }
+    }
+}
+
+struct TagView: View {
+    let text: String
+    let color: Color
+    
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color)
+            .cornerRadius(4)
+    }
+}
+
+
 
 // Add a new OneWayFlightCard struct
 struct OneWayFlightCard: View {
@@ -4751,6 +5053,8 @@ struct FlightFilterTabView: View {
 }
 
 
+// Updated ModifiedDetailedFlightListView and MultiCityFlightCardWrapper
+
 struct ModifiedDetailedFlightListView: View {
     @ObservedObject var viewModel: ExploreViewModel
     @State private var selectedFlightId: String? = nil
@@ -4761,8 +5065,6 @@ struct ModifiedDetailedFlightListView: View {
     @State private var resultCount: Int = 0
     
     @State private var showingFilterSheet = false
-    
-    
     
     private var formattedDates: String {
         if viewModel.dates.count >= 2 {
@@ -4817,64 +5119,38 @@ struct ModifiedDetailedFlightListView: View {
     
     var body: some View {
         VStack {
-            // Header
-            VStack {
-                HStack {
-                    
-                    
-                    Spacer()
-                    
-                    // Use the appropriate route display based on mode
-                    Text(isMultiCity ? multiCityRouteText() : "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    // Use appropriate date display based on mode
-                    Text(isMultiCity ? multiCityDatesText() : formattedDates)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+            // Filter tabs
+            HStack {
+                // New Filter button
+                FilterButton {
+                    showingFilterSheet = true
                 }
-                .padding()
+                .padding(.leading,10)
                 
-                // Filter tabs
-                HStack {
-                    // New Filter button
-                    FilterButton {
-                        showingFilterSheet = true
+                FlightFilterTabView(
+                    selectedFilter: selectedFilter,
+                    onSelectFilter: { filter in
+                        // Just update the local filter selection
+                        selectedFilter = filter
+                        
+                        // Apply local filtering
+                        applyLocalFilters()
                     }
-                    .padding(.leading,10)
-                    
-                    FlightFilterTabView(
-                        selectedFilter: selectedFilter,
-                        onSelectFilter: { filter in
-                            // Just update the local filter selection
-                            selectedFilter = filter
-                            
-                            // Apply local filtering
-                            applyLocalFilters()
-                        }
-                    )
-                    
-                    
-                    
-                }
-                .padding(.trailing, 16)
+                )
             }
-            
+            .padding(.trailing, 16)
+      
             // Only show filter tabs when we have results and no flight is selected
             if !filteredResults.isEmpty && selectedFlightId == nil {
-                
-                
                 // Show flight count
                 HStack {
-                    Text("\(filteredResults.count) flights")
+                    Text("\(filteredResults.count) flights found")
                         .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.primary)
                     Spacer()
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 8)
+                .padding(8)
             }
             
             // Content - FIXED CONDITION LOGIC
@@ -4925,22 +5201,6 @@ struct ModifiedDetailedFlightListView: View {
                                     Spacer()
                                 }
                                 .padding(.horizontal)
-                                
-                                // Flight tags
-                                HStack(spacing: 8) {
-                                    if selectedFlight.isBest {
-                                        FlightTagView(tag: FlightTag.best)
-                                    }
-                                    if selectedFlight.isCheapest {
-                                        FlightTagView(tag: FlightTag.cheapest)
-                                    }
-                                    if selectedFlight.isFastest {
-                                        FlightTagView(tag: FlightTag.fastest)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.horizontal)
-                                .padding(.bottom, 8)
                                 
                                 // Display flight details - handle legs differently based on mode
                                 if isMultiCity {
@@ -5014,7 +5274,7 @@ struct ModifiedDetailedFlightListView: View {
                                 ForEach(filteredResults, id: \.id) { result in
                                     // Use a custom wrapper for multi-city or the existing one for regular flights
                                     if isMultiCity {
-                                        MultiCityFlightCardWrapper(
+                                        ModernMultiCityFlightCardWrapper(
                                             result: result,
                                             viewModel: viewModel,
                                             onTap: {
@@ -5074,7 +5334,7 @@ struct ModifiedDetailedFlightListView: View {
                 updateFilteredResults()
             }
         }
-        .background(Color(.systemBackground))
+        .background(Color("scroll"))
     }
     
     // FIXED: Consolidated function to update filtered results
@@ -5211,6 +5471,128 @@ struct ModifiedDetailedFlightListView: View {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
+}
+
+// Updated Multi-City Flight Card Wrapper with modern design
+struct ModernMultiCityFlightCardWrapper: View {
+    let result: FlightDetailResult
+    @ObservedObject var viewModel: ExploreViewModel
+    var onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                // Tags at the top inside the card
+                if result.isBest || result.isCheapest || result.isFastest {
+                    HStack(spacing: 6) {
+                        if result.isBest {
+                            TagView(text: "Best", color: .blue)
+                        }
+                        if result.isCheapest {
+                            TagView(text: "Cheapest", color: .green)
+                        }
+                        if result.isFastest {
+                            TagView(text: "Fastest", color: .purple)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                }
+                
+                // Display each leg
+                ForEach(0..<result.legs.count, id: \.self) { index in
+                    let leg = result.legs[index]
+                    
+                    if index > 0 {
+                        Divider()
+                            .padding(.horizontal, 16)
+                    }
+                    
+                    // Flight leg header
+                    HStack {
+                        Text("Flight \(index + 1)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.blue)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, index > 0 ? 8 : 0)
+                    .padding(.bottom, 4)
+                    
+                    // Flight leg details
+                    if let segment = leg.segments.first {
+                        FlightRowView(
+                            departureTime: formatTime(from: segment.departureTimeAirport),
+                            departureCode: segment.originCode,
+                            departureDate: formatDateShort(from: segment.departureTimeAirport),
+                            arrivalTime: formatTime(from: segment.arriveTimeAirport),
+                            arrivalCode: segment.destinationCode,
+                            arrivalDate: formatDateShort(from: segment.arriveTimeAirport),
+                            duration: formatDuration(minutes: leg.duration),
+                            isDirect: leg.stopCount == 0,
+                            stops: leg.stopCount
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
+                }
+                
+                Divider()
+                    .padding(.horizontal, 16)
+                
+                // Price and total duration
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Total Duration: \(formatDuration(minutes: result.totalDuration))")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        
+                        Text("₹\(Int(result.minPrice))")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.black)
+                        
+                        Text("For 2 People ₹\(Int(result.minPrice * 2))")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    // Helper functions for formatting
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDateShort(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
         return formatter.string(from: date)
     }
     
