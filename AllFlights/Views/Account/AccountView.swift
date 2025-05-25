@@ -1,225 +1,57 @@
 import SwiftUI
 import Foundation
 import Combine
-// MARK: - Models
-struct Country: Codable, Identifiable, Hashable {
-    let id = UUID()
-    let name: String
-    let code: String
-    let flag: String?
-    
-    private enum CodingKeys: String, CodingKey {
-        case name, code, flag
-    }
-}
-
-struct Currency: Codable, Identifiable, Hashable {
-    let id = UUID()
-    let name: String
-    let code: String
-    let symbol: String?
-    let flag: String?
-    
-    private enum CodingKeys: String, CodingKey {
-        case name, code, symbol, flag
-    }
-}
-
-struct CountriesResponse: Codable {
-    let results: [Country]
-    let count: Int
-    let next: String?
-    let previous: String?
-}
-
-struct CurrenciesResponse: Codable {
-    let results: [Currency]
-    let count: Int
-    let next: String?
-    let previous: String?
-}
-
-// MARK: - API Service
-class APIService: ObservableObject {
-    private let baseURL = "https://staging.plane.lascade.com/api"
-    
-    func fetchCountries(search: String = "", page: Int = 1, limit: Int = 50) async throws -> CountriesResponse {
-        var components = URLComponents(string: "\(baseURL)/countries/")!
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "page", value: String(page)),
-            URLQueryItem(name: "limit", value: String(limit))
-        ]
-        
-        if !search.isEmpty {
-            queryItems.append(URLQueryItem(name: "search", value: search))
-        }
-        
-        components.queryItems = queryItems
-        
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
-        return try JSONDecoder().decode(CountriesResponse.self, from: data)
-    }
-    
-    func fetchCurrencies(search: String = "", page: Int = 1, limit: Int = 50) async throws -> CurrenciesResponse {
-        var components = URLComponents(string: "\(baseURL)/currencies/")!
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "page", value: String(page)),
-            URLQueryItem(name: "limit", value: String(limit))
-        ]
-        
-        if !search.isEmpty {
-            queryItems.append(URLQueryItem(name: "search", value: search))
-        }
-        
-        components.queryItems = queryItems
-        
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
-        return try JSONDecoder().decode(CurrenciesResponse.self, from: data)
-    }
-}
 
 // MARK: - ViewModels
 class CountryViewModel: ObservableObject {
     @Published var countries: [Country] = []
-    @Published var isLoading = false
     @Published var searchText = ""
     @Published var selectedCountry: Country?
     
-    private let apiService = APIService()
-    private var searchTask: Task<Void, Never>?
+    private let dataService = MockDataService.shared
     private var cancellables = Set<AnyCancellable>()
     
     init() {
-        Task {
-            await loadCountries()
-        }
+        // Load all countries initially
+        countries = dataService.getAllCountries()
         
-        // Setup search debouncing
+        // Setup search
         $searchText
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .sink { [weak self] _ in
-                Task {
-                    await self?.searchCountries()
-                }
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] searchQuery in
+                self?.searchCountries(query: searchQuery)
             }
             .store(in: &cancellables)
     }
     
-    func loadCountries() async {
-        await MainActor.run {
-            isLoading = true
-        }
-        
-        do {
-            let response = try await apiService.fetchCountries()
-            await MainActor.run {
-                self.countries = response.results
-                self.isLoading = false
-            }
-        } catch {
-            print("Error loading countries: \(error)")
-            await MainActor.run {
-                self.isLoading = false
-            }
-        }
-    }
-    
-    func searchCountries() async {
-        searchTask?.cancel()
-        searchTask = Task {
-            await MainActor.run {
-                isLoading = true
-            }
-            
-            do {
-                let response = try await apiService.fetchCountries(search: searchText)
-                if !Task.isCancelled {
-                    await MainActor.run {
-                        self.countries = response.results
-                        self.isLoading = false
-                    }
-                }
-            } catch {
-                if !Task.isCancelled {
-                    print("Error searching countries: \(error)")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                }
-            }
-        }
+    private func searchCountries(query: String) {
+        countries = dataService.searchCountries(query: query)
     }
 }
 
 class CurrencyViewModel: ObservableObject {
     @Published var currencies: [Currency] = []
-    @Published var isLoading = false
     @Published var searchText = ""
     @Published var selectedCurrency: Currency?
     
-    private let apiService = APIService()
-    private var searchTask: Task<Void, Never>?
+    private let dataService = MockDataService.shared
     private var cancellables = Set<AnyCancellable>()
     
     init() {
-        Task {
-            await loadCurrencies()
-        }
+        // Load all currencies initially
+        currencies = dataService.getAllCurrencies()
         
-        // Setup search debouncing
+        // Setup search
         $searchText
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .sink { [weak self] _ in
-                Task {
-                    await self?.searchCurrencies()
-                }
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] searchQuery in
+                self?.searchCurrencies(query: searchQuery)
             }
             .store(in: &cancellables)
     }
     
-    func loadCurrencies() async {
-        await MainActor.run {
-            isLoading = true
-        }
-        
-        do {
-            let response = try await apiService.fetchCurrencies()
-            await MainActor.run {
-                self.currencies = response.results
-                self.isLoading = false
-            }
-        } catch {
-            print("Error loading currencies: \(error)")
-            await MainActor.run {
-                self.isLoading = false
-            }
-        }
-    }
-    
-    func searchCurrencies() async {
-        searchTask?.cancel()
-        searchTask = Task {
-            await MainActor.run {
-                isLoading = true
-            }
-            
-            do {
-                let response = try await apiService.fetchCurrencies(search: searchText)
-                if !Task.isCancelled {
-                    await MainActor.run {
-                        self.currencies = response.results
-                        self.isLoading = false
-                    }
-                }
-            } catch {
-                if !Task.isCancelled {
-                    print("Error searching currencies: \(error)")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                }
-            }
-        }
+    private func searchCurrencies(query: String) {
+        currencies = dataService.searchCurrencies(query: query)
     }
 }
 
@@ -292,31 +124,24 @@ struct CurrencySelectionSheet: View {
                     .padding(.bottom, 15)
                     
                     // Currency List
-                    if viewModel.isLoading {
-                        Spacer()
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        Spacer()
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(viewModel.currencies) { currency in
-                                    CurrencyRow(
-                                        currency: currency,
-                                        isSelected: selectedCurrency?.code == currency.code
-                                    ) {
-                                        selectedCurrency = currency
-                                        dismiss()
-                                    }
-                                    
-                                    if currency != viewModel.currencies.last {
-                                        Divider()
-                                            .padding(.leading, 60)
-                                    }
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(viewModel.currencies) { currency in
+                                CurrencyRow(
+                                    currency: currency,
+                                    isSelected: selectedCurrency?.code == currency.code
+                                ) {
+                                    selectedCurrency = currency
+                                    dismiss()
+                                }
+                                
+                                if currency != viewModel.currencies.last {
+                                    Divider()
+                                        .padding(.leading, 60)
                                 }
                             }
-                            .padding(.horizontal, 20)
                         }
+                        .padding(.horizontal, 20)
                     }
                 }
             }
@@ -350,9 +175,17 @@ struct CurrencyRow: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(currency.code)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
+                    HStack {
+                        Text(currency.code)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.black)
+                        
+                        if let symbol = currency.symbol {
+                            Text("(\(symbol))")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.blue)
+                        }
+                    }
                     
                     Text(currency.name)
                         .font(.system(size: 14))
@@ -441,31 +274,24 @@ struct RegionSelectionSheet: View {
                     .padding(.bottom, 15)
                     
                     // Country List
-                    if viewModel.isLoading {
-                        Spacer()
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        Spacer()
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(viewModel.countries) { country in
-                                    CountryRow(
-                                        country: country,
-                                        isSelected: selectedCountry?.code == country.code
-                                    ) {
-                                        selectedCountry = country
-                                        dismiss()
-                                    }
-                                    
-                                    if country != viewModel.countries.last {
-                                        Divider()
-                                            .padding(.leading, 60)
-                                    }
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(viewModel.countries) { country in
+                                CountryRow(
+                                    country: country,
+                                    isSelected: selectedCountry?.code == country.code
+                                ) {
+                                    selectedCountry = country
+                                    dismiss()
+                                }
+                                
+                                if country != viewModel.countries.last {
+                                    Divider()
+                                        .padding(.leading, 60)
                                 }
                             }
-                            .padding(.horizontal, 20)
                         }
+                        .padding(.horizontal, 20)
                     }
                 }
             }
@@ -515,7 +341,7 @@ struct CountryRow: View {
     }
 }
 
-// MARK: - Updated AccountView
+// MARK: - Main AccountView
 struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingCurrencySheet = false
@@ -540,7 +366,9 @@ struct AccountView: View {
                         Button(action: {
                             dismiss()
                         }) {
-                            Image("BackIcon")
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.black)
                         }
                         Spacer()
                         Text("Account")
@@ -573,7 +401,7 @@ struct AccountView: View {
                                 .foregroundColor(.white)
                                 .padding(.vertical, 10)
                                 .padding(.horizontal, 20)
-                                .background(Color("buttonBlue"))
+                                .background(Color.blue)
                                 .cornerRadius(10)
                         }
                         
@@ -583,7 +411,7 @@ struct AccountView: View {
                         SettingCard(
                             title: "Region",
                             subtitle: selectedCountry?.name ?? "India",
-                            icon: Image("flag"),
+                            icon: selectedCountry?.flag.map { Text($0) } ?? Text("🇮🇳"),
                             action: {
                                 showingRegionSheet = true
                             }
@@ -591,7 +419,8 @@ struct AccountView: View {
                         
                         SettingCard(
                             title: "Currency",
-                            subtitle: selectedCurrency?.name ?? "Rupee",
+                            subtitle: selectedCurrency?.name ?? "Indian Rupee",
+                            icon: selectedCurrency?.flag.map { Text($0) } ?? Text("🇮🇳"),
                             action: {
                                 showingCurrencySheet = true
                             }
@@ -636,11 +465,20 @@ struct AccountView: View {
             .sheet(isPresented: $showingRegionSheet) {
                 RegionSelectionSheet(selectedCountry: $selectedCountry)
             }
+            .onAppear {
+                // Set default values if none selected
+                if selectedCountry == nil {
+                    selectedCountry = MockDataService.shared.findCountry(byCode: "IN")
+                }
+                if selectedCurrency == nil {
+                    selectedCurrency = MockDataService.shared.findCurrency(byCode: "INR")
+                }
+            }
         }
     }
 }
 
-// MARK: - Original Reusable Components (unchanged)
+// MARK: - Reusable Components
 struct SectionTitle: View {
     let text: String
     
@@ -655,7 +493,7 @@ struct SectionTitle: View {
 struct SettingCard: View {
     let title: String
     let subtitle: String
-    var icon: Image? = nil
+    var icon: Text? = nil
     let action: () -> Void
     
     var body: some View {
@@ -667,8 +505,8 @@ struct SettingCard: View {
                         .fontWeight(.semibold)
                     
                     HStack {
-                        icon
-                            .frame(width: 16, height: 12)
+                        icon?
+                            .font(.system(size: 16))
                         Text(subtitle)
                             .font(.system(size: 14))
                             .fontWeight(.medium)
@@ -677,7 +515,8 @@ struct SettingCard: View {
                     Spacer()
                 }
                 Spacer()
-                Image("RightArrow")
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 20)
@@ -706,8 +545,8 @@ struct LegalInfoItem: View {
                     Spacer()
                 }
                 Spacer()
-                Image("RightArrow")
-                    
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
             }
         }
         .buttonStyle(PlainButtonStyle())
@@ -718,6 +557,3 @@ struct LegalInfoItem: View {
 #Preview {
     AccountView()
 }
-
-
-
