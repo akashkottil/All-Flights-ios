@@ -5,6 +5,8 @@ struct AlertsView: View {
     @State private var showingLocationSheet = false
     @State private var selectedAirports: [String] = []
     
+  
+    
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground)
@@ -17,15 +19,18 @@ struct AlertsView: View {
                     
                     VStack(spacing: 20) {
                         // Airplane icon and title
-                        VStack(spacing: 8) {
-                            Image(systemName: "airplane")
-                                .font(.system(size: 40, weight: .medium))
-                                .foregroundColor(.blue)
-                            
-                            Text("Alerts")
-                                .font(.system(size: 48, weight: .bold))
-                                .foregroundColor(.blue)
-                        }
+                
+                           
+                            VStack(spacing: 8) {
+                                Image(systemName: "airplane")
+                                    .font(.system(size: 40, weight: .medium))
+                                    .foregroundColor(.blue)
+                                
+                                Text("Alerts")
+                                    .font(.system(size: 48, weight: .bold))
+                                    .foregroundColor(.blue)
+                            }
+                        
                         
                         // Subtitle
                         VStack(spacing: 4) {
@@ -63,6 +68,13 @@ struct AlertsView: View {
                 VStack(spacing: 0) {
                     // Header with filter
                     HStack {
+                        Button(action: {
+                            showingPriceDrops = false
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.black)
+                        }
+                        Spacer()
                         Text("Alerts")
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(.white)
