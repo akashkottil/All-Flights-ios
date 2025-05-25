@@ -961,63 +961,164 @@ struct HomeCalendarSheet: View {
 // MARK: - Wrapper for Explore Results
 struct ExploreResultsWrapperView: View {
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
-    @StateObject private var exploreViewModel = ExploreViewModel()
     
     var body: some View {
-        ModifiedDetailedFlightListView(viewModel: exploreViewModel)
-            .onAppear {
-                transferSearchDataToExploreViewModel()
-                initiateSearch()
-            }
-            .navigationBarHidden(true)
+        ExploreScreenWithSearchData(
+            fromLocation: searchViewModel.fromLocation,
+            toLocation: searchViewModel.toLocation,
+            fromIataCode: searchViewModel.fromIataCode,
+            toIataCode: searchViewModel.toIataCode,
+            selectedDates: searchViewModel.selectedDates,
+            isRoundTrip: searchViewModel.isRoundTrip,
+            adultsCount: searchViewModel.adultsCount,
+            childrenCount: searchViewModel.childrenCount,
+            childrenAges: searchViewModel.childrenAges,
+            selectedCabinClass: searchViewModel.selectedCabinClass,
+            selectedTab: searchViewModel.selectedTab,
+            multiCityTrips: searchViewModel.multiCityTrips
+        )
+        .navigationBarHidden(true)
     }
+}
+
+// MARK: - Explore Screen with Search Data
+struct ExploreScreenWithSearchData: View {
+    // Search parameters
+    let fromLocation: String
+    let toLocation: String
+    let fromIataCode: String
+    let toIataCode: String
+    let selectedDates: [Date]
+    let isRoundTrip: Bool
+    let adultsCount: Int
+    let childrenCount: Int
+    let childrenAges: [Int?]
+    let selectedCabinClass: String
+    let selectedTab: Int
+    let multiCityTrips: [MultiCityTrip]
     
-    private func transferSearchDataToExploreViewModel() {
-        exploreViewModel.fromLocation = searchViewModel.fromLocation
-        exploreViewModel.toLocation = searchViewModel.toLocation
-        exploreViewModel.fromIataCode = searchViewModel.fromIataCode
-        exploreViewModel.toIataCode = searchViewModel.toIataCode
-        exploreViewModel.dates = searchViewModel.selectedDates
-        exploreViewModel.isRoundTrip = searchViewModel.isRoundTrip
-        exploreViewModel.adultsCount = searchViewModel.adultsCount
-        exploreViewModel.childrenCount = searchViewModel.childrenCount
-        exploreViewModel.childrenAges = searchViewModel.childrenAges
-        exploreViewModel.selectedCabinClass = searchViewModel.selectedCabinClass
-        exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
-        
-        // Set the selected origin and destination codes
-        exploreViewModel.selectedOriginCode = searchViewModel.fromIataCode
-        exploreViewModel.selectedDestinationCode = searchViewModel.toIataCode
-        
-        // Format dates for API
-        if !searchViewModel.selectedDates.isEmpty {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            
-            if searchViewModel.selectedDates.count >= 2 {
-                let sortedDates = searchViewModel.selectedDates.sorted()
-                exploreViewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
-                exploreViewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
-            } else if searchViewModel.selectedDates.count == 1 {
-                exploreViewModel.selectedDepartureDatee = formatter.string(from: searchViewModel.selectedDates[0])
-                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: searchViewModel.selectedDates[0]) {
-                    exploreViewModel.selectedReturnDatee = formatter.string(from: nextDay)
+    @StateObject private var viewModel = ExploreViewModel()
+    @State private var currentSelectedTab: Int = 0
+    @State private var currentIsRoundTrip: Bool = true
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        // Use the existing ExploreScreen body content
+        VStack(spacing: 0) {
+            // Custom navigation bar
+            VStack(spacing: 0) {
+                HStack {
+                    // Back button (goes back to home)
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.primary)
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    
+                    Spacer()
+                                        
+                    // Centered trip type tabs
+                    TripTypeTabView(selectedTab: $currentSelectedTab, isRoundTrip: $currentIsRoundTrip, viewModel: viewModel)
+                        .frame(width: UIScreen.main.bounds.width * 0.55)
+                                        
+                    Spacer()
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .padding(.top,5)
+                
+                // Search card with dynamic values
+                SearchCard(viewModel: viewModel, isRoundTrip: $currentIsRoundTrip, selectedTab: currentSelectedTab)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
             }
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                    
+                    if viewModel.isLoading || viewModel.isLoadingFlights {
+                        LoadingBorderView()
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange, lineWidth: 1)
+                    }
+                }
+            )
+            .padding()
+            
+            ScrollView {
+                VStack(alignment: .center, spacing: 16) {
+                    // Show detailed flight list directly
+                    ModifiedDetailedFlightListView(viewModel: viewModel)
+                        .edgesIgnoringSafeArea(.all)
+                        .background(Color(.systemBackground))
+                }
+                .background(Color("scroll"))
+            }
+            .background(Color(.systemBackground))
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .onAppear {
+            // Initialize local state with passed values
+            currentSelectedTab = selectedTab
+            currentIsRoundTrip = isRoundTrip
+            transferSearchDataAndInitiateSearch()
         }
     }
     
-    private func initiateSearch() {
-        if searchViewModel.selectedTab == 2 {
+    private func transferSearchDataAndInitiateSearch() {
+        // Transfer all search data to the view model
+        viewModel.fromLocation = fromLocation
+        viewModel.toLocation = toLocation
+        viewModel.fromIataCode = fromIataCode
+        viewModel.toIataCode = toIataCode
+        viewModel.dates = selectedDates
+        viewModel.isRoundTrip = isRoundTrip
+        viewModel.adultsCount = adultsCount
+        viewModel.childrenCount = childrenCount
+        viewModel.childrenAges = childrenAges
+        viewModel.selectedCabinClass = selectedCabinClass
+        viewModel.multiCityTrips = multiCityTrips
+        
+        // Set the selected origin and destination codes
+        viewModel.selectedOriginCode = fromIataCode
+        viewModel.selectedDestinationCode = toIataCode
+        
+        // Mark as direct search to show detailed flight list
+        viewModel.isDirectSearch = true
+        viewModel.showingDetailedFlightList = true
+        
+        // Format dates for API
+        if !selectedDates.isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            if selectedDates.count >= 2 {
+                let sortedDates = selectedDates.sorted()
+                viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+            } else if selectedDates.count == 1 {
+                viewModel.selectedDepartureDatee = formatter.string(from: selectedDates[0])
+                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDates[0]) {
+                    viewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                }
+            }
+        }
+        
+        // Initiate the search
+        if selectedTab == 2 {
             // Multi-city search
-            exploreViewModel.searchMultiCityFlights()
+            viewModel.searchMultiCityFlights()
         } else {
             // Regular search
-            exploreViewModel.searchFlightsForDates(
-                origin: searchViewModel.fromIataCode,
-                destination: searchViewModel.toIataCode,
-                returnDate: searchViewModel.isRoundTrip ? exploreViewModel.selectedReturnDatee : "",
-                departureDate: exploreViewModel.selectedDepartureDatee,
+            viewModel.searchFlightsForDates(
+                origin: fromIataCode,
+                destination: toIataCode,
+                returnDate: isRoundTrip ? viewModel.selectedReturnDatee : "",
+                departureDate: viewModel.selectedDepartureDatee,
                 isDirectSearch: true
             )
         }
