@@ -1126,6 +1126,24 @@ class ExploreViewModel: ObservableObject {
     
     @Published var isAnytimeMode: Bool = false
     
+    @Published var selectedFlightId: String? = nil
+    
+    func handleDetailedFlightBackNavigation() {
+            print("handleDetailedFlightBackNavigation called")
+            print("Current selectedFlightId: \(selectedFlightId ?? "nil")")
+            print("Current showingDetailedFlightList: \(showingDetailedFlightList)")
+            
+            if selectedFlightId != nil {
+                // If a flight is selected, deselect it first
+                print("Deselecting flight, going back to flight list")
+                selectedFlightId = nil
+            } else {
+                // Otherwise go back to flight results or previous level
+                print("Going back to previous level")
+                goBackToFlightResults()
+            }
+        }
+    
     func handleAnytimeResults(_ results: [FlightResult]) {
         // Set anytime mode flag
            self.isAnytimeMode = true
@@ -1934,19 +1952,43 @@ class ExploreViewModel: ObservableObject {
     }
     
     func goBackToFlightResults() {
-        isAnytimeMode = false
-        if isDirectSearch {
-            // If this was a direct search, go back to main screen
-            goBackToMainFromDirectSearch()
-        } else {
-            // If this came from exploration, go back to flight results
-            showingDetailedFlightList = false
-            detailedFlightResults = []
-            detailedFlightError = nil
-            isLoadingDetailedFlights = false
-            // Keep hasSearchedFlights = true to stay on flight results page
+            print("goBackToFlightResults called")
+            // Clear selected flight first
+            selectedFlightId = nil
+            
+            // Reset all search-related states
+            if isDirectSearch {
+                print("Handling direct search back navigation")
+                isDirectSearch = false
+                showingDetailedFlightList = false
+                detailedFlightResults = []
+                detailedFlightError = nil
+                isLoadingDetailedFlights = false
+                
+                // Clear search data but keep the form filled
+                // Don't clear fromLocation, toLocation, fromIataCode, toIataCode, dates
+                // so user can search again easily
+                
+                // Make sure we're back to countries view
+                selectedCountryName = nil
+                selectedCity = nil
+                showingCities = false
+                hasSearchedFlights = false
+                flightResults = []
+                flightSearchResponse = nil
+                
+                // Fetch countries to show the main explore screen
+                fetchCountries()
+            } else {
+                print("Handling explore flow back navigation")
+                // If this came from exploration, go back to flight results
+                showingDetailedFlightList = false
+                detailedFlightResults = []
+                detailedFlightError = nil
+                isLoadingDetailedFlights = false
+                // Keep hasSearchedFlights = true to stay on flight results page
+            }
         }
-    }
 
     func goBackToCities() {
         isAnytimeMode = false
@@ -2004,6 +2046,9 @@ class ExploreViewModel: ObservableObject {
 }
 
 // MARK: - Main View
+
+// Updated ExploreScreen with proper back navigation handling for selected flights
+
 struct ExploreScreen: View {
     // MARK: - Properties
     @StateObject private var viewModel = ExploreViewModel()
@@ -2015,16 +2060,31 @@ struct ExploreScreen: View {
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
 
     private func handleBackNavigation() {
-        if viewModel.showingDetailedFlightList {
-            // Go back from detailed flight list to flight results
+        print("=== Back Navigation Debug ===")
+        print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
+        print("showingDetailedFlightList: \(viewModel.showingDetailedFlightList)")
+        print("hasSearchedFlights: \(viewModel.hasSearchedFlights)")
+        print("showingCities: \(viewModel.showingCities)")
+        
+        // First check if we have a selected flight in the detailed view
+        if viewModel.selectedFlightId != nil {
+            // If a flight is selected, deselect it first (go back to flight list)
+            print("Action: Deselecting flight (going back to flight list)")
+            viewModel.selectedFlightId = nil
+        } else if viewModel.showingDetailedFlightList {
+            // If no flight is selected but we're on detailed flight list, go back to previous level
+            print("Action: Going back from flight list to previous level")
             viewModel.goBackToFlightResults()
         } else if viewModel.hasSearchedFlights {
             // Go back from flight results to cities
+            print("Action: Going back from flight results to cities")
             viewModel.goBackToCities()
         } else if viewModel.showingCities {
             // Go back from cities to countries
+            print("Action: Going back from cities to countries")
             viewModel.goBackToCountries()
         }
+        print("=== End Back Navigation Debug ===")
     }
 
     private func getCurrentMonthName() -> String {
@@ -2101,8 +2161,6 @@ struct ExploreScreen: View {
                     .edgesIgnoringSafeArea(.all)
                 }
             )
-            
-           
             
             ScrollView {
                         VStack(alignment: .center, spacing: 16) {
@@ -2247,9 +2305,7 @@ struct ExploreScreen: View {
                     viewModel.setupAvailableMonths()
                 }
             }
-
-        
-    }
+}
 
 
 // MARK: - Search Card Component
@@ -5057,7 +5113,6 @@ struct FlightFilterTabView: View {
 
 struct ModifiedDetailedFlightListView: View {
     @ObservedObject var viewModel: ExploreViewModel
-    @State private var selectedFlightId: String? = nil
     @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
     
     @State private var filteredResults: [FlightDetailResult] = []
@@ -5141,7 +5196,7 @@ struct ModifiedDetailedFlightListView: View {
             .padding(.trailing, 16)
       
             // Only show filter tabs when we have results and no flight is selected
-            if !filteredResults.isEmpty && selectedFlightId == nil {
+            if !filteredResults.isEmpty && viewModel.selectedFlightId == nil {
                 // Show flight count
                 HStack {
                     Text("\(filteredResults.count) flights found")
@@ -5178,30 +5233,11 @@ struct ModifiedDetailedFlightListView: View {
             } else {
                 VStack {
                     // If we have a selected flight, show the FlightDetailCard for it
-                    if let selectedId = selectedFlightId,
+                    if let selectedId = viewModel.selectedFlightId,
                        let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
                         
                         ScrollView {
                             VStack(spacing: 0) {
-                                // Back button at the top
-                                HStack {
-                                    Button(action: {
-                                        selectedFlightId = nil // Deselect flight to return to list view
-                                    }) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "chevron.left")
-                                                .font(.system(size: 14))
-                                            Text("Back to flights")
-                                                .font(.system(size: 14, weight: .medium))
-                                        }
-                                        .foregroundColor(.blue)
-                                    }
-                                    .padding(.top, 12)
-                                    .padding(.bottom, 8)
-                                    Spacer()
-                                }
-                                .padding(.horizontal)
-                                
                                 // Display flight details - handle legs differently based on mode
                                 if isMultiCity {
                                     // For multi-city, display all legs in sequence
@@ -5278,7 +5314,7 @@ struct ModifiedDetailedFlightListView: View {
                                             result: result,
                                             viewModel: viewModel,
                                             onTap: {
-                                                selectedFlightId = result.id
+                                                viewModel.selectedFlightId = result.id
                                             }
                                         )
                                         .padding(.horizontal)
@@ -5287,7 +5323,7 @@ struct ModifiedDetailedFlightListView: View {
                                             result: result,
                                             viewModel: viewModel,
                                             onTap: {
-                                                selectedFlightId = result.id
+                                                viewModel.selectedFlightId = result.id
                                             }
                                         )
                                         .padding(.horizontal)
@@ -5480,6 +5516,9 @@ struct ModifiedDetailedFlightListView: View {
         return "\(hours)h \(mins)m"
     }
 }
+
+
+
 
 // Updated Multi-City Flight Card Wrapper with modern design
 struct ModernMultiCityFlightCardWrapper: View {
@@ -5859,7 +5898,7 @@ struct PriceSection: View {
                         .foregroundColor(.white)
                         .padding(.vertical, 12)
                         .padding(.horizontal, 24)
-                        .background(Color.blue)
+                        .background(Color.orange)
                         .cornerRadius(8)
                 }
             }
