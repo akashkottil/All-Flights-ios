@@ -965,7 +965,7 @@ class ExploreAPIService {
     
     func fetchDestinations(country: String = "IN",
                               currency: String = "INR",
-                              departure: String = "COK",
+                              departure: String = "DEL",
                               language: String = "en-GB",
                               arrivalType: String = "country",
                               arrivalId: String? = nil) -> AnyPublisher<[ExploreDestination], Error> {
