@@ -2297,6 +2297,7 @@ struct ExploreScreen: View {
                     }
                     .background(Color(.systemBackground))
                 }
+        .background(Color("scroll"))
                 .ignoresSafeArea(edges: .bottom)
                 .onAppear {
                     if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
@@ -4281,23 +4282,23 @@ struct ModernFlightCard: View {
     let isRoundTrip: Bool
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 5) {
             // Tags at the top inside the card - REDUCED PADDING
             if isBest || isCheapest || isFastest {
                 HStack(spacing: 4) { // Reduced from 6 to 4
                     if isBest {
-                        TagView(text: "Best", color: .blue)
+                        TagView(text: "Best", color: Color("best"))
                     }
                     if isCheapest {
-                        TagView(text: "Cheapest", color: .green)
+                        TagView(text: "Cheapest",color: Color("cheap"))
                     }
                     if isFastest {
-                        TagView(text: "Fastest", color: .purple)
+                        TagView(text: "Fastest", color: Color("fast"))
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 12) // Reduced from 16 to 12
-                .padding(.top, 8) // Reduced from 12 to 8
+                .padding(.top, 12) // Reduced from 12 to 8
                 .padding(.bottom, 4) // Reduced from 8 to 4
             }
             
@@ -4352,7 +4353,7 @@ struct ModernFlightCard: View {
             // Bottom section with airline and price - REDUCED PADDING
             Divider()
                 .padding(.horizontal, 12) // Reduced from 16 to 12
-                .padding(.vertical, 6) // Reduced from default to 6
+                .padding(.bottom) // Reduced from default to 6
             
             HStack {
                 Text(airline)
@@ -4398,7 +4399,7 @@ struct FlightRowView: View {
     let airlineLogo: String
     
     var body: some View {
-        HStack(alignment: .center, spacing: 8) { // Reduced from 12 to 8
+        HStack(alignment: .center, spacing: 10) { // Reduced from 12 to 8
             // Flight/Airline image section - SMALLER SIZE
             AsyncImage(url: URL(string: airlineLogo)) { phase in
                 switch phase {
@@ -4440,17 +4441,21 @@ struct FlightRowView: View {
                     .foregroundColor(.black)
                 
                 // Departure code and date in the same row (HStack)
-                HStack(spacing: 6) { // Reduced from 8 to 6
+                HStack(spacing: 4) { // Reduced from 8 to 6
                     Text(departureCode)
-                        .font(.system(size: 13, weight: .medium)) // Reduced from 14 to 13
-                        .foregroundColor(.black)
+                        .font(.system(size: 13)) // Reduced from 14 to 13
+                        .foregroundColor(.gray)
+                    
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 4, height: 4)
                     
                     Text(departureDate)
                         .font(.system(size: 11)) // Reduced from 12 to 11
                         .foregroundColor(.gray)
                 }
             }
-            .frame(width: 75, alignment: .leading) // Reduced from 80 to 75
+            .frame(width: 80, alignment: .leading) // Reduced from 80 to 75
             
             Spacer()
             
@@ -4460,14 +4465,14 @@ struct FlightRowView: View {
                 HStack(spacing: 0) {
                     // Left circle
                     Circle()
-                        .fill(Color.gray)
-                        .frame(width: 5, height: 5) // Reduced from 6 to 5
+                        .stroke(Color.gray, lineWidth: 1)
+                        .frame(width: 6, height: 6) // Reduced from 6 to 5
                     
                     // Left line segment
                     Rectangle()
                         .fill(Color.gray)
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
+                        .frame(width:16,height: 1)
+                       
                     
                     // Date/Time capsule in the middle
                     Text(duration)
@@ -4483,17 +4488,18 @@ struct FlightRowView: View {
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                                 )
                         )
+                        .padding(.horizontal,4)
                     
                     // Right line segment
                     Rectangle()
                         .fill(Color.gray)
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
+                        .frame(width:16,height: 1)
+                        
                     
                     // Right circle
                     Circle()
-                        .fill(Color.gray)
-                        .frame(width: 5, height: 5) // Reduced from 6 to 5
+                        .stroke(Color.gray, lineWidth: 1)
+                        .frame(width: 6, height: 6) // Reduced from 6 to 5
                 }
                 .frame(width: 110) // Reduced from 120 to 110
                 
@@ -4523,16 +4529,19 @@ struct FlightRowView: View {
                     .foregroundColor(.black)
                 
                 // Arrival code and date in the same row (HStack)
-                HStack(spacing: 6) { // Reduced from 8 to 6
+                HStack(spacing: 4) { // Reduced from 8 to 6
                     Text(arrivalCode)
-                        .font(.system(size: 13, weight: .medium)) // Reduced from 14 to 13
-                        .foregroundColor(.black)
+                        .font(.system(size: 13)) // Reduced from 14 to 13
+                        .foregroundColor(.gray)
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 4, height: 4)
                     Text(arrivalDate)
                         .font(.system(size: 11)) // Reduced from 12 to 11
                         .foregroundColor(.gray)
                 }
             }
-            .frame(width: 75, alignment: .trailing) // Reduced from 80 to 75
+            .frame(width: 80, alignment: .trailing) // Reduced from 80 to 75
         }
     }
 }
@@ -5212,6 +5221,7 @@ struct FlightFilterTabView: View {
 
 
 // Updated ModifiedDetailedFlightListView and MultiCityFlightCardWrapper
+// Updated ModifiedDetailedFlightListView with consistent scroll background
 
 struct ModifiedDetailedFlightListView: View {
     @ObservedObject var viewModel: ExploreViewModel
@@ -5275,8 +5285,8 @@ struct ModifiedDetailedFlightListView: View {
     }
     
     var body: some View {
-        VStack {
-            // Filter tabs
+        VStack(spacing: 0) {
+            // Filter tabs with scroll background
             HStack {
                 // New Filter button
                 FilterButton {
@@ -5296,10 +5306,12 @@ struct ModifiedDetailedFlightListView: View {
                 )
             }
             .padding(.trailing, 16)
+            .padding(.vertical, 8)
+            .background(Color("scroll")) // Add scroll background to filter section
       
             // Only show filter tabs when we have results and no flight is selected
             if !filteredResults.isEmpty && viewModel.selectedFlightId == nil {
-                // Show flight count
+                // Show flight count with scroll background
                 HStack {
                     Text("\(filteredResults.count) flights found")
                         .font(.subheadline)
@@ -5308,32 +5320,41 @@ struct ModifiedDetailedFlightListView: View {
                 }
                 .padding(.horizontal)
                 .padding(8)
+                .background(Color("scroll")) // Add scroll background to count section
             }
             
             // Content - FIXED CONDITION LOGIC
             if viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
                 // Only show skeleton when actually loading AND no results yet
-                Spacer()
-                ForEach(0..<4, id: \.self) { _ in
-                    DetailedFlightCardSkeleton()
-                        .padding(.bottom, 5)
+                VStack {
+                    Spacer()
+                    ForEach(0..<4, id: \.self) { _ in
+                        DetailedFlightCardSkeleton()
+                            .padding(.bottom, 5)
+                    }
+                    Spacer()
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color("scroll")) // Add scroll background to skeleton section
             } else if !viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
                 // Show error/no results only when not loading and no results
-                Spacer()
-                if let error = viewModel.detailedFlightError {
-                    Text("Error: \(error)")
-                        .foregroundColor(.red)
-                        .padding()
-                } else {
-                    Text("No flights found for these dates")
-                        .foregroundColor(.gray)
-                        .padding()
-                }
-                Spacer()
-            } else {
                 VStack {
+                    Spacer()
+                    if let error = viewModel.detailedFlightError {
+                        Text("Error: \(error)")
+                            .foregroundColor(.red)
+                            .padding()
+                    } else {
+                        Text("No flights found for these dates")
+                            .foregroundColor(.gray)
+                            .padding()
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color("scroll")) // Add scroll background to error section
+            } else {
+                VStack(spacing: 0) {
                     // If we have a selected flight, show the FlightDetailCard for it
                     if let selectedId = viewModel.selectedFlightId,
                        let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
@@ -5404,6 +5425,7 @@ struct ModifiedDetailedFlightListView: View {
                                     .padding()
                             }
                         }
+                        .background(Color("scroll")) // Add scroll background to selected flight details
                     }
                     // Otherwise show the list of flights
                     else {
@@ -5431,9 +5453,16 @@ struct ModifiedDetailedFlightListView: View {
                                         .padding(.horizontal)
                                     }
                                 }
+                                
+                                // Add spacer to fill remaining space with scroll background
+                                Spacer(minLength: 0)
                             }
                             .padding(.vertical)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: UIScreen.main.bounds.height - 200) // Ensure minimum height to fill screen
                         }
+                        .background(Color("scroll")) // Add scroll background to flight list
+                        
                         // Show loading indicator at the bottom if still loading more
                         if viewModel.isLoadingDetailedFlights {
                             HStack {
@@ -5446,7 +5475,7 @@ struct ModifiedDetailedFlightListView: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(Color(.systemBackground))
+                            .background(Color("scroll")) // Add scroll background to loading section
                         }
                     }
                 }
@@ -5472,7 +5501,8 @@ struct ModifiedDetailedFlightListView: View {
                 updateFilteredResults()
             }
         }
-        .background(Color("scroll"))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color("scroll")) // Main background
     }
     
     // FIXED: Consolidated function to update filtered results
