@@ -5292,7 +5292,7 @@ struct ModifiedDetailedFlightListView: View {
                 FilterButton {
                     showingFilterSheet = true
                 }
-                .padding(.leading,10)
+                .padding(.leading,20)
                 
                 FlightFilterTabView(
                     selectedFilter: selectedFilter,
