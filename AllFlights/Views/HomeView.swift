@@ -1641,13 +1641,13 @@ class SearchDebouncer {
     }
 }
 
-// MARK: - Scroll Offset Preference Key
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
+//// MARK: - Scroll Offset Preference Key
+//struct ScrollOffsetPreferenceKey: PreferenceKey {
+//    static var defaultValue: CGFloat = 0
+//    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+//        value = nextValue()
+//    }
+//}
 
 // MARK: - Preview
 #Preview {

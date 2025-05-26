@@ -2049,6 +2049,8 @@ class ExploreViewModel: ObservableObject {
 
 // Updated ExploreScreen with proper back navigation handling for selected flights
 
+
+
 struct ExploreScreen: View {
     // MARK: - Properties
     @StateObject private var viewModel = ExploreViewModel()
@@ -2057,8 +2059,13 @@ struct ExploreScreen: View {
     @State private var selectedMonthTab = 0
     @State private var isRoundTrip: Bool = true
     
+    // Collapsible card states
+    @State private var isCollapsed = false
+    @State private var scrollOffset: CGFloat = 0
+    @Namespace private var searchCardNamespace
+    
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
-
+    
     private func handleBackNavigation() {
         print("=== Back Navigation Debug ===")
         print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
@@ -2104,67 +2111,41 @@ struct ExploreScreen: View {
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
-            // Custom navigation bar
-            VStack {
-                VStack(spacing: 0) {
-                    HStack {
-                        // Back button
-                        Button(action: {
-                            handleBackNavigation()
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .foregroundColor(.primary)
-                                .font(.system(size: 18, weight: .semibold))
+            // Custom navigation bar - Collapsible
+            if isCollapsed {
+                CollapsedSearchCard(
+                    viewModel: viewModel,
+                    searchCardNamespace: searchCardNamespace,
+                    onTap: {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            isCollapsed = false
                         }
-                        
-                        Spacer()
-                        
-                        // Centered trip type tabs with more balanced width
-                        TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
-                            .frame(width: UIScreen.main.bounds.width * 0.55) // Reduced from 0.6 to 0.55
-                        
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .padding(.top,5)
-                    
-                    // Search card with dynamic values
-                    SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                }
-                .background(
-                    ZStack {
-                        // Background fill
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemBackground))
-                        
-                        // Animated or static stroke based on loading state
-                        if viewModel.isLoading || viewModel.isLoadingFlights {
-                            LoadingBorderView()
-                        } else {
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.orange, lineWidth: 1)
-                        }
-                    }
+                    },
+                    handleBackNavigation: handleBackNavigation
                 )
-                .padding()
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } else {
+                ExpandedSearchCard(
+                    viewModel: viewModel,
+                    selectedTab: $selectedTab,
+                    isRoundTrip: $isRoundTrip,
+                    searchCardNamespace: searchCardNamespace,
+                    handleBackNavigation: handleBackNavigation
+                )
+                .transition(.opacity.combined(with: .scale(scale: 1.05)))
             }
-            .background(
-                GeometryReader { geo in
-                    VStack(spacing: 0) {
-                        Color("searchcardBackground")
-                            .frame(height: geo.size.height)
-                        Color("scroll")
-                    }
-                    .edgesIgnoringSafeArea(.all)
-                }
-            )
             
-            ScrollView {
+            // Main content with scroll detection
+            GeometryReader { geometry in
+                ScrollViewWithOffset(
+                    offset: $scrollOffset,
+                    content: {
                         VStack(alignment: .center, spacing: 16) {
-                            // Main content with updated priority
+                            // Add some top padding to account for the search card
+                            Spacer()
+                                .frame(height: 20)
+                            
+                            // Main content based on current state
                             if viewModel.showingDetailedFlightList {
                                 // Detailed flight list - highest priority
                                 ModifiedDetailedFlightListView(viewModel: viewModel)
@@ -2200,7 +2181,7 @@ struct ExploreScreen: View {
                                         ForEach(viewModel.destinations) { destination in
                                             APIDestinationCard(
                                                 item: destination,
-                                                viewModel: viewModel, // Pass the view model
+                                                viewModel: viewModel,
                                                 onTap: {
                                                     if !viewModel.showingCities {
                                                         viewModel.fetchCitiesFor(
@@ -2219,7 +2200,7 @@ struct ExploreScreen: View {
                                 }
                             }
                             else {
-                                // Flight search results view (the old explore flow)
+                                // Flight search results view
                                 VStack(alignment: .center, spacing: 16) {
                                     Text("Explore \(viewModel.toLocation)")
                                         .font(.system(size: 24, weight: .bold))
@@ -2237,7 +2218,6 @@ struct ExploreScreen: View {
                                         )
                                         .padding(.top, 8)
                                     } else {
-                                        // When in anytime mode, show a message about best prices
                                         Text("Best prices for the next 3 months")
                                             .font(.subheadline)
                                             .foregroundColor(.gray)
@@ -2255,7 +2235,6 @@ struct ExploreScreen: View {
                                             .font(.subheadline)
                                             .foregroundColor(.gray)
                                     } else {
-                                        // ADD THIS TEXT HERE - Estimated cheapest price during current month
                                         if !viewModel.isAnytimeMode && !viewModel.flightResults.isEmpty {
                                             Text("Estimated cheapest price during \(getCurrentMonthName())")
                                                 .font(.subheadline)
@@ -2295,17 +2274,229 @@ struct ExploreScreen: View {
                         }
                         .background(Color("scroll"))
                     }
-                    .background(Color(.systemBackground))
-                }
+                )
+            }
+        }
         .background(Color("scroll"))
-                .ignoresSafeArea(edges: .bottom)
-                .onAppear {
-                    if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
-                        viewModel.fetchCountries()
-                    }
-                    viewModel.setupAvailableMonths()
+        .ignoresSafeArea(edges: .bottom)
+        .onAppear {
+            if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
+                viewModel.fetchCountries()
+            }
+            viewModel.setupAvailableMonths()
+        }
+        .onChange(of: scrollOffset) { newOffset in
+            // Collapse when scrolled down more than 50 points and not already collapsed
+            let shouldCollapse = newOffset > 50
+            
+            if shouldCollapse && !isCollapsed {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    isCollapsed = true
+                }
+            } else if !shouldCollapse && isCollapsed && newOffset < 20 {
+                // Expand when scrolled back up
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    isCollapsed = false
                 }
             }
+        }
+    }
+}
+
+// MARK: - Expanded Search Card Component
+struct ExpandedSearchCard: View {
+    @ObservedObject var viewModel: ExploreViewModel
+    @Binding var selectedTab: Int
+    @Binding var isRoundTrip: Bool
+    let searchCardNamespace: Namespace.ID
+    let handleBackNavigation: () -> Void
+    
+    var body: some View {
+        VStack {
+            VStack(spacing: 0) {
+                HStack {
+                    // Back button
+                    Button(action: handleBackNavigation) {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.primary)
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
+                    
+                    Spacer()
+                    
+                    // Centered trip type tabs with more balanced width
+                    TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
+                        .frame(width: UIScreen.main.bounds.width * 0.55)
+                        .matchedGeometryEffect(id: "tripTabs", in: searchCardNamespace)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .padding(.top, 5)
+                
+                // Search card with dynamic values
+                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
+            }
+            .background(
+                ZStack {
+                    // Background fill
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
+                    
+                    // Animated or static stroke based on loading state
+                    if viewModel.isLoading || viewModel.isLoadingFlights {
+                        LoadingBorderView()
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange, lineWidth: 1)
+                    }
+                }
+            )
+            .padding()
+        }
+        .background(
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    Color("searchcardBackground")
+                        .frame(height: geo.size.height)
+                    Color("scroll")
+                }
+                .edgesIgnoringSafeArea(.all)
+            }
+        )
+    }
+}
+
+// MARK: - Collapsed Search Card Component
+struct CollapsedSearchCard: View {
+    @ObservedObject var viewModel: ExploreViewModel
+    let searchCardNamespace: Namespace.ID
+    let onTap: () -> Void
+    let handleBackNavigation: () -> Void
+    
+    // Helper method to format date for display
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                HStack {
+                    // Back button
+                    Button(action: handleBackNavigation) {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.primary)
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
+                    
+                    Spacer()
+                    
+                    // Compact trip info
+                    HStack(spacing: 8) {
+                        Text(viewModel.fromLocation)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                        
+                        Text("→")
+                            .foregroundColor(.gray)
+                        
+                        Text(viewModel.toLocation)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                        
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 4, height: 4)
+                        
+                        // Date display logic
+                        if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
+                            Text("Anytime")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.isEmpty {
+                            Text("Anytime")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.count == 1 {
+                            Text(formatDate(viewModel.dates[0]))
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.count >= 2 {
+                            Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                    }
+                    .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
+                    
+                    Spacer()
+                    
+                    // Expand indicator
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                        .rotationEffect(.degrees(180))
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .padding(.top, 5)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemBackground))
+                    .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange, lineWidth: 1)
+                    )
+            )
+            .padding()
+        }
+        .buttonStyle(PlainButtonStyle())
+        .background(Color("searchcardBackground"))
+    }
+}
+
+// MARK: - Custom ScrollView with Offset Detection
+struct ScrollViewWithOffset<Content: View>: View {
+    @Binding var offset: CGFloat
+    let content: () -> Content
+    
+    var body: some View {
+        ScrollView {
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(key: ScrollOffsetPreferenceKey.self,
+                              value: geometry.frame(in: .named("scrollView")).minY)
+            }
+            .frame(height: 0)
+            
+            content()
+        }
+        .coordinateSpace(name: "scrollView")
+        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+            offset = -value
+        }
+    }
+}
+
+// MARK: - Preference Key for Scroll Offset
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
 }
 
 
@@ -4681,6 +4872,7 @@ struct FlightDetailCard: View {
     
     let airline: String
     let flightNumber: String
+    let airlineLogo: String // Add this property
     
     let arrivalDate: String
     let arrivalTime: String? // Added time separately
@@ -4705,6 +4897,7 @@ struct FlightDetailCard: View {
         departureTerminal: String,
         airline: String,
         flightNumber: String,
+        airlineLogo: String, // Add this parameter
         arrivalDate: String,
         arrivalTime: String? = nil,
         arrivalAirportCode: String,
@@ -4723,6 +4916,7 @@ struct FlightDetailCard: View {
         self.departureTerminal = departureTerminal
         self.airline = airline
         self.flightNumber = flightNumber
+        self.airlineLogo = airlineLogo // Initialize this property
         self.arrivalDate = arrivalDate
         self.arrivalTime = arrivalTime
         self.arrivalAirportCode = arrivalAirportCode
@@ -4750,6 +4944,7 @@ struct FlightDetailCard: View {
         self.departureTerminal = ""
         self.airline = ""
         self.flightNumber = ""
+        self.airlineLogo = "" // Initialize this property for connecting flights
         self.arrivalDate = ""
         self.arrivalTime = nil
         self.arrivalAirportCode = ""
@@ -4760,9 +4955,9 @@ struct FlightDetailCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 20) {
             // Header section
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 15) {
                 Text("Flight to \(destination)")
                     .font(.system(size: 18, weight: .bold))
                 
@@ -4773,17 +4968,17 @@ struct FlightDetailCard: View {
                             .foregroundColor(isDirectFlight ? .green : .primary)
                     }
                     
+                    Text("|").opacity(0.5)
+                    
                     HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
                         Text(flightDuration)
                             .font(.system(size: 14))
                             .foregroundColor(.gray)
                     }
+                    Text("|").opacity(0.5)
                     
                     HStack(spacing: 4) {
-                        Image(systemName: "seat")
+                        Image(systemName: "carseat.right.fill")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                         Text(flightClass)
@@ -4806,6 +5001,7 @@ struct FlightDetailCard: View {
                     departureTerminal: departureTerminal,
                     airline: airline,
                     flightNumber: flightNumber,
+                    airlineLogo: airlineLogo, // Pass the airline logo
                     arrivalDate: arrivalDate,
                     arrivalTime: arrivalTime,
                     arrivalAirportCode: arrivalAirportCode,
@@ -4833,6 +5029,7 @@ struct DirectFlightView: View {
     
     let airline: String
     let flightNumber: String
+    let airlineLogo: String
     
     let arrivalDate: String
     let arrivalTime: String?
@@ -4842,34 +5039,44 @@ struct DirectFlightView: View {
     let arrivalNextDay: Bool
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Timeline
+        HStack(alignment: .top, spacing: 16) {
+            // Timeline positioned to align with airport codes
             VStack(spacing: 0) {
-                Circle()
-                    .frame(width: 8, height: 8)
-                    .foregroundColor(.blue)
+                // Space to align with departure airport code
+                Spacer()
+                    .frame(height: 50) // Aligns with departure date/time + some spacing
                 
+                // Departure circle
+                Circle()
+                    .stroke(Color.primary, lineWidth: 2)
+                    .frame(width: 8, height: 8)
+                
+                // Connecting line
                 Rectangle()
-                    .frame(width: 2)
-                    .foregroundColor(.blue)
-                    .padding(.top, -1)
-                    .padding(.bottom, -1)
+                    .fill(Color.primary)
+                    .frame(width: 2, height: 140)
+                    .padding(.top,6)
+                    .padding(.bottom,6)// Height spans between the two sections
                 
+                // Arrival circle
                 Circle()
+                    .stroke(Color.primary, lineWidth: 2)
                     .frame(width: 8, height: 8)
-                    .foregroundColor(.blue)
+                
+                // Space for remaining content
+                Spacer()
             }
-            .padding(.top, 5)
             
-            // Flight details
-            VStack(alignment: .leading, spacing: 24) {
-                // Departure
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
+            // Flight details with proper spacing
+            VStack(alignment: .leading, spacing: 32) { // Good spacing between sections
+                
+                // DEPARTURE SECTION
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
                         Text(departureDate)
                             .font(.system(size: 14))
                             .foregroundColor(.black)
-                            
+                        
                         if let time = departureTime {
                             Text(time)
                                 .font(.system(size: 14, weight: .medium))
@@ -4878,8 +5085,14 @@ struct DirectFlightView: View {
                     }
                     
                     HStack(alignment: .center, spacing: 12) {
-                        Text(departureAirportCode)
-                            .font(.system(size: 16, weight: .semibold))
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 40, height: 32)
+                                .cornerRadius(4)
+                            Text(departureAirportCode)
+                                .font(.system(size: 16, weight: .semibold))
+                        }
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(departureAirportName)
@@ -4888,47 +5101,62 @@ struct DirectFlightView: View {
                                 .font(.system(size: 13))
                                 .foregroundColor(.gray)
                         }
-                    }
-                    
-                    // Airline info
-                    HStack(spacing: 10) {
-                        ZStack {
-                            Rectangle()
-                                .fill(Color.blue.opacity(0.1))
-                                .frame(width: 32, height: 32)
-                                .cornerRadius(4)
-                            
-                            Text(String(airline.prefix(2)))
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.blue)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(airline)
-                                .font(.system(size: 14))
-                            Text(flightNumber)
-                                .font(.system(size: 13))
-                                .foregroundColor(.gray)
-                        }
                         
                         Spacer()
-                        
-                        HStack {
-                            Text("More info")
-                                .font(.system(size: 14))
-                                .foregroundColor(.blue)
-                            
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 12))
-                                .foregroundColor(.blue)
-                        }
                     }
-                    .padding(.top, 6)
                 }
                 
-                // Arrival
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
+                // AIRLINE SECTION - Centered between departure and arrival
+                HStack(spacing: 12) {
+                    AsyncImage(url: URL(string: airlineLogo)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 36, height: 32)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        case .failure(_), .empty:
+                            // Fallback with airline initials
+                            ZStack {
+                                Rectangle()
+                                    .fill(Color.blue.opacity(0.1))
+                                    .frame(width: 36, height: 32)
+                                    .cornerRadius(4)
+                                
+                                Text(String(airline.prefix(2)))
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.blue)
+                            }
+                        @unknown default:
+                            // Default placeholder
+                            ZStack {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 36, height: 32)
+                                    .cornerRadius(4)
+                                
+                                Image(systemName: "airplane")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(airline)
+                            .font(.system(size: 14))
+                        Text(flightNumber)
+                            .font(.system(size: 13))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                }
+                
+                // ARRIVAL SECTION
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
                         Text(arrivalDate)
                             .font(.system(size: 14))
                             .foregroundColor(.black)
@@ -4947,8 +5175,14 @@ struct DirectFlightView: View {
                     }
                     
                     HStack(alignment: .center, spacing: 12) {
-                        Text(arrivalAirportCode)
-                            .font(.system(size: 16, weight: .semibold))
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 40, height: 32)
+                                .cornerRadius(4)
+                            Text(arrivalAirportCode)
+                                .font(.system(size: 16, weight: .semibold))
+                        }
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(arrivalAirportName)
@@ -4957,6 +5191,8 @@ struct DirectFlightView: View {
                                 .font(.system(size: 13))
                                 .foregroundColor(.gray)
                         }
+                        
+                        Spacer()
                     }
                 }
             }
@@ -5563,6 +5799,7 @@ struct ModifiedDetailedFlightListView: View {
             departureTerminal: "1", // Using a default value
             airline: segment.airlineName,
             flightNumber: segment.flightNumber,
+            airlineLogo: segment.airlineLogo, // Add this line
             arrivalDate: formatDate(from: segment.arriveTimeAirport),
             arrivalTime: formatTime(from: segment.arriveTimeAirport),
             arrivalAirportCode: segment.destinationCode,
