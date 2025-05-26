@@ -4173,10 +4173,12 @@ struct DetailedFlightCardWrapper: View {
                         isReturnDirect: returnLeg!.stopCount == 0,
                         returnStops: returnLeg!.stopCount,
                         
-                        // Airline and price
+                        // Airline and price - Updated with airline details
                         airline: outboundSegment.airlineName,
+                        airlineCode: outboundSegment.airlineIata,
+                        airlineLogo: outboundSegment.airlineLogo,
                         price: "₹\(Int(result.minPrice))",
-                        priceDetail: "For 2 People ₹\(Int(result.minPrice * 2))",
+                        priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
                         
                         isRoundTrip: true
                     )
@@ -4199,10 +4201,12 @@ struct DetailedFlightCardWrapper: View {
                         isOutboundDirect: outboundLeg.stopCount == 0,
                         outboundStops: outboundLeg.stopCount,
                         
-                        // Airline and price
+                        // Airline and price - Updated with airline details
                         airline: outboundSegment.airlineName,
+                        airlineCode: outboundSegment.airlineIata,
+                        airlineLogo: outboundSegment.airlineLogo,
                         price: "₹\(Int(result.minPrice))",
-                        priceDetail: "For 2 People ₹\(Int(result.minPrice * 2))",
+                        priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
                         
                         isRoundTrip: false
                     )
@@ -4238,6 +4242,7 @@ struct DetailedFlightCardWrapper: View {
     }
 }
 
+// Updated ModernFlightCard with reduced padding to match sample UI
 struct ModernFlightCard: View {
     // Tags
     let isBest: Bool
@@ -4268,6 +4273,8 @@ struct ModernFlightCard: View {
     
     // Airline and price
     let airline: String
+    let airlineCode: String
+    let airlineLogo: String
     let price: String
     let priceDetail: String
     
@@ -4275,9 +4282,9 @@ struct ModernFlightCard: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Tags at the top inside the card
+            // Tags at the top inside the card - REDUCED PADDING
             if isBest || isCheapest || isFastest {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) { // Reduced from 6 to 4
                     if isBest {
                         TagView(text: "Best", color: .blue)
                     }
@@ -4289,12 +4296,12 @@ struct ModernFlightCard: View {
                     }
                     Spacer()
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 12) // Reduced from 16 to 12
+                .padding(.top, 8) // Reduced from 12 to 8
+                .padding(.bottom, 4) // Reduced from 8 to 4
             }
             
-            // Outbound flight
+            // Outbound flight - REDUCED PADDING
             FlightRowView(
                 departureTime: outboundDepartureTime,
                 departureCode: outboundDepartureCode,
@@ -4304,12 +4311,15 @@ struct ModernFlightCard: View {
                 arrivalDate: outboundArrivalDate,
                 duration: outboundDuration,
                 isDirect: isOutboundDirect,
-                stops: outboundStops
+                stops: outboundStops,
+                airlineName: airline,
+                airlineCode: airlineCode,
+                airlineLogo: airlineLogo
             )
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12) // Reduced from 16 to 12
+            .padding(.vertical, 8) // Reduced from default to 8
             
-            // Return flight (if round trip)
+            // Return flight (if round trip) - REDUCED PADDING
             if isRoundTrip,
                let retDepTime = returnDepartureTime,
                let retDepCode = returnDepartureCode,
@@ -4321,9 +4331,6 @@ struct ModernFlightCard: View {
                let retDirect = isReturnDirect,
                let retStops = returnStops {
                 
-                Divider()
-                    .padding(.horizontal, 16)
-                
                 FlightRowView(
                     departureTime: retDepTime,
                     departureCode: retDepCode,
@@ -4333,15 +4340,19 @@ struct ModernFlightCard: View {
                     arrivalDate: retArrDate,
                     duration: retDuration,
                     isDirect: retDirect,
-                    stops: retStops
+                    stops: retStops,
+                    airlineName: airline,
+                    airlineCode: airlineCode,
+                    airlineLogo: airlineLogo
                 )
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12) // Reduced from 16 to 12
+                .padding(.vertical, 6) // Reduced from 8 to 6
             }
             
-            // Bottom section with airline and price
+            // Bottom section with airline and price - REDUCED PADDING
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12) // Reduced from 16 to 12
+                .padding(.vertical, 6) // Reduced from default to 6
             
             HStack {
                 Text(airline)
@@ -4360,8 +4371,8 @@ struct ModernFlightCard: View {
                         .foregroundColor(.gray)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12) // Reduced from 16 to 12
+            .padding(.vertical, 8) // Reduced from 12 to 8
         }
         .background(Color.white)
         .cornerRadius(12)
@@ -4369,6 +4380,7 @@ struct ModernFlightCard: View {
     }
 }
 
+// Updated FlightRowView with reduced spacing and padding
 struct FlightRowView: View {
     let departureTime: String
     let departureCode: String
@@ -4380,103 +4392,164 @@ struct FlightRowView: View {
     let isDirect: Bool
     let stops: Int
     
+    // Add airline information for the flight image
+    let airlineName: String
+    let airlineCode: String
+    let airlineLogo: String
+    
     var body: some View {
-        HStack(alignment: .center, spacing: 0) {
-            // Departure section
-            VStack(alignment: .leading, spacing: 4) {
-                Text(departureTime)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.black)
-                
-                Text(departureCode)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.black)
-                
-                Text(departureDate)
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
+        HStack(alignment: .center, spacing: 8) { // Reduced from 12 to 8
+            // Flight/Airline image section - SMALLER SIZE
+            AsyncImage(url: URL(string: airlineLogo)) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28) // Reduced from 32 to 28
+                        .clipShape(RoundedRectangle(cornerRadius: 5)) // Reduced from 6 to 5
+                case .failure(_), .empty:
+                    // Fallback airline logo
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 5) // Reduced from 6 to 5
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 28, height: 28) // Reduced from 32 to 28
+                        
+                        Text(String(airlineCode.prefix(2)))
+                            .font(.system(size: 11, weight: .bold)) // Reduced from 12 to 11
+                            .foregroundColor(.blue)
+                    }
+                @unknown default:
+                    // Default placeholder
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 28, height: 28)
+                        
+                        Image(systemName: "airplane")
+                            .font(.system(size: 12)) // Reduced from 14 to 12
+                            .foregroundColor(.gray)
+                    }
+                }
             }
-            .frame(width: 60, alignment: .leading)
+            
+            // Departure section - TIGHTER SPACING
+            VStack(alignment: .leading, spacing: 2) { // Reduced from 4 to 2
+                Text(departureTime)
+                    .font(.system(size: 16, weight: .semibold)) // Reduced from 18 to 16
+                    .foregroundColor(.black)
+                
+                // Departure code and date in the same row (HStack)
+                HStack(spacing: 6) { // Reduced from 8 to 6
+                    Text(departureCode)
+                        .font(.system(size: 13, weight: .medium)) // Reduced from 14 to 13
+                        .foregroundColor(.black)
+                    
+                    Text(departureDate)
+                        .font(.system(size: 11)) // Reduced from 12 to 11
+                        .foregroundColor(.gray)
+                }
+            }
+            .frame(width: 75, alignment: .leading) // Reduced from 80 to 75
             
             Spacer()
             
-            // Flight path section
-            VStack(spacing: 6) {
+            // Flight path section - SMALLER ELEMENTS
+            VStack(spacing: 4) { // Reduced from 6 to 4
                 // Flight path visualization
                 HStack(spacing: 0) {
+                    // Left circle
                     Circle()
                         .fill(Color.gray)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 5, height: 5) // Reduced from 6 to 5
                     
+                    // Left line segment
                     Rectangle()
                         .fill(Color.gray)
                         .frame(height: 1)
                         .frame(maxWidth: .infinity)
                     
+                    // Date/Time capsule in the middle
+                    Text(duration)
+                        .font(.system(size: 11)) // Reduced from 12 to 11
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 6) // Reduced from 8 to 6
+                        .padding(.vertical, 1) // Reduced from 2 to 1
+                        .background(
+                            Capsule()
+                                .fill(Color.white)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                                )
+                        )
+                    
+                    // Right line segment
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(height: 1)
+                        .frame(maxWidth: .infinity)
+                    
+                    // Right circle
                     Circle()
                         .fill(Color.gray)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 5, height: 5) // Reduced from 6 to 5
                 }
-                .frame(width: 80)
+                .frame(width: 110) // Reduced from 120 to 110
                 
-                // Duration
-                Text(duration)
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                
-                // Direct/Stops indicator
+                // Direct/Stops indicator - SMALLER BADGES
                 if isDirect {
                     Text("Direct")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 10, weight: .medium)) // Reduced from 11 to 10
                         .foregroundColor(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(4)
+                        .padding(.horizontal, 6) // Reduced from 8 to 6
+                        .padding(.vertical, 1) // Reduced from 2 to 1
+                        
                 } else {
                     Text("\(stops) Stop\(stops > 1 ? "s" : "")")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(4)
+                        .font(.system(size: 10, weight: .medium)) // Reduced from 11 to 10
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 6) // Reduced from 8 to 6
+                        .padding(.vertical, 1) // Reduced from 2 to 1
                 }
             }
             
             Spacer()
             
-            // Arrival section
-            VStack(alignment: .trailing, spacing: 4) {
+            // Arrival section - TIGHTER SPACING
+            VStack(alignment: .trailing, spacing: 2) { // Reduced from 4 to 2
                 Text(arrivalTime)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold)) // Reduced from 18 to 16
                     .foregroundColor(.black)
                 
-                Text(arrivalCode)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.black)
-                
-                Text(arrivalDate)
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
+                // Arrival code and date in the same row (HStack)
+                HStack(spacing: 6) { // Reduced from 8 to 6
+                    Text(arrivalCode)
+                        .font(.system(size: 13, weight: .medium)) // Reduced from 14 to 13
+                        .foregroundColor(.black)
+                    Text(arrivalDate)
+                        .font(.system(size: 11)) // Reduced from 12 to 11
+                        .foregroundColor(.gray)
+                }
             }
-            .frame(width: 60, alignment: .trailing)
+            .frame(width: 75, alignment: .trailing) // Reduced from 80 to 75
         }
     }
 }
 
+// Updated TagView to be more compact
 struct TagView: View {
     let text: String
     let color: Color
     
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 10, weight: .medium)) // Reduced from 11 to 10
             .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 6) // Reduced from 8 to 6
+            .padding(.vertical, 3) // Reduced from 4 to 3
             .background(color)
-            .cornerRadius(4)
+            .cornerRadius(3) // Reduced from 4 to 3
     }
 }
 
@@ -5549,7 +5622,8 @@ struct ModifiedDetailedFlightListView: View {
 
 
 
-// Updated Multi-City Flight Card Wrapper with modern design
+
+// Also update the ModernMultiCityFlightCardWrapper to include airline logos
 struct ModernMultiCityFlightCardWrapper: View {
     let result: FlightDetailResult
     @ObservedObject var viewModel: ExploreViewModel
@@ -5597,19 +5671,91 @@ struct ModernMultiCityFlightCardWrapper: View {
                     .padding(.top, index > 0 ? 8 : 0)
                     .padding(.bottom, 4)
                     
-                    // Flight leg details
+                    // Flight leg details with airline logo
                     if let segment = leg.segments.first {
-                        FlightRowView(
-                            departureTime: formatTime(from: segment.departureTimeAirport),
-                            departureCode: segment.originCode,
-                            departureDate: formatDateShort(from: segment.departureTimeAirport),
-                            arrivalTime: formatTime(from: segment.arriveTimeAirport),
-                            arrivalCode: segment.destinationCode,
-                            arrivalDate: formatDateShort(from: segment.arriveTimeAirport),
-                            duration: formatDuration(minutes: leg.duration),
-                            isDirect: leg.stopCount == 0,
-                            stops: leg.stopCount
-                        )
+                        HStack(alignment: .center, spacing: 12) {
+                            // Airline logo
+                            AsyncImage(url: URL(string: segment.airlineLogo)) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 24, height: 24)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                case .failure(_), .empty:
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.blue.opacity(0.1))
+                                            .frame(width: 24, height: 24)
+                                        
+                                        Text(String(segment.airlineIata.prefix(1)))
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.blue)
+                                    }
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                            
+                            // Flight details
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(formatTime(from: segment.departureTimeAirport))
+                                            .font(.system(size: 16, weight: .semibold))
+                                        HStack(spacing: 4) {
+                                            Text(segment.originCode)
+                                                .font(.system(size: 12, weight: .medium))
+                                            Text(formatDateShort(from: segment.departureTimeAirport))
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // Duration and direct info
+                                    VStack(spacing: 2) {
+                                        Text(formatDuration(minutes: leg.duration))
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.gray)
+                                        
+                                        if leg.stopCount == 0 {
+                                            Text("Direct")
+                                                .font(.system(size: 9, weight: .medium))
+                                                .foregroundColor(.green)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 1)
+                                                .background(Color.green.opacity(0.1))
+                                                .cornerRadius(3)
+                                        } else {
+                                            Text("\(leg.stopCount) Stop\(leg.stopCount > 1 ? "s" : "")")
+                                                .font(.system(size: 9, weight: .medium))
+                                                .foregroundColor(.orange)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 1)
+                                                .background(Color.orange.opacity(0.1))
+                                                .cornerRadius(3)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text(formatTime(from: segment.arriveTimeAirport))
+                                            .font(.system(size: 16, weight: .semibold))
+                                        HStack(spacing: 4) {
+                                            Text(formatDateShort(from: segment.arriveTimeAirport))
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.gray)
+                                            Text(segment.destinationCode)
+                                                .font(.system(size: 12, weight: .medium))
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                     }
@@ -5629,7 +5775,7 @@ struct ModernMultiCityFlightCardWrapper: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.black)
                         
-                        Text("For 2 People ₹\(Int(result.minPrice * 2))")
+                        Text("For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                     }
