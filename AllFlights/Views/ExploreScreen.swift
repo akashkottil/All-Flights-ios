@@ -2414,6 +2414,7 @@ struct SearchCard: View {
                                        }
                 }
                 .padding(.vertical, 4)
+                .padding(.horizontal,4)
             }
             .sheet(isPresented: $showingSearchSheet) {
                 LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
@@ -2696,21 +2697,50 @@ struct FlightResultCard: View {
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
     let item: ExploreDestination
-    let viewModel: ExploreViewModel // Added reference to view model for currency formatting
+    let viewModel: ExploreViewModel
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Destination image placeholder
-                Image("sampleimage")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 80, height: 80)
-                    .clipped()
-                    .cornerRadius(8)
+                // OPTIMIZED AsyncImage with better caching and immediate placeholders
+                AsyncImage(url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 80)
+                            .clipped()
+                            .cornerRadius(8)
+                            .transition(.opacity.animation(.easeIn(duration: 0.2))) // Smooth transition
+                    
+                    case .failure(_), .empty:
+                        // Immediate placeholder - no loading delay
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.15))
+                                .frame(width: 80, height: 80)
+                            
+                            VStack(spacing: 3) {
+                                Image(systemName: viewModel.showingCities ? "building.2" : "globe")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.gray.opacity(0.7))
+                                
+                                Text(String(item.location.name.prefix(3)).uppercased())
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.gray.opacity(0.8))
+                            }
+                        }
+                    
+                    @unknown default:
+                        Color.gray.opacity(0.15)
+                            .frame(width: 80, height: 80)
+                            .cornerRadius(8)
+                    }
+                }
                 
-                // Destination information
+                // Everything else stays exactly the same
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Flights from")
                         .font(.system(size: 12))
@@ -2726,7 +2756,6 @@ struct APIDestinationCard: View {
                 
                 Spacer()
                 
-                // Price with dynamic currency formatting
                 Text(viewModel.formatPrice(item.price))
                     .font(.system(size: 20, weight: .bold))
             }
