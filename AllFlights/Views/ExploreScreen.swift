@@ -1128,6 +1128,58 @@ class ExploreViewModel: ObservableObject {
     
     @Published var selectedFlightId: String? = nil
     
+    func resetToAnywhereDestination() {
+            // Reset destination
+            self.toLocation = "Anywhere"
+            self.toIataCode = ""
+            
+            // Clear any search states
+            self.hasSearchedFlights = false
+            self.showingDetailedFlightList = false
+            self.isDirectSearch = false
+            self.isAnytimeMode = false
+            
+            // Clear results
+            self.flightResults = []
+            self.detailedFlightResults = []
+            self.flightSearchResponse = nil
+            
+            // Clear selected city and return to countries
+            self.selectedCity = nil
+            self.selectedCountryName = nil
+            self.showingCities = false
+            
+            // Clear error states
+            self.errorMessage = nil
+            self.detailedFlightError = nil
+            
+            // Clear dates to show "Anytime"
+            self.dates = []
+            self.selectedDepartureDatee = ""
+            self.selectedReturnDatee = ""
+            
+            // Fetch countries to show the main explore screen
+            self.fetchCountries()
+        }
+    
+    func handleBackNavigationWithAnywhere() {
+            if toLocation == "Anywhere" {
+                // If destination is "Anywhere", just go back to countries
+                goBackToCountries()
+            } else {
+                // Use existing back navigation logic
+                if selectedFlightId != nil {
+                    selectedFlightId = nil
+                } else if showingDetailedFlightList {
+                    goBackToFlightResults()
+                } else if hasSearchedFlights {
+                    goBackToCities()
+                } else if showingCities {
+                    goBackToCountries()
+                }
+            }
+        }
+    
     func handleDetailedFlightBackNavigation() {
             print("handleDetailedFlightBackNavigation called")
             print("Current selectedFlightId: \(selectedFlightId ?? "nil")")
@@ -2049,8 +2101,6 @@ class ExploreViewModel: ObservableObject {
 
 // Updated ExploreScreen with proper back navigation handling for selected flights
 
-
-
 struct ExploreScreen: View {
     // MARK: - Properties
     @StateObject private var viewModel = ExploreViewModel()
@@ -2066,12 +2116,21 @@ struct ExploreScreen: View {
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
     
+    // MODIFIED: Updated back navigation to handle "Anywhere" destination
     private func handleBackNavigation() {
         print("=== Back Navigation Debug ===")
         print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
         print("showingDetailedFlightList: \(viewModel.showingDetailedFlightList)")
         print("hasSearchedFlights: \(viewModel.hasSearchedFlights)")
         print("showingCities: \(viewModel.showingCities)")
+        print("toLocation: \(viewModel.toLocation)")
+        
+        // Special handling for "Anywhere" destination
+        if viewModel.toLocation == "Anywhere" {
+            print("Action: Handling Anywhere destination - going back to countries")
+            viewModel.resetToAnywhereDestination()
+            return
+        }
         
         // First check if we have a selected flight in the detailed view
         if viewModel.selectedFlightId != nil {
@@ -2083,9 +2142,14 @@ struct ExploreScreen: View {
             print("Action: Going back from flight list to previous level")
             viewModel.goBackToFlightResults()
         } else if viewModel.hasSearchedFlights {
-            // Go back from flight results to cities
-            print("Action: Going back from flight results to cities")
-            viewModel.goBackToCities()
+            // Go back from flight results to cities or countries
+            if viewModel.toLocation == "Anywhere" {
+                print("Action: Going back from flight results to countries (Anywhere)")
+                viewModel.goBackToCountries()
+            } else {
+                print("Action: Going back from flight results to cities")
+                viewModel.goBackToCities()
+            }
         } else if viewModel.showingCities {
             // Go back from cities to countries
             print("Action: Going back from cities to countries")
@@ -2156,7 +2220,8 @@ struct ExploreScreen: View {
                             }
                             else if !viewModel.hasSearchedFlights {
                                 // Original explore view content
-                                Text(viewModel.showingCities ? "Explore \(viewModel.selectedCountryName ?? "")" : "Explore everywhere")
+                                // MODIFIED: Show different title based on destination
+                                Text(getExploreTitle())
                                     .font(.system(size: 24, weight: .bold))
                                     .padding(.horizontal)
                                     .padding(.top, 16)
@@ -2299,6 +2364,17 @@ struct ExploreScreen: View {
                     isCollapsed = false
                 }
             }
+        }
+    }
+    
+    // NEW: Helper method to get appropriate explore title
+    private func getExploreTitle() -> String {
+        if viewModel.toLocation == "Anywhere" {
+            return "Explore everywhere"
+        } else if viewModel.showingCities {
+            return "Explore \(viewModel.selectedCountryName ?? "")"
+        } else {
+            return "Explore everywhere"
         }
     }
 }
@@ -2549,11 +2625,24 @@ struct SearchCard: View {
                         initialFocus = .destination
                         showingSearchSheet = true
                     }) {
-                        Image(systemName: "airplane.arrival")
-                            .foregroundColor(.primary)
-                        Text(viewModel.toLocation)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
+                        HStack {
+                            Image(systemName: "airplane.arrival")
+                                .foregroundColor(.primary)
+                            
+                            // MODIFIED: Show different styling for "Anywhere"
+                            if viewModel.toLocation == "Anywhere" {
+                                HStack(spacing: 4) {
+
+                                    Text("Anywhere")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.primary)
+                                }
+                            } else {
+                                Text(viewModel.toLocation)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.primary)
+                            }
+                        }
                     }
                 }
                 .padding(4)
@@ -2563,47 +2652,57 @@ struct SearchCard: View {
                 // Date and passengers row
                 HStack {
                     Button(action: {
-                        showingCalendar = true
+                        // MODIFIED: Only show calendar if destination is not "Anywhere"
+                        if viewModel.toLocation == "Anywhere" {
+                            // If destination is "Anywhere", go back to explore mode
+                            handleAnywhereDestination()
+                        } else {
+                            showingCalendar = true
+                        }
                     }){
                         Image(systemName: "calendar")
                             .foregroundColor(.primary)
                       
-                        // Display "Anytime" if using anytime results, otherwise show selected dates
-                               if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
-                                   Text("Anytime")
-                                       .foregroundColor(.primary)
-                                       .font(.system(size: 14, weight: .medium))
-                               } else if viewModel.dates.isEmpty {
-                                   Text("Anytime")
-                                       .foregroundColor(.primary)
-                                       .font(.system(size: 14, weight: .medium))
-                               } else if viewModel.dates.count == 1 {
-                                   Text(formatDate(viewModel.dates[0]))
-                                       .foregroundColor(.primary)
-                                       .font(.system(size: 14, weight: .medium))
-                               } else if viewModel.dates.count >= 2 {
-                                   Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
-                                       .foregroundColor(.primary)
-                                       .font(.system(size: 14, weight: .medium))
-                               }
+                        // Display "Anytime" if using anytime results or if destination is "Anywhere"
+                        if viewModel.toLocation == "Anywhere" {
+                            Text("Anytime")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
+                            Text("Anytime")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.isEmpty {
+                            Text("Anytime")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.count == 1 {
+                            Text(formatDate(viewModel.dates[0]))
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        } else if viewModel.dates.count >= 2 {
+                            Text("\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        }
                     }
                     
                     Spacer()
                     
                     // Passenger selection button - now clickable
-                                       Button(action: {
-                                           viewModel.showingPassengersSheet = true
-                                       }) {
-                                           HStack(spacing: 4) {
-                                               Image(systemName: "person.fill")
-                                                   .foregroundColor(.black)
-                                               
-                                               // Display the passenger and cabin class info
-                                               Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
-                                                   .font(.system(size: 14, weight: .medium))
-                                                   .foregroundColor(.black)
-                                           }
-                                       }
+                    Button(action: {
+                        viewModel.showingPassengersSheet = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.black)
+                            
+                            // Display the passenger and cabin class info
+                            Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                    }
                 }
                 .padding(.vertical, 4)
                 .padding(.horizontal,4)
@@ -2635,16 +2734,16 @@ struct SearchCard: View {
                     )
             }
             .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
-                            // ADDED: Trigger search when passenger sheet is dismissed (Apply clicked)
-                            triggerSearchAfterPassengerChange()
-                        }) {
-                            PassengersAndClassSelector(
-                                adultsCount: $viewModel.adultsCount,
-                                childrenCount: $viewModel.childrenCount,
-                                selectedClass: $viewModel.selectedCabinClass,
-                                childrenAges: $viewModel.childrenAges
-                            )
-                        }
+                // ADDED: Trigger search when passenger sheet is dismissed (Apply clicked)
+                triggerSearchAfterPassengerChange()
+            }) {
+                PassengersAndClassSelector(
+                    adultsCount: $viewModel.adultsCount,
+                    childrenCount: $viewModel.childrenCount,
+                    selectedClass: $viewModel.selectedCabinClass,
+                    childrenAges: $viewModel.childrenAges
+                )
+            }
             .onAppear {
                 // Ensure viewModel's isRoundTrip is in sync with the binding
                 viewModel.isRoundTrip = isRoundTrip
@@ -2660,26 +2759,45 @@ struct SearchCard: View {
         }
     }
     
+    // NEW: Handle when destination is "Anywhere"
+    private func handleAnywhereDestination() {
+        // Reset to explore mode
+        viewModel.goBackToCountries()
+        
+        // Clear the specific destination
+        viewModel.toLocation = "Anywhere"
+        viewModel.toIataCode = ""
+        
+        // Clear any search results
+        viewModel.hasSearchedFlights = false
+        viewModel.showingDetailedFlightList = false
+        viewModel.flightResults = []
+        viewModel.detailedFlightResults = []
+    }
+    
     // Helper function to trigger search after passenger changes
-       private func triggerSearchAfterPassengerChange() {
-           // Check if we have active search context
-           if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
-               // Clear existing results
-               viewModel.detailedFlightResults = []
-               
-               // Restart search with new passenger data
-               viewModel.searchFlightsForDates(
-                   origin: viewModel.selectedOriginCode,
-                   destination: viewModel.selectedDestinationCode,
-                   returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                   departureDate: viewModel.selectedDepartureDatee
-               )
-           }
-           // If we're in the explore flow with a selected city
-           else if let city = viewModel.selectedCity {
-               viewModel.fetchFlightDetails(destination: city.location.iata)
-           }
-       }
+    private func triggerSearchAfterPassengerChange() {
+        // Only trigger if destination is not "Anywhere"
+        if viewModel.toLocation != "Anywhere" {
+            // Check if we have active search context
+            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
+                // Clear existing results
+                viewModel.detailedFlightResults = []
+                
+                // Restart search with new passenger data
+                viewModel.searchFlightsForDates(
+                    origin: viewModel.selectedOriginCode,
+                    destination: viewModel.selectedDestinationCode,
+                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                    departureDate: viewModel.selectedDepartureDatee
+                )
+            }
+            // If we're in the explore flow with a selected city
+            else if let city = viewModel.selectedCity {
+                viewModel.fetchFlightDetails(destination: city.location.iata)
+            }
+        }
+    }
     
     // Helper method to format date for display
     private func formatDate(_ date: Date) -> String {
@@ -3630,6 +3748,8 @@ struct MonthButton: View {
 
 
 
+// MARK: - Modified LocationSearchSheet with "Anywhere" option
+
 struct LocationSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ExploreViewModel
@@ -3642,7 +3762,7 @@ struct LocationSearchSheet: View {
     @FocusState private var focusedField: SearchBarType?
     
     var multiCityMode: Bool = false
-       var multiCityTripIndex: Int = 0
+    var multiCityTripIndex: Int = 0
 
     enum SearchBarType {
         case origin
@@ -3668,8 +3788,6 @@ struct LocationSearchSheet: View {
             
             // Results section
             resultsView()
-            
-
             
             Spacer()
         }
@@ -3806,6 +3924,7 @@ struct LocationSearchSheet: View {
         }
     }
     
+    // MODIFIED: Updated results view to include "Anywhere" option for destination
     private func resultsView() -> some View {
         Group {
             if isSearching {
@@ -3836,21 +3955,30 @@ struct LocationSearchSheet: View {
         .padding()
     }
     
-    private func errorView(error: String) -> some View {
-        Text(error)
-            .foregroundColor(.red)
-            .padding()
-    }
-    
     private func noResultsView() -> some View {
         Text("No results found")
             .foregroundColor(.gray)
             .padding()
     }
     
+    // MODIFIED: Updated results list to include "Anywhere" option
     private func resultsList() -> some View {
         ScrollView {
             LazyVStack(spacing: 0) {
+                // Show "Anywhere" option only for destination search
+                if activeSearchBar == .destination {
+                    AnywhereOptionRow()
+                        .onTapGesture {
+                            handleAnywhereSelection()
+                        }
+                    
+                    // Add a divider after "Anywhere" option if there are other results
+                    if !results.isEmpty {
+                        Divider()
+                            .padding(.horizontal)
+                    }
+                }
+                
                 ForEach(results) { result in
                     LocationResultRow(result: result)
                         .onTapGesture {
@@ -3861,10 +3989,7 @@ struct LocationSearchSheet: View {
         }
     }
     
-    
     // MARK: - Helper Methods
-    
-    
     
     private func handleOriginTextChange() {
         activeSearchBar = .origin
@@ -3905,6 +4030,20 @@ struct LocationSearchSheet: View {
         focusedField = .destination
     }
     
+    // NEW: Handle "Anywhere" selection
+    private func handleAnywhereSelection() {
+        if multiCityMode {
+            viewModel.multiCityTrips[multiCityTripIndex].toLocation = "Anywhere"
+            viewModel.multiCityTrips[multiCityTripIndex].toIataCode = ""
+        } else {
+            viewModel.toLocation = "Anywhere"
+            viewModel.toIataCode = ""
+            destinationSearchText = "Anywhere"
+        }
+        
+        dismiss()
+    }
+    
     private func handleResultSelection(result: AutocompleteResult) {
         if activeSearchBar == .origin {
             selectOrigin(result: result)
@@ -3922,10 +4061,11 @@ struct LocationSearchSheet: View {
     
     private func selectOrigin(result: AutocompleteResult) {
         // Check if this would match the current destination
-            if !viewModel.toIataCode.isEmpty && result.iataCode == viewModel.toIataCode {
-                searchError = "Origin and destination cannot be the same"
-                return
-            }
+        if !viewModel.toIataCode.isEmpty && result.iataCode == viewModel.toIataCode {
+            searchError = "Origin and destination cannot be the same"
+            return
+        }
+        
         if multiCityMode {
             viewModel.multiCityTrips[multiCityTripIndex].fromLocation = result.cityName
             viewModel.multiCityTrips[multiCityTripIndex].fromIataCode = result.iataCode
@@ -4050,6 +4190,43 @@ struct LocationSearchSheet: View {
                 self.results = results
             })
             .store(in: &viewModel.cancellables)
+    }
+}
+
+// NEW: Custom view for the "Anywhere" option
+struct AnywhereOptionRow: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon for "Anywhere"
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.1))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: "globe")
+                    .font(.system(size: 18))
+                    .foregroundColor(.orange)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Anywhere")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                
+                Text("Explore destinations")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "arrow.up.right")
+                .font(.system(size: 14))
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(Color.white)
+        .contentShape(Rectangle())
     }
 }
 
