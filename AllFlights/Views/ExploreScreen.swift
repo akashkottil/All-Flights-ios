@@ -4121,7 +4121,6 @@ struct ExploreScreenPreview: PreviewProvider {
 }
 
 
-
 //Last Flight view
 struct LastFlightCard: View {
 
@@ -4669,7 +4668,7 @@ struct FlightRowView: View {
                     Text(duration)
                         .font(.system(size: 11)) // Reduced from 12 to 11
                         .foregroundColor(.gray)
-                        .padding(.horizontal, 6) // Reduced from 8 to 6
+                        .padding(.horizontal, 8) // Reduced from 8 to 6
                         .padding(.vertical, 1) // Reduced from 2 to 1
                         .background(
                             Capsule()
@@ -4963,7 +4962,8 @@ struct FlightDetailCard: View {
                 
                 HStack(spacing: 16) {
                     HStack(spacing: 4) {
-                        Text(isDirectFlight ? "Direct" : "\(connectionSegments?.count ?? 1) Stop")
+                        Text(isDirectFlight ? "Direct" : "\((connectionSegments?.count ?? 1) - 1) Stop")
+
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(isDirectFlight ? .green : .primary)
                     }
@@ -5048,19 +5048,19 @@ struct DirectFlightView: View {
                 
                 // Departure circle
                 Circle()
-                    .stroke(Color.primary, lineWidth: 2)
+                    .stroke(Color.primary, lineWidth: 1)
                     .frame(width: 8, height: 8)
                 
                 // Connecting line
                 Rectangle()
                     .fill(Color.primary)
-                    .frame(width: 2, height: 140)
+                    .frame(width: 1, height: 140)
                     .padding(.top,6)
                     .padding(.bottom,6)// Height spans between the two sections
                 
                 // Arrival circle
                 Circle()
-                    .stroke(Color.primary, lineWidth: 2)
+                    .stroke(Color.primary, lineWidth: 1)
                     .frame(width: 8, height: 8)
                 
                 // Space for remaining content
@@ -5202,7 +5202,7 @@ struct DirectFlightView: View {
     }
 }
 
-// Model for connection segments
+// Updated ConnectionSegment model with airline logo support
 struct ConnectionSegment: Identifiable {
     let id = UUID()
     
@@ -5224,6 +5224,7 @@ struct ConnectionSegment: Identifiable {
     // Flight info
     let airline: String
     let flightNumber: String
+    let airlineLogo: String // Added airline logo URL
     
     // Connection info (if not the last segment)
     let connectionDuration: String? // e.g. "2h 50m connection"
@@ -5233,44 +5234,70 @@ struct ConnectingFlightView: View {
     let segments: [ConnectionSegment]
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Timeline with connection points
+        HStack(alignment: .top, spacing: 16) {
+            // Timeline positioned to align with airport codes - similar to DirectFlightView
             VStack(spacing: 0) {
-                // First point
-                Circle()
-                    .frame(width: 8, height: 8)
-                    .foregroundColor(.blue)
+                // Space to align with first departure airport code
+                Spacer()
+                    .frame(height: 50)
                 
-                // For each segment, create a line and dot
+                // First departure circle
+                Circle()
+                    .stroke(Color.primary, lineWidth: 1)
+                    .frame(width: 8, height: 8)
+                
+                // For each segment, create connecting elements
                 ForEach(0..<segments.count, id: \.self) { index in
-                    // Line to next point
-                    if index < segments.count {
-                        Rectangle()
-                            .frame(width: 2)
-                            .foregroundColor(.blue)
-                    }
+                    // Solid line for flight segment - INCREASED HEIGHT
+                    Rectangle()
+                        .fill(Color.primary)
+                        .frame(width: 1, height: 180) // Changed from 140 to 180
+                        .padding(.top, 6)
+                        .padding(.bottom, 6)
                     
                     // Connection point (if not the last segment)
                     if index < segments.count - 1 {
                         Circle()
+                            .stroke(Color.primary, lineWidth: 1)
                             .frame(width: 8, height: 8)
-                            .foregroundColor(.blue)
+                        
+                        // Dotted line for layover/connection - INCREASED HEIGHT
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 1, height: 120) // Changed from 80 to 120
+                            .overlay(
+                                Path { path in
+                                    path.move(to: CGPoint(x: 0.5, y: 0))
+                                    path.addLine(to: CGPoint(x: 0.5, y: 120)) // Update path height too
+                                }
+                                .stroke(Color.primary, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            )
+                            .padding(.top, 6)
+                            .padding(.bottom, 6)
+                        
+                        Circle()
+                            .stroke(Color.primary, lineWidth: 1)
+                            .frame(width: 8, height: 8)
                     }
                 }
                 
-                // Final point
+                // Final arrival circle
                 Circle()
+                    .stroke(Color.primary, lineWidth: 1)
                     .frame(width: 8, height: 8)
-                    .foregroundColor(.blue)
+                
+                // Space for remaining content
+                Spacer()
             }
-            .padding(.top, 5)
             
-            // Flight segments
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(segments) { segment in
-                    // First departure
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
+            // Flight details with proper spacing matching DirectFlightView
+            VStack(alignment: .leading, spacing: 32) {
+                ForEach(0..<segments.count, id: \.self) { segmentIndex in
+                    let segment = segments[segmentIndex]
+                    
+                    // DEPARTURE SECTION
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
                             Text(segment.departureDate)
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
@@ -5281,8 +5308,14 @@ struct ConnectingFlightView: View {
                         }
                         
                         HStack(alignment: .center, spacing: 12) {
-                            Text(segment.departureAirportCode)
-                                .font(.system(size: 16, weight: .semibold))
+                            ZStack {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.1))
+                                    .frame(width: 40, height: 32)
+                                    .cornerRadius(4)
+                                Text(segment.departureAirportCode)
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(segment.departureAirportName)
@@ -5291,51 +5324,66 @@ struct ConnectingFlightView: View {
                                     .font(.system(size: 13))
                                     .foregroundColor(.gray)
                             }
-                        }
-                        
-                        // Airline info
-                        HStack(spacing: 10) {
-                            ZStack {
-                                Rectangle()
-                                    .fill(Color.blue.opacity(0.1))
-                                    .frame(width: 32, height: 32)
-                                    .cornerRadius(4)
-                                
-                                Text(String(segment.airline.prefix(2)))
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.blue)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(segment.airline)
-                                    .font(.system(size: 14))
-                                Text(segment.flightNumber)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.gray)
-                            }
                             
                             Spacer()
-                            
-                            HStack {
-                                Text("More info")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.blue)
-                                
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.blue)
-                            }
                         }
-                        .padding(.top, 6)
                     }
                     
-                    // Flight arrival
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
+                    // AIRLINE SECTION - Updated to match DirectFlightView
+                    HStack(spacing: 12) {
+                        AsyncImage(url: URL(string: segment.airlineLogo)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 36, height: 32)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            case .failure(_), .empty:
+                                // Fallback with airline initials
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.blue.opacity(0.1))
+                                        .frame(width: 36, height: 32)
+                                        .cornerRadius(4)
+                                    
+                                    Text(String(segment.airline.prefix(2)))
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.blue)
+                                }
+                            @unknown default:
+                                // Default placeholder
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 36, height: 32)
+                                        .cornerRadius(4)
+                                    
+                                    Image(systemName: "airplane")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(segment.airline)
+                                .font(.system(size: 14))
+                            Text(segment.flightNumber)
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    // ARRIVAL SECTION
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
                             Text(segment.arrivalDate)
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
-                            
+                                
                             Text(segment.arrivalTime)
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.black)
@@ -5348,8 +5396,14 @@ struct ConnectingFlightView: View {
                         }
                         
                         HStack(alignment: .center, spacing: 12) {
-                            Text(segment.arrivalAirportCode)
-                                .font(.system(size: 16, weight: .semibold))
+                            ZStack {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.1))
+                                    .frame(width: 40, height: 32)
+                                    .cornerRadius(4)
+                                Text(segment.arrivalAirportCode)
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(segment.arrivalAirportName)
@@ -5358,6 +5412,8 @@ struct ConnectingFlightView: View {
                                     .font(.system(size: 13))
                                     .foregroundColor(.gray)
                             }
+                            
+                            Spacer()
                         }
                     }
                     
@@ -5385,6 +5441,16 @@ struct ConnectingFlightView: View {
             .padding(.bottom, 16)
         }
         .padding(.leading, 16)
+    }
+}
+
+// Helper view for creating dotted lines
+struct DottedLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        return path
     }
 }
 
@@ -5856,6 +5922,7 @@ struct ModifiedDetailedFlightListView: View {
                     arrivalNextDay: segment.arrivalDayDifference > 0,
                     airline: segment.airlineName,
                     flightNumber: segment.flightNumber,
+                    airlineLogo: segment.airlineLogo, // Added airline logo
                     connectionDuration: connectionDuration
                 )
             )
