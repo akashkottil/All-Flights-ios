@@ -5997,7 +5997,8 @@ struct ModifiedDetailedFlightListView: View {
         print("Updated filtered results - Final count: \(filteredResults.count)")
     }
     
-    // FIXED: Simplified local filtering function
+
+    // FIXED: Updated local filtering function to show tagged flights first, then sorted remaining flights
     private func applyLocalFilters() {
         print("Applying local filters. Total results: \(viewModel.detailedFlightResults.count), Selected filter: \(selectedFilter)")
         
@@ -6008,21 +6009,34 @@ struct ModifiedDetailedFlightListView: View {
             filteredResults = sourceResults
             
         case .best:
+            // Show best tagged flights first, then remaining flights in original order
             let bestResults = sourceResults.filter { $0.isBest }
-            filteredResults = bestResults.isEmpty ? sourceResults : bestResults
+            let otherResults = sourceResults.filter { !$0.isBest }
+            filteredResults = bestResults + otherResults
             
         case .cheapest:
+            // Show cheapest tagged flights first, then remaining flights sorted by price (ascending)
             let cheapestResults = sourceResults.filter { $0.isCheapest }
-            filteredResults = cheapestResults.isEmpty ? sourceResults.sorted { $0.minPrice < $1.minPrice } : cheapestResults
+            let otherResults = sourceResults.filter { !$0.isCheapest }.sorted { $0.minPrice < $1.minPrice }
+            filteredResults = cheapestResults + otherResults
             
         case .fastest:
+            // Show fastest tagged flights first, then remaining flights sorted by duration (ascending)
             let fastestResults = sourceResults.filter { $0.isFastest }
-            filteredResults = fastestResults.isEmpty ? sourceResults.sorted { $0.totalDuration < $1.totalDuration } : fastestResults
+            let otherResults = sourceResults.filter { !$0.isFastest }.sorted { $0.totalDuration < $1.totalDuration }
+            filteredResults = fastestResults + otherResults
             
         case .direct:
-            filteredResults = sourceResults.filter { flight in
+            // Show direct flights first, then connecting flights (sorted by price for better user experience)
+            let directFlights = sourceResults.filter { flight in
                 flight.legs.allSatisfy { $0.stopCount == 0 }
-            }
+            }.sorted { $0.minPrice < $1.minPrice }
+            
+            let connectingFlights = sourceResults.filter { flight in
+                !flight.legs.allSatisfy { $0.stopCount == 0 }
+            }.sorted { $0.minPrice < $1.minPrice }
+            
+            filteredResults = directFlights + connectingFlights
         }
         
         print("Local filtering complete. Filtered results count: \(filteredResults.count)")
