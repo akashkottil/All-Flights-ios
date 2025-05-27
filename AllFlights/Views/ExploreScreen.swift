@@ -4838,7 +4838,7 @@ struct FlightRowView: View {
                     // Left line segment
                     Rectangle()
                         .fill(Color.gray)
-                        .frame(width:16,height: 1)
+                        .frame(width:12,height: 1)
                        
                     
                     // Date/Time capsule in the middle
@@ -4855,12 +4855,12 @@ struct FlightRowView: View {
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                                 )
                         )
-                        .padding(.horizontal,4)
+                        .padding(.horizontal,6)
                     
                     // Right line segment
                     Rectangle()
                         .fill(Color.gray)
-                        .frame(width:16,height: 1)
+                        .frame(width:12,height: 1)
                         
                     
                     // Right circle
