@@ -34,6 +34,9 @@ struct FeatureCards: View {
                 RoundedRectangle(cornerRadius: 30)
                     .stroke(Color("AppPrimaryColor"), lineWidth: 1)
             )
+            .onTapGesture {
+                ExploreScreen()
+            }
             Spacer()
             HStack (){
                 VStack (alignment: .leading){
@@ -59,6 +62,9 @@ struct FeatureCards: View {
                 RoundedRectangle(cornerRadius: 30)
                     .stroke(Color("AppPrimaryColor"), lineWidth: 1)
             )
+            .onTapGesture {
+                FlightTrackerScreen()
+            }
         }
         .padding()
         
