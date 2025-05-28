@@ -3,8 +3,8 @@ import Combine
 
 // MARK: - Shared View Model for Home and Explore
 class SharedFlightSearchViewModel: ObservableObject {
-    @Published var fromLocation = "Current Location"
-    @Published var toLocation = "Where to?"
+    @Published var fromLocation = "Departure?"
+    @Published var toLocation = "Destination?"
     @Published var fromIataCode: String = "DEL" // Default to Delhi
     @Published var toIataCode: String = ""
     
@@ -72,75 +72,72 @@ struct HomeView: View {
     // Navigation to explore results
     @State private var showingExploreResults = false
 
-    var body: some View {
+   var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                Color("AppPrimaryColor")
-                    .frame(height: UIScreen.main.bounds.height * 0.3)
-                    .ignoresSafeArea()
-
+            VStack(spacing: 0) {
+                // Header + Search Inputs in a VStack with gradient background
                 VStack(spacing: 0) {
-                    // Sticky header
                     headerView
                         .zIndex(1)
 
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // GeometryReader for scroll detection
-                            GeometryReader { geo in
-                                Color.clear
-                                    .preference(
-                                        key: ScrollOffsetPreferenceKeyy.self,
-                                        value: geo.frame(in: .named("scroll")).minY
-                                    )
-                            }
-                            .frame(height: 0)
-
-                            // Enhanced Search Section
-                            ZStack {
-                                if isSearchExpanded {
-                                    EnhancedSearchInput(searchViewModel: searchViewModel)
-                                        .matchedGeometryEffect(id: "searchBox", in: animation)
-                                        .transition(.opacity.combined(with: .move(edge: .top)))
-                                        .gesture(dragGesture)
-                                } else {
-                                    HomeCollapsibleSearchInput(
-                                        isExpanded: $isSearchExpanded,
-                                        searchViewModel: searchViewModel
-                                    )
-                                    .matchedGeometryEffect(id: "searchBox", in: animation)
-                                    .transition(.opacity.combined(with: .move(edge: .top)))
-                                }
-                            }
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchExpanded)
-                            .padding(.bottom, 20)
-
-                            // Scrollable content
-                            VStack(alignment:.leading, spacing: 16) {
-                                recentSearchSection
-                                HStack(spacing: 4) {
-                                    Text("Cheapest Fares From ")
-                                    + Text("Kochi").foregroundColor(.blue)  // "Kochi" in blue
-                                    
-                                    Image(systemName: "chevron.down")
-                                        .foregroundColor(.blue)             // chevron in blue
-                                }
-                                .padding(.horizontal)
-
-                                CheapFlights()
-                                FeatureCards()
-                                LoginNotifier()
-                                ratingPrompt
-                                BottomSignature()
-                            }
+                    ZStack {
+                        if isSearchExpanded {
+                            EnhancedSearchInput(searchViewModel: searchViewModel)
+                                .matchedGeometryEffect(id: "searchBox", in: animation)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                .gesture(dragGesture)
+                        } else {
+                            HomeCollapsibleSearchInput(
+                                isExpanded: $isSearchExpanded,
+                                searchViewModel: searchViewModel
+                            )
+                            .matchedGeometryEffect(id: "searchBox", in: animation)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                    .coordinateSpace(name: "scroll")
-                    .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
-                        let threshold: CGFloat = -40
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                            isSearchExpanded = value > threshold
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchExpanded)
+                    .padding(.bottom, 20)
+                }
+                .background(
+                    LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
+                        .ignoresSafeArea(edges: .top)
+                )
+                // Scrollable content below the header + search
+                ScrollView {
+                    VStack(spacing: 0) {
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetPreferenceKeyy.self,
+                                    value: geo.frame(in: .named("scroll")).minY
+                                )
                         }
+                        .frame(height: 0)
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            recentSearchSection
+                            HStack(spacing: 4) {
+                                Text("Cheapest Fares From ")
+                                + Text("Kochi").foregroundColor(.blue)
+
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(.horizontal)
+
+                            CheapFlights()
+                            FeatureCards()
+                            LoginNotifier()
+                            ratingPrompt
+                            BottomSignature()
+                        }
+                    }
+                }
+                .coordinateSpace(name: "scroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
+                    let threshold: CGFloat = -40
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        isSearchExpanded = value > threshold
                     }
                 }
             }
@@ -159,6 +156,7 @@ struct HomeView: View {
             }
         }
     }
+
 
     // MARK: - Drag Gesture for collapsing SearchInput
     var dragGesture: some Gesture {
@@ -180,12 +178,12 @@ struct HomeView: View {
         HStack {
             Image("logoHome")
                 .resizable()
-                .frame(width: 25, height: 25)
+                .frame(width: 28, height: 28)
                 .cornerRadius(6)
                 .padding(.trailing, 4)
 
             Text("All Flights")
-                .font(.title3)
+                .font(.title)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
 
@@ -193,7 +191,7 @@ struct HomeView: View {
 
             Image("homeProfile")
                 .resizable()
-                .frame(width: 30, height: 30)
+                .frame(width: 36, height: 36)
                 .cornerRadius(6)
                 .padding(.trailing, 4)
                 .onTapGesture {
@@ -203,7 +201,7 @@ struct HomeView: View {
         .padding(.horizontal, 25)
         .padding(.top, 20)
         .padding(.bottom, 10)
-        .background(Color("AppPrimaryColor").ignoresSafeArea(edges: .top))
+
     }
 
     // MARK: - Recent Search Section
@@ -284,6 +282,9 @@ struct EnhancedSearchInput: View {
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
     
+    @State private var showErrorMessage = false
+
+    
     enum LocationType {
         case from, to
     }
@@ -330,33 +331,56 @@ struct EnhancedSearchInput: View {
     // MARK: - Computed Views
     
     private var tripTypeTabs: some View {
-        HStack(spacing: 0) {
-            ForEach(0..<3, id: \.self) { index in
-                let titles = ["Return", "One way", "Multi city"]
-                Button(action: {
-                    searchViewModel.selectedTab = index
-                    
-                    if index == 2 {
-                        searchViewModel.initializeMultiCityTrips()
-                    } else {
-                        let newIsRoundTrip = (index == 0)
-                        searchViewModel.isRoundTrip = newIsRoundTrip
+        let titles = ["Return", "One way", "Multi city"]
+        let totalWidth = UIScreen.main.bounds.width * 0.6
+        let tabWidth = totalWidth / 3
+        let rightShift: CGFloat = 5
+        
+        return ZStack(alignment: .leading) {
+            // Background capsule
+            Capsule()
+                .fill(Color(UIColor.systemGray6))
+                .padding(.horizontal, -5)
+                .padding(.vertical, -5)
+            
+            // Sliding white background for selected tab
+            Capsule()
+                .fill(Color.white)
+                .frame(width: tabWidth - 10)
+                .offset(x: (CGFloat(searchViewModel.selectedTab) * tabWidth) + rightShift)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: searchViewModel.selectedTab)
+            
+            // Tab buttons
+            HStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { index in
+                    Button(action: {
+                        searchViewModel.selectedTab = index
                         
-                        if !newIsRoundTrip && searchViewModel.selectedDates.count > 1 {
-                            searchViewModel.selectedDates = Array(searchViewModel.selectedDates.prefix(1))
+                        if index == 2 {
+                            searchViewModel.initializeMultiCityTrips()
+                        } else {
+                            let newIsRoundTrip = (index == 0)
+                            searchViewModel.isRoundTrip = newIsRoundTrip
+                            
+                            if !newIsRoundTrip && searchViewModel.selectedDates.count > 1 {
+                                searchViewModel.selectedDates = Array(searchViewModel.selectedDates.prefix(1))
+                            }
                         }
+                    }) {
+                        Text(titles[index])
+                            .font(.system(size: 13, weight: searchViewModel.selectedTab == index ? .semibold : .regular))
+                            .foregroundColor(searchViewModel.selectedTab == index ? .blue : .primary)
+                            .frame(width: tabWidth)
+                            .padding(.vertical, 8)
                     }
-                }) {
-                    Text(titles[index])
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(searchViewModel.selectedTab == index ? .blue : .gray)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
                 }
             }
         }
+        .frame(width: totalWidth, height: 36)
+        .padding(.horizontal, 4)
         .padding(.bottom, 8)
     }
+
     
     private var multiCityInterface: some View {
         VStack(spacing: 12) {
@@ -400,9 +424,17 @@ struct EnhancedSearchInput: View {
     private var regularInterface: some View {
         VStack(spacing: 12) {
             fromLocationButton
-            swapButton
+            ZStack {
+                Divider()
+                    .padding(.leading,40)
+                swapButton
+            }
             toLocationButton
+            Divider()
+                .padding(.leading,40)
             dateButton
+            Divider()
+                .padding(.leading,40)
             passengerButton
             searchButton
             directFlightsToggle
@@ -415,24 +447,20 @@ struct EnhancedSearchInput: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "airplane.departure")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
+             
                     Text(searchViewModel.fromLocation)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
-                }
+                
                 
                 Spacer()
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
+            .padding(.top, 12)
+            .padding(.horizontal, 12)
+           
         }
     }
     
@@ -440,17 +468,18 @@ struct EnhancedSearchInput: View {
         HStack {
             Spacer()
             Button(action: swapLocations) {
-                Image(systemName: "arrow.up.arrow.down")
+                Image("swap")
                     .foregroundColor(.blue)
                     .font(.system(size: 16, weight: .medium))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 42, height: 42)
                     .background(Color.white)
                     .cornerRadius(16)
                     .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
             }
-            Spacer()
+           
         }
-        .offset(y: -6)
+        .padding(.horizontal)
+//        .offset(y: -6)
     }
     
     private var toLocationButton: some View {
@@ -459,26 +488,22 @@ struct EnhancedSearchInput: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "airplane.arrival")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
+              
                     Text(searchViewModel.toLocation)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
-                }
+ 
                 
                 Spacer()
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
+            .padding(.bottom, 12)
+            .padding(.horizontal, 12)
+            
         }
-        .offset(y: -12)
+//        .offset(y: -12)
     }
     
     private var dateButton: some View {
@@ -487,7 +512,7 @@ struct EnhancedSearchInput: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "calendar")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
                 Text(dateDisplayText)
@@ -497,11 +522,10 @@ struct EnhancedSearchInput: View {
                 Spacer()
             }
             .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
+            .padding(.horizontal, 12)
+           
         }
-        .offset(y: -12)
+//        .offset(y: -12)
     }
     
     private var passengerButton: some View {
@@ -509,8 +533,8 @@ struct EnhancedSearchInput: View {
             showingPassengersSheet = true
         }) {
             HStack(spacing: 12) {
-                Image(systemName: "person")
-                    .foregroundColor(.gray)
+                Image(systemName: "person.fill")
+                    .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
                 Text(passengerDisplayText)
@@ -520,42 +544,49 @@ struct EnhancedSearchInput: View {
                 Spacer()
             }
             .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
+            .padding(.horizontal, 12)
+           
         }
-        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
+//        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
     }
     
     private var searchButton: some View {
-        Button(action: performSearch) {
-            Text("Search Flights")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(canSearch ? Color.orange : Color.gray)
-                .cornerRadius(8)
+        VStack(spacing: 4) {
+            Button(action: performSearch) {
+                Text("Search Flights")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color.orange)
+                    .cornerRadius(8)
+            }
+            // Always enabled, so no .disabled here
+
+            if showErrorMessage {
+                Label("Select location to search flight",systemImage: "exclamationmark.triangle")
+                    .foregroundColor(.red)
+                    .font(.system(size: 14))
+                    .padding(.top, 4)
+                    .transition(.opacity)
+            }
         }
-        .disabled(!canSearch)
-        .opacity(canSearch ? 1.0 : 0.6)
-        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
     }
     
     private var directFlightsToggle: some View {
-        HStack {
+        HStack(spacing: 8) {
             Text("Direct flights only")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.primary)
-            
-            Spacer()
-            
+
             Toggle("", isOn: $directFlightsOnly)
                 .toggleStyle(SwitchToggleStyle(tint: .blue))
         }
         .padding(.horizontal, 4)
-        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
+//        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
+
     }
+
     
     private var addFlightButton: some View {
         Button(action: addTrip) {
@@ -684,8 +715,28 @@ struct EnhancedSearchInput: View {
     }
     
     private func performSearch() {
-        searchViewModel.executeSearch()
+        // Validation for required fields
+        let valid: Bool
+        if searchViewModel.selectedTab == 2 {
+            valid = searchViewModel.multiCityTrips.allSatisfy { trip in
+                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+            }
+        } else {
+            valid = !searchViewModel.fromIataCode.isEmpty &&
+                    !searchViewModel.toIataCode.isEmpty &&
+                    !searchViewModel.selectedDates.isEmpty
+        }
+
+        if valid {
+            showErrorMessage = false
+            searchViewModel.executeSearch()
+        } else {
+            withAnimation {
+                showErrorMessage = true
+            }
+        }
     }
+
 }
 
 // MARK: - Home Multi-City Segment View (renamed to avoid conflicts)
