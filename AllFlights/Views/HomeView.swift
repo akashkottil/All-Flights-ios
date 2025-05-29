@@ -43,15 +43,15 @@ class SharedFlightSearchViewModel: ObservableObject {
         }
     
     // Update children ages array when count changes
-       func updateChildrenAgesArray(for newCount: Int) {
+    func updateChildrenAgesArray(for newCount: Int) {
            if newCount > childrenAges.count {
                childrenAges.append(contentsOf: Array(repeating: nil, count: newCount - childrenAges.count))
            } else if newCount < childrenAges.count {
                childrenAges = Array(childrenAges.prefix(newCount))
            }
        }
-    
-    // Reset search state
+       
+       // Reset search state
        func resetSearch() {
            shouldNavigateToResults = false
            searchExecuted = false
@@ -233,28 +233,28 @@ struct HomeView: View {
 
     // MARK: - Updated Recent Search Section
     var updatedRecentSearchSection: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Recent Search")
-                        .font(.system(size: 18))
-                        .foregroundColor(.black)
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Button(action: {
-                        // Use the shared recent search manager
-                        RecentSearchManager.shared.clearAllRecentSearches()
-                    }) {
-                        Text("Clear All")
-                            .foregroundColor(Color("ThridColor"))
-                            .font(.system(size: 14))
-                            .fontWeight(.bold)
-                    }
-                }
-                .padding(.horizontal)
+           VStack(alignment: .leading, spacing: 10) {
+               HStack {
+                   Text("Recent Search")
+                       .font(.system(size: 18))
+                       .foregroundColor(.black)
+                       .fontWeight(.semibold)
+                   Spacer()
+                   Button(action: {
+                       // Use the shared recent search manager
+                       RecentSearchManager.shared.clearAllRecentSearches()
+                   }) {
+                       Text("Clear All")
+                           .foregroundColor(Color("ThridColor"))
+                           .font(.system(size: 14))
+                           .fontWeight(.bold)
+                   }
+               }
+               .padding(.horizontal)
 
-                RecentSearch(searchViewModel: searchViewModel)
-            }
-        }
+               RecentSearch(searchViewModel: searchViewModel)
+           }
+       }
     
     // MARK: - Rating Prompt (original style)
     var ratingPrompt: some View {

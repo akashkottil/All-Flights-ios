@@ -116,16 +116,13 @@ class RecentSearchManager: ObservableObject {
     }
 }
 
-
 // MARK: - Updated Recent Search View
 struct RecentSearch: View {
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
     @State private var hasAppeared = false
     
-    // Use the shared recent search manager
-    private var recentSearchManager: RecentSearchManager {
-        RecentSearchManager.shared
-    }
+    // Observe the shared recent search manager directly
+    @ObservedObject private var recentSearchManager = RecentSearchManager.shared
     
     var body: some View {
         Group {
@@ -164,9 +161,6 @@ struct RecentSearch: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 hasAppeared = true
             }
-        }
-        .onReceive(recentSearchManager.$recentSearches) { _ in
-            // This will trigger UI updates when recent searches change
         }
     }
     
