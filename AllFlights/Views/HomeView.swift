@@ -23,41 +23,68 @@ class SharedFlightSearchViewModel: ObservableObject {
     @Published var shouldNavigateToResults = false
     @Published var searchExecuted = false
     
+    // Use the shared recent search manager
+        var recentSearchManager: RecentSearchManager {
+            return RecentSearchManager.shared
+        }
+       
     // Initialize multi-city trips
-    func initializeMultiCityTrips() {
-        let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
-        
-        multiCityTrips = [
-            MultiCityTrip(fromLocation: fromLocation, fromIataCode: fromIataCode,
-                         toLocation: toLocation, toIataCode: toIataCode, date: tomorrow),
-            MultiCityTrip(fromLocation: toLocation, fromIataCode: toIataCode,
-                         toLocation: "", toIataCode: "", date: dayAfterTomorrow)
-        ]
-    }
+        func initializeMultiCityTrips() {
+            let calendar = Calendar.current
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+            let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+            
+            multiCityTrips = [
+                MultiCityTrip(fromLocation: fromLocation, fromIataCode: fromIataCode,
+                             toLocation: toLocation, toIataCode: toIataCode, date: tomorrow),
+                MultiCityTrip(fromLocation: toLocation, fromIataCode: toIataCode,
+                             toLocation: "", toIataCode: "", date: dayAfterTomorrow)
+            ]
+        }
     
     // Update children ages array when count changes
-    func updateChildrenAgesArray(for newCount: Int) {
-        if newCount > childrenAges.count {
-            childrenAges.append(contentsOf: Array(repeating: nil, count: newCount - childrenAges.count))
-        } else if newCount < childrenAges.count {
-            childrenAges = Array(childrenAges.prefix(newCount))
-        }
-    }
+       func updateChildrenAgesArray(for newCount: Int) {
+           if newCount > childrenAges.count {
+               childrenAges.append(contentsOf: Array(repeating: nil, count: newCount - childrenAges.count))
+           } else if newCount < childrenAges.count {
+               childrenAges = Array(childrenAges.prefix(newCount))
+           }
+       }
     
     // Reset search state
-    func resetSearch() {
-        shouldNavigateToResults = false
-        searchExecuted = false
-    }
-    
-    // Trigger search
-    func executeSearch() {
-        searchExecuted = true
-        shouldNavigateToResults = true
-    }
-}
+       func resetSearch() {
+           shouldNavigateToResults = false
+           searchExecuted = false
+       }
+       
+       // Updated executeSearch to automatically save to recent searches
+       func executeSearch() {
+           // Save to recent searches before executing the search
+           saveToRecentSearches()
+           
+           // Execute the search
+           searchExecuted = true
+           shouldNavigateToResults = true
+       }
+       
+       // Save current search to recent searches
+       private func saveToRecentSearches() {
+           recentSearchManager.addRecentSearch(
+               fromLocation: fromLocation,
+               toLocation: toLocation,
+               fromIataCode: fromIataCode,
+               toIataCode: toIataCode,
+               adultsCount: adultsCount,
+               childrenCount: childrenCount,
+               cabinClass: selectedCabinClass
+           )
+       }
+       
+       // Keep the old method for backward compatibility (but it now does the same thing)
+       func executeSearchWithHistory() {
+           executeSearch()
+       }
+   }
 
 // MARK: - Enhanced HomeView
 struct HomeView: View {
@@ -115,7 +142,7 @@ struct HomeView: View {
                         .frame(height: 0)
 
                         VStack(alignment: .leading, spacing: 16) {
-                            recentSearchSection
+                            updatedRecentSearchSection
                             HStack(spacing: 4) {
                                 Text("Cheapest Fares From ")
                                 + Text("Kochi").foregroundColor(.blue)
@@ -204,26 +231,31 @@ struct HomeView: View {
 
     }
 
-    // MARK: - Recent Search Section
-    var recentSearchSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Recent Search")
-                    .font(.system(size: 18))
-                    .foregroundColor(.black)
-                    .fontWeight(.semibold)
-                Spacer()
-                Text("Clear All")
-                    .foregroundColor(Color("ThridColor"))
-                    .font(.system(size: 14))
-                    .fontWeight(.bold)
+    // MARK: - Updated Recent Search Section
+    var updatedRecentSearchSection: some View {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Recent Search")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button(action: {
+                        // Use the shared recent search manager
+                        RecentSearchManager.shared.clearAllRecentSearches()
+                    }) {
+                        Text("Clear All")
+                            .foregroundColor(Color("ThridColor"))
+                            .font(.system(size: 14))
+                            .fontWeight(.bold)
+                    }
+                }
+                .padding(.horizontal)
+
+                RecentSearch(searchViewModel: searchViewModel)
             }
-            .padding(.horizontal)
-
-            RecentSearch()
         }
-    }
-
+    
     // MARK: - Rating Prompt (original style)
     var ratingPrompt: some View {
         ZStack {
@@ -283,6 +315,52 @@ struct EnhancedSearchInput: View {
     @State private var editingFromOrTo: LocationType = .from
     
     @State private var showErrorMessage = false
+    
+    private var updatedSearchButton: some View {
+           VStack(spacing: 4) {
+               Button(action: performSearch) {
+                   Text("Search Flights")
+                       .font(.system(size: 16, weight: .semibold))
+                       .foregroundColor(.white)
+                       .frame(maxWidth: .infinity)
+                       .frame(height: 50)
+                       .background(Color.orange)
+                       .cornerRadius(8)
+               }
+
+               if showErrorMessage {
+                   Label("Select location to search flight", systemImage: "exclamationmark.triangle")
+                       .foregroundColor(.red)
+                       .font(.system(size: 14))
+                       .padding(.top, 4)
+                       .transition(.opacity)
+               }
+           }
+       }
+       
+       private func performSearch() {
+           // Validation for required fields
+           let valid: Bool
+           if searchViewModel.selectedTab == 2 {
+               valid = searchViewModel.multiCityTrips.allSatisfy { trip in
+                   !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+               }
+           } else {
+               valid = !searchViewModel.fromIataCode.isEmpty &&
+                       !searchViewModel.toIataCode.isEmpty &&
+                       !searchViewModel.selectedDates.isEmpty
+           }
+
+           if valid {
+               showErrorMessage = false
+               // This will now automatically save to recent searches
+               searchViewModel.executeSearch()
+           } else {
+               withAnimation {
+                   showErrorMessage = true
+               }
+           }
+       }
 
     
     enum LocationType {
@@ -714,28 +792,7 @@ struct EnhancedSearchInput: View {
         }
     }
     
-    private func performSearch() {
-        // Validation for required fields
-        let valid: Bool
-        if searchViewModel.selectedTab == 2 {
-            valid = searchViewModel.multiCityTrips.allSatisfy { trip in
-                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
-            }
-        } else {
-            valid = !searchViewModel.fromIataCode.isEmpty &&
-                    !searchViewModel.toIataCode.isEmpty &&
-                    !searchViewModel.selectedDates.isEmpty
-        }
-
-        if valid {
-            showErrorMessage = false
-            searchViewModel.executeSearch()
-        } else {
-            withAnimation {
-                showErrorMessage = true
-            }
-        }
-    }
+    
 
 }
 
