@@ -86,7 +86,8 @@ class SharedFlightSearchViewModel: ObservableObject {
        }
    }
 
-// MARK: - Enhanced HomeView
+
+// MARK: - Enhanced HomeView with Simplified Dynamic Cheap Flights
 struct HomeView: View {
     @State private var isSearchExpanded = true
     @State private var navigateToAccount = false
@@ -98,6 +99,9 @@ struct HomeView: View {
     
     // Navigation to explore results
     @State private var showingExploreResults = false
+    
+    // Add CheapFlights view model
+    @StateObject private var cheapFlightsViewModel = CheapFlightsViewModel()
 
    var body: some View {
         NavigationStack {
@@ -143,16 +147,10 @@ struct HomeView: View {
 
                         VStack(alignment: .leading, spacing: 16) {
                             updatedRecentSearchSection
-                            HStack(spacing: 4) {
-                                Text("Cheapest Fares From ")
-                                + Text("Kochi").foregroundColor(.blue)
-
-                                Image(systemName: "chevron.down")
-                                    .foregroundColor(.blue)
-                            }
-                            .padding(.horizontal)
-
-                            CheapFlights()
+                            
+                            // Updated dynamic cheap flights section
+                            dynamicCheapFlightsSection
+                            
                             FeatureCards()
                             LoginNotifier()
                             ratingPrompt
@@ -174,6 +172,10 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showingExploreResults) {
                 ExploreResultsWrapperView(searchViewModel: searchViewModel)
             }
+            .onAppear {
+                // Fetch cheap flights data when home view appears
+                cheapFlightsViewModel.fetchCheapFlights()
+            }
         }
         .scrollIndicators(.hidden)
         .onChange(of: searchViewModel.shouldNavigateToResults) { shouldNavigate in
@@ -184,6 +186,22 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Dynamic Cheap Flights Section
+    var dynamicCheapFlightsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 4) {
+                Text("Cheapest Fares From ")
+                + Text(cheapFlightsViewModel.fromLocationName)
+                    .foregroundColor(.blue)
+
+                Image(systemName: "chevron.down")
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal)
+
+            DynamicCheapFlights(viewModel: cheapFlightsViewModel)
+        }
+    }
 
     // MARK: - Drag Gesture for collapsing SearchInput
     var dragGesture: some Gesture {
@@ -228,7 +246,6 @@ struct HomeView: View {
         .padding(.horizontal, 25)
         .padding(.top, 20)
         .padding(.bottom, 10)
-
     }
 
     // MARK: - Updated Recent Search Section
@@ -299,7 +316,6 @@ struct HomeView: View {
             }
             .padding()
         }
-        
     }
 }
 
@@ -671,7 +687,7 @@ struct EnhancedSearchInput: View {
             HStack {
                 Image(systemName: "plus.circle.fill")
                     .foregroundColor(.blue)
-                    .font(.system(size: 16))
+                    .font(.system(size: 24))
                 Text("Add flight")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.blue)
@@ -813,24 +829,22 @@ struct HomeMultiCitySegmentView: View {
                 Button(action: onFromTap) {
                     HStack(spacing: 12) {
                         Image(systemName: "airplane.departure")
-                            .foregroundColor(.gray)
+                            .foregroundColor(.primary)
                             .frame(width: 20, height: 20)
                         
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(trip.fromIataCode.isEmpty ? "FROM" : trip.fromIataCode)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.gray)
+            
+
                             Text(trip.fromLocation)
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.primary)
-                        }
+        
                         
                         Spacer()
+                           
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 16)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
+
                 }
                 
                 if canRemove {
@@ -843,29 +857,32 @@ struct HomeMultiCitySegmentView: View {
                 }
             }
             
+            Divider()
+                .padding(.leading,40)
+            
             // To Location
             Button(action: onToTap) {
                 HStack(spacing: 12) {
                     Image(systemName: "airplane.arrival")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.primary)
                         .frame(width: 20, height: 20)
                     
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(trip.toIataCode.isEmpty ? "TO" : trip.toIataCode)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
+
+
                         Text(trip.toLocation)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.primary)
-                    }
                     
                     Spacer()
                 }
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+
             }
+            
+            Divider()
+                .padding(.leading,40)
+
             
             // Date Selection
             Button(action: onDateTap) {
@@ -882,15 +899,18 @@ struct HomeMultiCitySegmentView: View {
                 }
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+
             }
+            
+            Rectangle()
+                .fill(Color.orange)
+                .frame(height: 2)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal,-32)
+
         }
         .padding(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.orange, lineWidth: 1)
-        )
+        
     }
 }
 
