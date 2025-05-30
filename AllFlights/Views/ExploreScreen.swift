@@ -1133,6 +1133,8 @@ class ExploreViewModel: ObservableObject {
     
     @Published var selectedFlightId: String? = nil
     
+    @Published var directFlightsOnlyFromHome = false
+    
     func resetToAnywhereDestination() {
             print("resetToAnywhereDestination called")
             
@@ -2034,6 +2036,7 @@ class ExploreViewModel: ObservableObject {
             flightResults = []
             flightSearchResponse = nil
             isAnytimeMode = false
+            directFlightsOnlyFromHome = false // ADD: Clear direct flights preference
             
             // Clear search form data
             fromLocation = "Mumbai" // Reset to default
@@ -2438,6 +2441,7 @@ struct ExploreScreen: View {
     // NEW: Handle search data from HomeView
     private func handleIncomingSearchFromHome() {
         print("🔥 ExploreScreen: Received search data from HomeView")
+        print("🔥 Direct flights only: \(sharedSearchData.directFlightsOnly)")
         
         // Transfer all search data to the view model
         viewModel.fromLocation = sharedSearchData.fromLocation
@@ -2463,6 +2467,9 @@ struct ExploreScreen: View {
         // Mark as direct search to show detailed flight list
         viewModel.isDirectSearch = true
         viewModel.showingDetailedFlightList = true
+        
+        // ADD: Store direct flights preference in view model for later use
+        viewModel.directFlightsOnlyFromHome = sharedSearchData.directFlightsOnly
         
         // Handle multi-city vs regular search
         if sharedSearchData.selectedTab == 2 && !sharedSearchData.multiCityTrips.isEmpty {
@@ -5884,6 +5891,9 @@ struct ModifiedDetailedFlightListView: View {
     
     @State private var showingFilterSheet = false
     
+    // ADD: Flag to track if we've applied initial direct filter
+        @State private var hasAppliedInitialDirectFilter = false
+    
     private var formattedDates: String {
         if viewModel.dates.count >= 2 {
             let sortedDates = viewModel.dates.sorted()
@@ -6137,24 +6147,45 @@ struct ModifiedDetailedFlightListView: View {
         }
         .onAppear {
             print("ModifiedDetailedFlightListView onAppear - detailedFlightResults count: \(viewModel.detailedFlightResults.count)")
-            
-            // Initialize dates array from the API date strings
-            viewModel.initializeDatesFromStrings()
-            
-            // Force immediate update of filtered results
-            updateFilteredResults()
+                        
+                        // Initialize dates array from the API date strings
+                        viewModel.initializeDatesFromStrings()
+                        
+                        // ADD: Apply initial direct filter if needed
+                        applyInitialDirectFilterIfNeeded()
+                        
+                        // Force immediate update of filtered results
+                        updateFilteredResults()
         }
         .onReceive(viewModel.$detailedFlightResults) { newResults in
-            print("Received new results: \(newResults.count) flights")
-            
-            // Force immediate UI update
-            DispatchQueue.main.async {
-                updateFilteredResults()
-            }
-        }
+                    print("Received new results: \(newResults.count) flights")
+                    
+                    // ADD: Apply initial direct filter if needed and not already applied
+                    if !hasAppliedInitialDirectFilter {
+                        applyInitialDirectFilterIfNeeded()
+                    }
+                    
+                    // Force immediate UI update
+                    DispatchQueue.main.async {
+                        updateFilteredResults()
+                    }
+                }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color("scroll")) // Main background
     }
+    
+    private func applyInitialDirectFilterIfNeeded() {
+           if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
+               print("🔥 Applying initial direct flights filter from HomeView")
+               selectedFilter = .direct
+               hasAppliedInitialDirectFilter = true
+               
+               // Apply the filter immediately if we have results
+               if !viewModel.detailedFlightResults.isEmpty {
+                   applyLocalFilters()
+               }
+           }
+       }
     
     // FIXED: Consolidated function to update filtered results
     private func updateFilteredResults() {

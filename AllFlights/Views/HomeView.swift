@@ -19,40 +19,44 @@ class SharedFlightSearchViewModel: ObservableObject {
     
     @Published var multiCityTrips: [MultiCityTrip] = []
     
+    // ADD: Direct flights toggle state
+       @Published var directFlightsOnly = false
+    
     // REMOVED: shouldNavigateToResults and searchExecuted - no longer needed
     
     func executeMultiCitySearch() {
-        // Validate all trips have required data
-        let isValid = multiCityTrips.allSatisfy { trip in
-            !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
-        }
-        
-        guard isValid else {
-            print("❌ Multi-city validation failed")
-            return
-        }
-        
-        // Save to recent searches before executing the search
-        saveToRecentSearches()
-        
-        // UPDATED: Use shared data store instead of direct navigation
-        SharedSearchDataStore.shared.executeSearchFromHome(
-            fromLocation: fromLocation,
-            toLocation: toLocation,
-            fromIataCode: fromIataCode,
-            toIataCode: toIataCode,
-            selectedDates: selectedDates,
-            isRoundTrip: isRoundTrip,
-            selectedTab: selectedTab,
-            adultsCount: adultsCount,
-            childrenCount: childrenCount,
-            childrenAges: childrenAges,
-            selectedCabinClass: selectedCabinClass,
-            multiCityTrips: multiCityTrips
-        )
-        
-        print("✅ Multi-city search executed with \(multiCityTrips.count) trips")
-    }
+           // Validate all trips have required data
+           let isValid = multiCityTrips.allSatisfy { trip in
+               !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+           }
+           
+           guard isValid else {
+               print("❌ Multi-city validation failed")
+               return
+           }
+           
+           // Save to recent searches before executing the search
+           saveToRecentSearches()
+           
+           // UPDATED: Pass direct flights preference
+           SharedSearchDataStore.shared.executeSearchFromHome(
+               fromLocation: fromLocation,
+               toLocation: toLocation,
+               fromIataCode: fromIataCode,
+               toIataCode: toIataCode,
+               selectedDates: selectedDates,
+               isRoundTrip: isRoundTrip,
+               selectedTab: selectedTab,
+               adultsCount: adultsCount,
+               childrenCount: childrenCount,
+               childrenAges: childrenAges,
+               selectedCabinClass: selectedCabinClass,
+               multiCityTrips: multiCityTrips,
+               directFlightsOnly: directFlightsOnly
+           )
+           
+           print("✅ Multi-city search executed with \(multiCityTrips.count) trips")
+       }
     
     // Use the shared recent search manager
     var recentSearchManager: RecentSearchManager {
@@ -84,25 +88,26 @@ class SharedFlightSearchViewModel: ObservableObject {
     
     // UPDATED: executeSearch to use shared data store
     func executeSearch() {
-        // Save to recent searches before executing the search
-        saveToRecentSearches()
-        
-        // UPDATED: Use shared data store instead of direct navigation
-        SharedSearchDataStore.shared.executeSearchFromHome(
-            fromLocation: fromLocation,
-            toLocation: toLocation,
-            fromIataCode: fromIataCode,
-            toIataCode: toIataCode,
-            selectedDates: selectedDates,
-            isRoundTrip: isRoundTrip,
-            selectedTab: selectedTab,
-            adultsCount: adultsCount,
-            childrenCount: childrenCount,
-            childrenAges: childrenAges,
-            selectedCabinClass: selectedCabinClass,
-            multiCityTrips: multiCityTrips
-        )
-    }
+            // Save to recent searches before executing the search
+            saveToRecentSearches()
+            
+            // UPDATED: Pass direct flights preference
+            SharedSearchDataStore.shared.executeSearchFromHome(
+                fromLocation: fromLocation,
+                toLocation: toLocation,
+                fromIataCode: fromIataCode,
+                toIataCode: toIataCode,
+                selectedDates: selectedDates,
+                isRoundTrip: isRoundTrip,
+                selectedTab: selectedTab,
+                adultsCount: adultsCount,
+                childrenCount: childrenCount,
+                childrenAges: childrenAges,
+                selectedCabinClass: selectedCabinClass,
+                multiCityTrips: multiCityTrips,
+                directFlightsOnly: directFlightsOnly
+            )
+        }
     
     // Save current search to recent searches
     private func saveToRecentSearches() {
@@ -356,7 +361,7 @@ struct EnhancedSearchInput: View {
     @State private var showingToLocationSheet = false
     @State private var showingCalendar = false
     @State private var showingPassengersSheet = false
-    @State private var directFlightsOnly = false
+
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
     
@@ -850,17 +855,17 @@ struct EnhancedSearchInput: View {
     }
     
     private var directFlightsToggle: some View {
-        HStack(spacing: 8) {
-            Text("Direct flights only")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.primary)
+            HStack(spacing: 8) {
+                Text("Direct flights only")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
 
-            Toggle("", isOn: $directFlightsOnly)
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                // UPDATED: Use searchViewModel.directFlightsOnly instead of local state
+                Toggle("", isOn: $searchViewModel.directFlightsOnly)
+                    .toggleStyle(SwitchToggleStyle(tint: .blue))
+            }
+            .padding(.horizontal, 4)
         }
-        .padding(.horizontal, 4)
-    }
-
 
     
     private var addFlightButton: some View {

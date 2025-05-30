@@ -25,12 +25,15 @@ class SharedSearchDataStore: ObservableObject {
     
     @Published var multiCityTrips: [MultiCityTrip] = []
     
+    // ADD: Direct flights preference
+    @Published var directFlightsOnly = false
+    
     // Navigation trigger
     @Published var shouldNavigateToExplore = false
     
     private init() {}
     
-    // MARK: - Execute Search Methods
+    // MARK: - Updated Execute Search Methods
     func executeSearchFromHome(
         fromLocation: String,
         toLocation: String,
@@ -43,7 +46,8 @@ class SharedSearchDataStore: ObservableObject {
         childrenCount: Int,
         childrenAges: [Int?],
         selectedCabinClass: String,
-        multiCityTrips: [MultiCityTrip]
+        multiCityTrips: [MultiCityTrip],
+        directFlightsOnly: Bool = false
     ) {
         // Store all search parameters
         self.fromLocation = fromLocation
@@ -58,6 +62,7 @@ class SharedSearchDataStore: ObservableObject {
         self.childrenAges = childrenAges
         self.selectedCabinClass = selectedCabinClass
         self.multiCityTrips = multiCityTrips
+        self.directFlightsOnly = directFlightsOnly
         
         // Trigger navigation to explore tab
         shouldNavigateToExplore = true
@@ -72,6 +77,7 @@ class SharedSearchDataStore: ObservableObject {
     func resetSearch() {
         shouldExecuteSearch = false
         shouldNavigateToExplore = false
+        directFlightsOnly = false
     }
     
     // Helper method to check if search data is valid
