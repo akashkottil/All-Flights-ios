@@ -484,7 +484,7 @@ struct EnhancedSearchInput: View {
                     HomeMultiCitySegmentView(
                         trip: searchViewModel.multiCityTrips[index],
                         index: index,
-                        canRemove: searchViewModel.multiCityTrips.count > 2,
+                        canRemove: searchViewModel.multiCityTrips.count > 2, isLastRow: false,
                         onFromTap: {
                             editingTripIndex = index
                             editingFromOrTo = .from
@@ -506,49 +506,69 @@ struct EnhancedSearchInput: View {
                 }
             }
             
-            HStack{
+            VStack(spacing: 0) {
+                Divider()
+                    .padding(.horizontal, -20)
                 
-                // Passenger selection button
-                Button(action: {
-                    showingPassengersSheet = true
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "person.fill")
-                            .foregroundColor(.primary)
-                            .frame(width: 20, height: 20)
-                        
-                        Text(passengerDisplayText)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.leading, 10)
+                HStack(spacing: 0) {
+                    // Passenger selection button
+                    Button(action: {
+                        showingPassengersSheet = true
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.primary)
+                                .frame(width: 20, height: 20)
 
-                }
-                
-              
-                
-                // Add flight button
-                if searchViewModel.multiCityTrips.count < 5 {
-                    Button(action: addTrip) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 16,weight: .semibold))
-                            Text("Add flight")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.blue)
+                            Text(passengerDisplayText)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.primary)
+
+                            Spacer()
                         }
-                       
-                        .padding(.vertical, 12)
-                        .padding(.trailing, 12)
+                        .padding(.vertical, 16)  // Increased vertical padding here
+                        .padding(.leading, 10)
+                    }
+                    .frame(maxHeight: .infinity)
+
+                    // Vertical Divider stretching full height
+                    if searchViewModel.multiCityTrips.count < 5 {
+                    
+                    Rectangle()
+                        .frame(width: 1)
+                        .foregroundColor(Color.gray.opacity(0.3))
+                        .frame(maxHeight: .infinity)
+
+                    Spacer()
+
+                    // Add flight button
+                   
+                        Button(action: addTrip) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus")
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Add flight")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(.vertical, 16)  // Same increased vertical padding here
+                            .padding(.trailing, 12)
+                        }
+                        .frame(maxHeight: .infinity)
                     }
                 }
+                .background(Color.white)
+                .frame(minHeight: 64) // Increased min height to match vertical padding
                 
-                
+                if searchViewModel.multiCityTrips.count < 5 {
+                    Divider()
+                        .padding(.horizontal, -20)
+                }
             }
+
+
+
                 // Search button
                 searchButton
                 
@@ -589,7 +609,7 @@ struct EnhancedSearchInput: View {
              
                 HStack(spacing: 5) {
                                     Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                                        .font(.system(size: 12, weight: .bold))
+                                        .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(.primary)
                                     Text(searchViewModel.fromLocation)
                                         .font(.system(size: 16, weight: .medium))
@@ -637,7 +657,7 @@ struct EnhancedSearchInput: View {
               
                 HStack( spacing: 5) {
                                    Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                                       .font(.system(size: 12, weight: .bold))
+                                       .font(.system(size: 16, weight: .bold))
                                        .foregroundColor(.primary)
                                    Text(searchViewModel.toLocation)
                                        .font(.system(size: 16, weight: .medium))
@@ -873,67 +893,97 @@ struct HomeMultiCitySegmentView: View {
     let trip: MultiCityTrip
     let index: Int
     let canRemove: Bool
+    let isLastRow: Bool       // New param to control bottom line
     let onFromTap: () -> Void
     let onToTap: () -> Void
     let onDateTap: () -> Void
     let onRemove: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            // From Location
-            Button(action: onFromTap) {
-                HStack( spacing: 2) {
-                    Text(trip.fromIataCode.isEmpty ? "FROM" : trip.fromIataCode)
-                        .font(.system(size: 14, weight: .bold))
+        VStack(spacing: 0) {
+            // Top horizontal line - always drawn
+            Divider()
+                .background(Color.gray.opacity(0.3))
+                .padding(.vertical, 8)
+                .padding(.horizontal,-20)
+            
+            HStack(spacing: 0) {
+                // From Location Column
+                Button(action: onFromTap) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(trip.fromIataCode.isEmpty ? "FROM" : trip.fromIataCode)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.primary)
+                        Text(trip.fromLocation.isEmpty ? "City" : trip.fromLocation)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.horizontal, 8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Divider()
+                    .frame(width: 1, height: 76)
+                    .background(Color.gray.opacity(0.3))
+                    .padding(.top,10)
+                
+                // To Location Column
+                Button(action: onToTap) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(trip.toIataCode.isEmpty ? "TO" : trip.toIataCode)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.primary)
+                        Text(trip.toLocation.isEmpty ? "City" : trip.toLocation)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.horizontal, 8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Divider()
+                    .frame(width: 1, height: 76)
+                    .background(Color.gray.opacity(0.3))
+                    .padding(.top,10)
+                
+                // Date Column
+                Button(action: onDateTap) {
+                    Text(trip.compactDisplayDate)
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.primary)
-                    Text(trip.fromLocation.isEmpty ? "City" : trip.fromLocation)
-                        .font(.system(size: 12,weight: .medium))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: 100, alignment: .leading)
+                }
+                
+                Divider()
+                    .frame(width: 1, height: 76)
+                    .background(Color.gray.opacity(0.3))
+                    .padding(.top,10)
+                
+                // Remove Button Column
+                if canRemove {
+                    Button(action: onRemove) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 16))
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 12)
+                    }
+                } else {
+                    Spacer().frame(width: 40)
                 }
             }
+            .frame(height: 48)
             
 
-            
-            // To Location
-            Button(action: onToTap) {
-                HStack( spacing: 2) {
-                    Text(trip.toIataCode.isEmpty ? "TO" : trip.toIataCode)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.primary)
-                    Text(trip.toLocation.isEmpty ? "City" : trip.toLocation)
-                        .font(.system(size: 12,weight:.medium))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
-            
-            Spacer()
-            
-            // Date
-            Button(action: onDateTap) {
-                Text(trip.compactDisplayDate)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-            }
-            
-            // Remove button (trash icon)
-            if canRemove {
-                Button(action: onRemove) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 16))
-                        .foregroundColor(.red)
-                }
-                .padding(.leading, 8)
-            }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 16)
-
     }
 }
+
+
 
 // MARK: - Home Multi-City Location Sheet (renamed to avoid conflicts)
 struct HomeMultiCityLocationSheet: View {
