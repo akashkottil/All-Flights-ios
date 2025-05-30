@@ -146,9 +146,37 @@ struct CalendarView: View {
     // Controls whether to show the return date selector
     @State private var showReturnDateSelector: Bool = false
     
+    
+    
     var isMultiCity: Bool = false
        var multiCityTripIndex: Int = 0
        var multiCityViewModel: ExploreViewModel? = nil
+    
+    var sharedMultiCityViewModel: SharedFlightSearchViewModel? = nil
+    
+    init(
+            fromiatacode: Binding<String>,
+            toiatacode: Binding<String>,
+            parentSelectedDates: Binding<[Date]>,
+            onAnytimeSelection: (([FlightResult]) -> Void)? = nil,
+            onTripTypeChange: ((Bool) -> Void)? = nil,
+            isRoundTrip: Bool = true,
+            isMultiCity: Bool = false,
+            multiCityTripIndex: Int = 0,
+            multiCityViewModel: ExploreViewModel? = nil,
+            sharedMultiCityViewModel: SharedFlightSearchViewModel? = nil
+        ) {
+            self._fromiatacode = fromiatacode
+            self._toiatacode = toiatacode
+            self._parentSelectedDates = parentSelectedDates
+            self.onAnytimeSelection = onAnytimeSelection
+            self.onTripTypeChange = onTripTypeChange
+            self.isRoundTrip = isRoundTrip
+            self.isMultiCity = isMultiCity
+            self.multiCityTripIndex = multiCityTripIndex
+            self.multiCityViewModel = multiCityViewModel
+            self.sharedMultiCityViewModel = sharedMultiCityViewModel
+        }
     
     // MARK: - Computed Properties
     var selectedDates: [Date] {
@@ -187,11 +215,15 @@ struct CalendarView: View {
                 price: getLowestPrice(),
                 onContinue: {
                     if isMultiCity {
-                        // In multi-city mode, update the specific trip's date
+                        // Handle both types of view models
                         if let viewModel = multiCityViewModel,
                            !dateSelection.selectedDates.isEmpty,
                            multiCityTripIndex < viewModel.multiCityTrips.count {
                             viewModel.multiCityTrips[multiCityTripIndex].date = dateSelection.selectedDates[0]
+                        } else if let sharedViewModel = sharedMultiCityViewModel,
+                                  !dateSelection.selectedDates.isEmpty,
+                                  multiCityTripIndex < sharedViewModel.multiCityTrips.count {
+                            sharedViewModel.multiCityTrips[multiCityTripIndex].date = dateSelection.selectedDates[0]
                         }
                     } else {
                         // In regular mode, update the parentSelectedDates
@@ -199,7 +231,8 @@ struct CalendarView: View {
                     }
                     dismiss()
                 }
-            )            .background(Color.white)
+            )
+            .background(Color.white)
             .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: -2)
         }
         .onAppear {
@@ -211,18 +244,22 @@ struct CalendarView: View {
                 singleDate = true
                 showReturnDateSelector = false
                 
-                // If we have a multiCityViewModel, initialize with the current trip's date
+                // Handle both types of view models
                 if let viewModel = multiCityViewModel,
                    multiCityTripIndex < viewModel.multiCityTrips.count {
                     let tripDate = viewModel.multiCityTrips[multiCityTripIndex].date
                     dateSelection.selectedDates = [tripDate]
                     dateSelection.selectionState = .firstDateSelected
-                    
-                    // Initialize with the month containing this date
+                    currentMonth = tripDate
+                } else if let sharedViewModel = sharedMultiCityViewModel,
+                          multiCityTripIndex < sharedViewModel.multiCityTrips.count {
+                    let tripDate = sharedViewModel.multiCityTrips[multiCityTripIndex].date
+                    dateSelection.selectedDates = [tripDate]
+                    dateSelection.selectionState = .firstDateSelected
                     currentMonth = tripDate
                 }
             } else {
-                singleDate = !isRoundTrip  // Use the parameter instead of viewModel
+                singleDate = !isRoundTrip
                 showReturnDateSelector = isRoundTrip
                 // Initialize dateSelection with parentSelectedDates
                 if !parentSelectedDates.isEmpty {
@@ -278,32 +315,32 @@ struct CalendarView: View {
                        .padding(.horizontal)
             
             // In multi-city mode, show a simpler header
-                    if isMultiCity {
-                        HStack(spacing: 15) {
-                            VStack(alignment: .leading) {
-                                if dateSelection.selectedDates.isEmpty {
-                                               Text("Flight Date")
-                                                   .font(.subheadline)
-                                                   .foregroundColor(.primary)
-                                                   .padding(.horizontal)
-                                                   .padding(.top, 8)
-                                           } else {
-                                               Text("\(dateSelection.selectedDates[0])")
-                                                   .font(.subheadline)
-                                                   .foregroundColor(.primary)
-                                                   .padding(.horizontal)
-                                                   .padding(.top, 8)
-                                           }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.orange, lineWidth: 2)
-                            )
-                            .padding(.horizontal)
+            if isMultiCity {
+                HStack(spacing: 15) {
+                    VStack(alignment: .leading) {
+                        if dateSelection.selectedDates.isEmpty {
+                            Text("Flight Date")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                        } else {
+                            Text(formatted(date: dateSelection.selectedDates[0]))  // ← FIXED: Use formatted function
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
                         }
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.orange, lineWidth: 2)
+                    )
+                    .padding(.horizontal)
+                }
+            }
             else{
                 HStack(spacing: 15) {
                     if dateSelection.selectedDates.isEmpty {

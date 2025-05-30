@@ -23,6 +23,30 @@ class SharedFlightSearchViewModel: ObservableObject {
     @Published var shouldNavigateToResults = false
     @Published var searchExecuted = false
     
+    func executeMultiCitySearch() {
+        // Validate all trips have required data
+        let isValid = multiCityTrips.allSatisfy { trip in
+            !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+        }
+        
+        guard isValid else {
+            print("❌ Multi-city validation failed")
+            return
+        }
+        
+        // Save to recent searches before executing the search
+        saveToRecentSearches()
+        
+        // Set the flag to indicate this is a multi-city search
+        selectedTab = 2
+        
+        // Execute the search
+        searchExecuted = true
+        shouldNavigateToResults = true
+        
+        print("✅ Multi-city search executed with \(multiCityTrips.count) trips")
+    }
+    
     // Use the shared recent search manager
         var recentSearchManager: RecentSearchManager {
             return RecentSearchManager.shared
@@ -362,29 +386,36 @@ struct EnhancedSearchInput: View {
            }
        }
        
-       private func performSearch() {
-           // Validation for required fields
-           let valid: Bool
-           if searchViewModel.selectedTab == 2 {
-               valid = searchViewModel.multiCityTrips.allSatisfy { trip in
-                   !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
-               }
-           } else {
-               valid = !searchViewModel.fromIataCode.isEmpty &&
-                       !searchViewModel.toIataCode.isEmpty &&
-                       !searchViewModel.selectedDates.isEmpty
-           }
+    private func performSearch() {
+        // Validation for required fields
+        let valid: Bool
+        if searchViewModel.selectedTab == 2 {
+            valid = searchViewModel.multiCityTrips.allSatisfy { trip in
+                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+            }
+        } else {
+            valid = !searchViewModel.fromIataCode.isEmpty &&
+                    !searchViewModel.toIataCode.isEmpty &&
+                    !searchViewModel.selectedDates.isEmpty
+        }
 
-           if valid {
-               showErrorMessage = false
-               // This will now automatically save to recent searches
-               searchViewModel.executeSearch()
-           } else {
-               withAnimation {
-                   showErrorMessage = true
-               }
-           }
-       }
+        if valid {
+            showErrorMessage = false
+            
+            // Execute search based on trip type
+            if searchViewModel.selectedTab == 2 {
+                // Multi-city search
+                searchViewModel.executeMultiCitySearch()
+            } else {
+                // Regular search (one-way or round-trip)
+                searchViewModel.executeSearch()
+            }
+        } else {
+            withAnimation {
+                showErrorMessage = true
+            }
+        }
+    }
 
     
     enum LocationType {
@@ -842,15 +873,19 @@ struct EnhancedSearchInput: View {
     @ViewBuilder
     private var calendarSheet: some View {
         if searchViewModel.selectedTab == 2 {
-            HomeMultiCityCalendarSheet(
-                searchViewModel: searchViewModel,
-                tripIndex: editingTripIndex
+            // Multi-city calendar - use CalendarView
+            CalendarView(
+                fromiatacode: .constant(""),
+                toiatacode: .constant(""),
+                parentSelectedDates: .constant([]),
+                isMultiCity: true,
+                multiCityTripIndex: editingTripIndex,
+                sharedMultiCityViewModel: searchViewModel
             )
         } else {
             HomeCalendarSheet(searchViewModel: searchViewModel)
         }
     }
-    
     // MARK: - Computed Properties
     
     private var canSearch: Bool {
@@ -1214,55 +1249,7 @@ struct HomeMultiCityLocationSheet: View {
     }
 }
 
-// MARK: - Home Multi-City Calendar Sheet (renamed to avoid conflicts)
-struct HomeMultiCityCalendarSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
-    let tripIndex: Int
-    @State private var tempSelectedDate: Date = Date()
-    
-    var body: some View {
-        VStack {
-            // Header
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .foregroundColor(.blue)
-                
-                Spacer()
-                
-                Text("Select Date")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button("Done") {
-                    searchViewModel.multiCityTrips[tripIndex].date = tempSelectedDate
-                    dismiss()
-                }
-                .foregroundColor(.blue)
-                .fontWeight(.semibold)
-            }
-            .padding()
-            
-            // Simple date picker for multi-city
-            DatePicker(
-                "Select Date",
-                selection: $tempSelectedDate,
-                in: Date()...,
-                displayedComponents: [.date]
-            )
-            .datePickerStyle(GraphicalDatePickerStyle())
-            .padding()
-            
-            Spacer()
-        }
-        .onAppear {
-            tempSelectedDate = searchViewModel.multiCityTrips[tripIndex].date
-        }
-    }
-}
+
 
 // MARK: - Home Collapsible Search Input (matching style)
 struct HomeCollapsibleSearchInput: View {
@@ -1869,29 +1856,29 @@ struct ExploreScreenWithSearchData: View {
         viewModel.isDirectSearch = true
         viewModel.showingDetailedFlightList = true
         
-        // Format dates for API
-        if !selectedDates.isEmpty {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            
-            if selectedDates.count >= 2 {
-                let sortedDates = selectedDates.sorted()
-                viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
-                viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
-            } else if selectedDates.count == 1 {
-                viewModel.selectedDepartureDatee = formatter.string(from: selectedDates[0])
-                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDates[0]) {
-                    viewModel.selectedReturnDatee = formatter.string(from: nextDay)
-                }
-            }
-        }
-        
-        // Initiate the search
-        if selectedTab == 2 {
+        // Handle multi-city vs regular search
+        if selectedTab == 2 && !multiCityTrips.isEmpty {
             // Multi-city search
             viewModel.searchMultiCityFlights()
         } else {
-            // Regular search
+            // Regular search - format dates for API
+            if !selectedDates.isEmpty {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                if selectedDates.count >= 2 {
+                    let sortedDates = selectedDates.sorted()
+                    viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                    viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+                } else if selectedDates.count == 1 {
+                    viewModel.selectedDepartureDatee = formatter.string(from: selectedDates[0])
+                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDates[0]) {
+                        viewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                    }
+                }
+            }
+            
+            // Initiate the regular search
             viewModel.searchFlightsForDates(
                 origin: fromIataCode,
                 destination: toIataCode,
