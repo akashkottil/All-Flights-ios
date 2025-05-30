@@ -102,6 +102,8 @@ struct HomeView: View {
     
     // Add CheapFlights view model
     @StateObject private var cheapFlightsViewModel = CheapFlightsViewModel()
+    
+    @State private var showDirectFlightsToggle: Bool = true
 
    var body: some View {
         NavigationStack {
@@ -330,7 +332,11 @@ struct EnhancedSearchInput: View {
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
     
+    
     @State private var showErrorMessage = false
+    
+    @State private var showDirectFlightsToggle = true
+
     
     private var updatedSearchButton: some View {
            VStack(spacing: 4) {
@@ -390,10 +396,14 @@ struct EnhancedSearchInput: View {
             
             if searchViewModel.selectedTab == 2 {
                 updatedMultiCityInterface
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                
             } else {
                 regularInterface
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
         .padding(20)
         .background(Color.white)
         .cornerRadius(16)
@@ -419,6 +429,11 @@ struct EnhancedSearchInput: View {
                 selectedClass: $searchViewModel.selectedCabinClass,
                 childrenAges: $searchViewModel.childrenAges
             )
+        }
+        .onChange(of: searchViewModel.selectedTab) { newValue in
+            withAnimation(.easeInOut(duration: 0.4)) {
+                showDirectFlightsToggle = (newValue != 1) // hide if one way
+            }
         }
     }
     
@@ -747,17 +762,23 @@ struct EnhancedSearchInput: View {
     }
     
     private var directFlightsToggle: some View {
-        HStack(spacing: 8) {
-            Text("Direct flights only")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.primary)
+        Group {
+            if showDirectFlightsToggle {
+                HStack(spacing: 8) {
+                    Text("Direct flights only")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.primary)
 
-            Toggle("", isOn: $directFlightsOnly)
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                    Toggle("", isOn: $directFlightsOnly)
+                        .toggleStyle(SwitchToggleStyle(tint: .blue))
+                }
+                .padding(.horizontal, 4)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .bottom)),
+                    removal: .opacity.combined(with: .move(edge: .top))
+                ))
+            }
         }
-        .padding(.horizontal, 4)
-//        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
-
     }
 
     
