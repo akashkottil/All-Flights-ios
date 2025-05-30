@@ -98,6 +98,11 @@ struct MultiCityTrip: Identifiable {
         formatter.dateFormat = "EEE, d MMM"
         return formatter.string(from: date)
     }
+    var compactDisplayDate: String {
+           let formatter = DateFormatter()
+           formatter.dateFormat = "E,d MMM" // Produces "Sat,7 Jun" format
+           return formatter.string(from: date)
+       }
 }
 
 // MARK: - Search API Response Models
