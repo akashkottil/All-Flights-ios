@@ -360,6 +360,7 @@ struct EnhancedSearchInput: View {
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
     
+    @State private var swapRotationDegrees: Double = 0
     
     @State private var showErrorMessage = false
     
@@ -367,6 +368,27 @@ struct EnhancedSearchInput: View {
     
     // Animation namespace for matched geometry effects
        @Namespace private var tripAnimation
+    
+    private func animatedSwapLocations() {
+        // Animate 360 degrees rotation
+        withAnimation(.easeInOut(duration: 0.6)) {
+            swapRotationDegrees += 360
+        }
+
+        // Delay swap logic to align with animation duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Perform swap halfway through animation for smoothness
+            let tempLocation = searchViewModel.fromLocation
+            let tempCode = searchViewModel.fromIataCode
+            
+            searchViewModel.fromLocation = searchViewModel.toLocation
+            searchViewModel.fromIataCode = searchViewModel.toIataCode
+            
+            searchViewModel.toLocation = tempLocation
+            searchViewModel.toIataCode = tempCode
+        }
+    }
+
 
     
     private var updatedSearchButton: some View {
@@ -705,20 +727,29 @@ struct EnhancedSearchInput: View {
     private var swapButton: some View {
         HStack {
             Spacer()
-            Button(action: swapLocations) {
-                Image("swap")
-                    .foregroundColor(.blue)
-                    .font(.system(size: 16, weight: .medium))
-                    .frame(width: 42, height: 42)
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            Button(action: {
+                animatedSwapLocations()
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 48, height: 48)
+                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    
+                    Image(systemName: "arrow.up.arrow.down")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .foregroundColor(Color.blue)
+                        .rotationEffect(.degrees(swapRotationDegrees))
+                        .animation(.easeInOut(duration: 0.3), value: swapRotationDegrees)
+                }
             }
-           
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(.horizontal)
-//        .offset(y: -6)
     }
+
     
     private var toLocationButton: some View {
         Button(action: {
