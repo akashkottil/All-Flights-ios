@@ -1,15 +1,11 @@
-//
-//  RootTabView.swift
-//  AllFlights
-//
-//  Created by Swalih Zamnoon on 19/05/25.
-//
-
 import SwiftUI
 
 struct RootTabView: View {
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    @State private var selectedTab = 0
+    
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             HomeView()
                 .tabItem {
                     Label("Home", systemImage: "house")
@@ -34,6 +30,16 @@ struct RootTabView: View {
                 }
                 .tag(3)
         }
-        
+        .onReceive(sharedSearchData.$shouldNavigateToExplore) { shouldNavigate in
+            if shouldNavigate {
+                // Switch to explore tab
+                selectedTab = 2
+                
+                // Reset the navigation trigger
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    sharedSearchData.shouldNavigateToExplore = false
+                }
+            }
+        }
     }
 }

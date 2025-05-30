@@ -2114,6 +2114,9 @@ struct ExploreScreen: View {
     @State private var selectedMonthTab = 0
     @State private var isRoundTrip: Bool = true
     
+    // ADD: Observe shared search data
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    
     // Collapsible card states
     @State private var isCollapsed = false
     @State private var scrollOffset: CGFloat = 0
@@ -2370,6 +2373,81 @@ struct ExploreScreen: View {
                 }
             }
         }
+        // ADD: Handle incoming search data from HomeView
+        .onReceive(sharedSearchData.$shouldExecuteSearch) { shouldExecute in
+            if shouldExecute && sharedSearchData.hasValidSearchData {
+                handleIncomingSearchFromHome()
+            }
+        }
+    }
+    
+    // NEW: Handle search data from HomeView
+    private func handleIncomingSearchFromHome() {
+        print("🔥 ExploreScreen: Received search data from HomeView")
+        
+        // Transfer all search data to the view model
+        viewModel.fromLocation = sharedSearchData.fromLocation
+        viewModel.toLocation = sharedSearchData.toLocation
+        viewModel.fromIataCode = sharedSearchData.fromIataCode
+        viewModel.toIataCode = sharedSearchData.toIataCode
+        viewModel.dates = sharedSearchData.selectedDates
+        viewModel.isRoundTrip = sharedSearchData.isRoundTrip
+        viewModel.adultsCount = sharedSearchData.adultsCount
+        viewModel.childrenCount = sharedSearchData.childrenCount
+        viewModel.childrenAges = sharedSearchData.childrenAges
+        viewModel.selectedCabinClass = sharedSearchData.selectedCabinClass
+        viewModel.multiCityTrips = sharedSearchData.multiCityTrips
+        
+        // Update local state
+        selectedTab = sharedSearchData.selectedTab
+        isRoundTrip = sharedSearchData.isRoundTrip
+        
+        // Set the selected origin and destination codes
+        viewModel.selectedOriginCode = sharedSearchData.fromIataCode
+        viewModel.selectedDestinationCode = sharedSearchData.toIataCode
+        
+        // Mark as direct search to show detailed flight list
+        viewModel.isDirectSearch = true
+        viewModel.showingDetailedFlightList = true
+        
+        // Handle multi-city vs regular search
+        if sharedSearchData.selectedTab == 2 && !sharedSearchData.multiCityTrips.isEmpty {
+            print("🔥 Executing multi-city search")
+            // Multi-city search
+            viewModel.searchMultiCityFlights()
+        } else {
+            print("🔥 Executing regular search")
+            // Regular search - format dates for API
+            if !sharedSearchData.selectedDates.isEmpty {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                if sharedSearchData.selectedDates.count >= 2 {
+                    let sortedDates = sharedSearchData.selectedDates.sorted()
+                    viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                    viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+                } else if sharedSearchData.selectedDates.count == 1 {
+                    viewModel.selectedDepartureDatee = formatter.string(from: sharedSearchData.selectedDates[0])
+                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: sharedSearchData.selectedDates[0]) {
+                        viewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                    }
+                }
+            }
+            
+            // Initiate the regular search
+            viewModel.searchFlightsForDates(
+                origin: sharedSearchData.fromIataCode,
+                destination: sharedSearchData.toIataCode,
+                returnDate: sharedSearchData.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                departureDate: viewModel.selectedDepartureDatee,
+                isDirectSearch: true
+            )
+        }
+        
+        // Reset the shared search data
+        sharedSearchData.resetSearch()
+        
+        print("🔥 ExploreScreen: Search initiated successfully")
     }
     
     // NEW: Helper method to get appropriate explore title

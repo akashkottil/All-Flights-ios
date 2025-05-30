@@ -1,7 +1,7 @@
 import SwiftUI
 import Combine
 
-// MARK: - Shared View Model for Home and Explore
+// MARK: - Updated SharedFlightSearchViewModel for HomeView
 class SharedFlightSearchViewModel: ObservableObject {
     @Published var fromLocation = "Departure?"
     @Published var toLocation = "Destination?"
@@ -19,9 +19,7 @@ class SharedFlightSearchViewModel: ObservableObject {
     
     @Published var multiCityTrips: [MultiCityTrip] = []
     
-    // Search results
-    @Published var shouldNavigateToResults = false
-    @Published var searchExecuted = false
+    // REMOVED: shouldNavigateToResults and searchExecuted - no longer needed
     
     func executeMultiCitySearch() {
         // Validate all trips have required data
@@ -37,78 +35,93 @@ class SharedFlightSearchViewModel: ObservableObject {
         // Save to recent searches before executing the search
         saveToRecentSearches()
         
-        // Set the flag to indicate this is a multi-city search
-        selectedTab = 2
-        
-        // Execute the search
-        searchExecuted = true
-        shouldNavigateToResults = true
+        // UPDATED: Use shared data store instead of direct navigation
+        SharedSearchDataStore.shared.executeSearchFromHome(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips
+        )
         
         print("✅ Multi-city search executed with \(multiCityTrips.count) trips")
     }
     
     // Use the shared recent search manager
-        var recentSearchManager: RecentSearchManager {
-            return RecentSearchManager.shared
-        }
-       
+    var recentSearchManager: RecentSearchManager {
+        return RecentSearchManager.shared
+    }
+   
     // Initialize multi-city trips
-        func initializeMultiCityTrips() {
-            let calendar = Calendar.current
-            let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-            let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
-            
-            multiCityTrips = [
-                MultiCityTrip(fromLocation: fromLocation, fromIataCode: fromIataCode,
-                             toLocation: toLocation, toIataCode: toIataCode, date: tomorrow),
-                MultiCityTrip(fromLocation: toLocation, fromIataCode: toIataCode,
-                             toLocation: "", toIataCode: "", date: dayAfterTomorrow)
-            ]
-        }
-    
+    func initializeMultiCityTrips() {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+        
+        multiCityTrips = [
+            MultiCityTrip(fromLocation: fromLocation, fromIataCode: fromIataCode,
+                         toLocation: toLocation, toIataCode: toIataCode, date: tomorrow),
+            MultiCityTrip(fromLocation: toLocation, fromIataCode: toIataCode,
+                         toLocation: "", toIataCode: "", date: dayAfterTomorrow)
+        ]
+    }
+
     // Update children ages array when count changes
     func updateChildrenAgesArray(for newCount: Int) {
-           if newCount > childrenAges.count {
-               childrenAges.append(contentsOf: Array(repeating: nil, count: newCount - childrenAges.count))
-           } else if newCount < childrenAges.count {
-               childrenAges = Array(childrenAges.prefix(newCount))
-           }
-       }
-       
-       // Reset search state
-       func resetSearch() {
-           shouldNavigateToResults = false
-           searchExecuted = false
-       }
-       
-       // Updated executeSearch to automatically save to recent searches
-       func executeSearch() {
-           // Save to recent searches before executing the search
-           saveToRecentSearches()
-           
-           // Execute the search
-           searchExecuted = true
-           shouldNavigateToResults = true
-       }
-       
-       // Save current search to recent searches
-       private func saveToRecentSearches() {
-           recentSearchManager.addRecentSearch(
-               fromLocation: fromLocation,
-               toLocation: toLocation,
-               fromIataCode: fromIataCode,
-               toIataCode: toIataCode,
-               adultsCount: adultsCount,
-               childrenCount: childrenCount,
-               cabinClass: selectedCabinClass
-           )
-       }
-       
-       // Keep the old method for backward compatibility (but it now does the same thing)
-       func executeSearchWithHistory() {
-           executeSearch()
-       }
-   }
+        if newCount > childrenAges.count {
+            childrenAges.append(contentsOf: Array(repeating: nil, count: newCount - childrenAges.count))
+        } else if newCount < childrenAges.count {
+            childrenAges = Array(childrenAges.prefix(newCount))
+        }
+    }
+    
+    // UPDATED: executeSearch to use shared data store
+    func executeSearch() {
+        // Save to recent searches before executing the search
+        saveToRecentSearches()
+        
+        // UPDATED: Use shared data store instead of direct navigation
+        SharedSearchDataStore.shared.executeSearchFromHome(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips
+        )
+    }
+    
+    // Save current search to recent searches
+    private func saveToRecentSearches() {
+        recentSearchManager.addRecentSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            cabinClass: selectedCabinClass
+        )
+    }
+    
+    // Keep the old method for backward compatibility (but it now does the same thing)
+    func executeSearchWithHistory() {
+        executeSearch()
+    }
+}
 
 
 // MARK: - Enhanced HomeView with Simplified Dynamic Cheap Flights
@@ -121,14 +134,13 @@ struct HomeView: View {
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
     
-    // Navigation to explore results
-    @State private var showingExploreResults = false
+    // REMOVED: showingExploreResults - no longer needed
     
     // Add CheapFlights view model
     @StateObject private var cheapFlightsViewModel = CheapFlightsViewModel()
     
 
-   var body: some View {
+    var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Header + Search Inputs in a VStack with gradient background
@@ -194,21 +206,14 @@ struct HomeView: View {
             .navigationDestination(isPresented: $navigateToAccount) {
                 AccountView()
             }
-            .navigationDestination(isPresented: $showingExploreResults) {
-                ExploreResultsWrapperView(searchViewModel: searchViewModel)
-            }
+            // REMOVED: ExploreResultsWrapperView navigation - no longer needed
             .onAppear {
                 // Fetch cheap flights data when home view appears
                 cheapFlightsViewModel.fetchCheapFlights()
             }
         }
         .scrollIndicators(.hidden)
-        .onChange(of: searchViewModel.shouldNavigateToResults) { shouldNavigate in
-            if shouldNavigate {
-                showingExploreResults = true
-                searchViewModel.resetSearch()
-            }
-        }
+        // REMOVED: onChange for shouldNavigateToResults - no longer needed
     }
 
     // MARK: - Dynamic Cheap Flights Section
