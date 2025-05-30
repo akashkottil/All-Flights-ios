@@ -245,7 +245,7 @@ struct HomeView: View {
         }
         .padding(.horizontal, 25)
         .padding(.top, 20)
-        .padding(.bottom, 10)
+        .padding(.bottom, 20)
     }
 
     // MARK: - Updated Recent Search Section
@@ -583,14 +583,17 @@ struct EnhancedSearchInput: View {
             ZStack {
                 Divider()
                     .padding(.leading,40)
+                    .padding(.trailing,-20)
                 swapButton
             }
             toLocationButton
             Divider()
                 .padding(.leading,40)
+                .padding(.trailing,-20)
             dateButton
             Divider()
                 .padding(.leading,40)
+                .padding(.trailing,-20)
             passengerButton
             searchButton
             directFlightsToggle
@@ -1210,70 +1213,65 @@ struct HomeCollapsibleSearchInput: View {
                 isExpanded = true
             }
         }) {
-            VStack(spacing: 12) {
-                // Trip type tabs (collapsed version)
-                HStack(spacing: 0) {
-                    ForEach(0..<3, id: \.self) { index in
-                        let titles = ["Return", "One way", "Multi city"]
-                        Text(titles[index])
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(searchViewModel.selectedTab == index ? .blue : .gray)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                    }
-                }
+            
+
                 
                 // Route display
                 HStack(spacing: 8) {
                     // From
-                    HStack(spacing: 4) {
-                        Image(systemName: "airplane.departure")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 12))
+             
+
                         Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.primary)
-                    }
+                  
                     
-                    Image(systemName: "arrow.right")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 12))
+                   Text("-")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     // To
-                    HStack(spacing: 4) {
-                        Image(systemName: "airplane.arrival")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 12))
+ 
                         Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.primary)
+                    
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 4, height: 4)
+   
+                    
+                    // Date display (if selected)
+                    if !searchViewModel.selectedDates.isEmpty {
+              
+ 
+                            Text(formatDatesForCollapsed())
+                                .font(.system(size: 14))
+                                .foregroundColor(.primary)
+                            Spacer()
+                        
                     }
+
                     
                     Spacer()
                     
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 16))
+                    Text("Search")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: 105)
+                                .frame(height: 44)
+                                .background(
+                                    RoundedCorners(tl: 8, tr: 26, bl: 8, br: 26)
+                                        .fill(Color.orange)
+                                )
                 }
+                .padding(4)
+                .padding(.leading,16)
                 
-                // Date display (if selected)
-                if !searchViewModel.selectedDates.isEmpty {
-                    HStack {
-                        Image(systemName: "calendar")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 12))
-                        Text(formatDatesForDisplay())
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                }
-            }
-            .padding(16)
             .background(Color.white)
-            .cornerRadius(16)
+            .cornerRadius(26)
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 26)
                     .stroke(Color.orange, lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
@@ -1284,6 +1282,19 @@ struct HomeCollapsibleSearchInput: View {
     private func formatDatesForDisplay() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "E,d MMM"
+        
+        if searchViewModel.selectedDates.count >= 2 {
+            let sortedDates = searchViewModel.selectedDates.sorted()
+            return "\(formatter.string(from: sortedDates[0])) - \(formatter.string(from: sortedDates[1]))"
+        } else if searchViewModel.selectedDates.count == 1 {
+            return formatter.string(from: searchViewModel.selectedDates[0])
+        }
+        return "Select dates"
+    }
+    
+    private func formatDatesForCollapsed() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
         
         if searchViewModel.selectedDates.count >= 2 {
             let sortedDates = searchViewModel.selectedDates.sorted()
@@ -1861,3 +1872,5 @@ class SearchDebouncer {
 #Preview {
     HomeView()
 }
+
+
