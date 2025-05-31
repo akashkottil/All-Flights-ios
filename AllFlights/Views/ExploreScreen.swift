@@ -2861,6 +2861,7 @@ struct SearchCard: View {
         } else {
             VStack(spacing: 5) {
                 Divider()
+                    .padding(.horizontal,-16)
                 // From row
                 HStack {
                     Button(action: {
@@ -2882,7 +2883,7 @@ struct SearchCard: View {
                             .frame(width: 20, height: 20)
                         Image(systemName: "arrow.left.arrow.right")
                             .fontWeight(.bold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.blue)
                             .font(.system(size: 8))
                     }
                     
@@ -2906,6 +2907,7 @@ struct SearchCard: View {
                 .padding(4)
                 
                 Divider()
+                    .padding(.horizontal,-16)
                 
                 // Date and passengers row
                 HStack {
