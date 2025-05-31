@@ -6,7 +6,7 @@ struct RootTabView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView()
+            HomeView() // No need to pass binding
                 .tabItem {
                     Label("Home", systemImage: "house")
                 }
@@ -49,6 +49,17 @@ struct RootTabView: View {
                             }
                         }
                     }
+                }
+            }
+        }
+        // NEW: Listen for tab navigation requests
+        .onReceive(sharedSearchData.$shouldNavigateToTab) { tabIndex in
+            if let tabIndex = tabIndex {
+                selectedTab = tabIndex
+                
+                // Reset the navigation trigger after a delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    sharedSearchData.shouldNavigateToTab = nil
                 }
             }
         }

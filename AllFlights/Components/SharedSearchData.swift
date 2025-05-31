@@ -36,7 +36,15 @@ class SharedSearchDataStore: ObservableObject {
     @Published var selectedCountryId = ""
     @Published var selectedCountryName = ""
     
+    // NEW: Tab navigation
+    @Published var shouldNavigateToTab: Int? = nil
+    
     private init() {}
+    
+    // NEW: Navigate to specific tab
+    func navigateToTab(_ tabIndex: Int) {
+        shouldNavigateToTab = tabIndex
+    }
     
     // MARK: - Updated Execute Search Methods
     func executeSearchFromHome(
@@ -109,6 +117,7 @@ class SharedSearchDataStore: ObservableObject {
         shouldExecuteSearch = false
         shouldNavigateToExplore = false
         directFlightsOnly = false
+        shouldNavigateToTab = nil
         
         // Don't reset country navigation data immediately
         // Let the explore screen handle it when appropriate
@@ -131,6 +140,7 @@ class SharedSearchDataStore: ObservableObject {
         toIataCode = ""
         selectedDates = []
         multiCityTrips = []
+        shouldNavigateToTab = nil
     }
     
     // Helper method to check if search data is valid
