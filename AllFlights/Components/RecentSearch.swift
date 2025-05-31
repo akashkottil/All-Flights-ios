@@ -116,7 +116,7 @@ class RecentSearchManager: ObservableObject {
     }
 }
 
-// MARK: - Updated Recent Search View
+// MARK: - Simplified Recent Search View (No Empty State)
 struct RecentSearch: View {
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
     @State private var hasAppeared = false
@@ -125,37 +125,31 @@ struct RecentSearch: View {
     @ObservedObject private var recentSearchManager = RecentSearchManager.shared
     
     var body: some View {
-        Group {
-            if recentSearchManager.recentSearches.isEmpty {
-                // Show placeholder when no recent searches
-                EmptyRecentSearchView()
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(Array(recentSearchManager.recentSearches.enumerated()), id: \.element.id) { index, search in
-                            GeometryReader { geometry in
-                                RecentSearchCard(
-                                    search: search,
-                                    onTap: {
-                                        recentSearchManager.applyRecentSearch(search, to: searchViewModel)
-                                    }
-                                )
-                                .scaleEffect(scaleValue(geometry))
-                                .opacity(hasAppeared ? 1 : 0)
-                                .offset(y: hasAppeared ? 0 : 20)
-                                .animation(
-                                    .spring(response: 0.6, dampingFraction: 0.8)
-                                    .delay(Double(index) * 0.1),
-                                    value: hasAppeared
-                                )
+        // UPDATED: Simplified - no empty state handling since HomeView handles conditional display
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(Array(recentSearchManager.recentSearches.enumerated()), id: \.element.id) { index, search in
+                    GeometryReader { geometry in
+                        RecentSearchCard(
+                            search: search,
+                            onTap: {
+                                recentSearchManager.applyRecentSearch(search, to: searchViewModel)
                             }
-                            .frame(width: 180, height: 100)
-                        }
+                        )
+                        .scaleEffect(scaleValue(geometry))
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 20)
+                        .animation(
+                            .spring(response: 0.6, dampingFraction: 0.8)
+                            .delay(Double(index) * 0.1),
+                            value: hasAppeared
+                        )
                     }
-                    .padding()
-                    .padding(.vertical, 10)
+                    .frame(width: 180, height: 100)
                 }
             }
+            .padding()
+            .padding(.vertical, 10)
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -220,21 +214,4 @@ struct RecentSearchCard: View {
     }
 }
 
-// MARK: - Empty Recent Search View
-struct EmptyRecentSearchView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 32))
-                .foregroundColor(.gray.opacity(0.6))
-            
-            Text("No recent searches")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.gray.opacity(0.8))
-
-        }
-        .frame(height: 120)
-        .frame(maxWidth: .infinity)
-        .padding()
-    }
-}
+// MARK: - Removed EmptyRecentSearchView since it's no longer needed

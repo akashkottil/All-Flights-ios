@@ -20,43 +20,41 @@ class SharedFlightSearchViewModel: ObservableObject {
     @Published var multiCityTrips: [MultiCityTrip] = []
     
     // ADD: Direct flights toggle state
-       @Published var directFlightsOnly = false
-    
-    // REMOVED: shouldNavigateToResults and searchExecuted - no longer needed
+    @Published var directFlightsOnly = false
     
     func executeMultiCitySearch() {
-           // Validate all trips have required data
-           let isValid = multiCityTrips.allSatisfy { trip in
-               !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
-           }
-           
-           guard isValid else {
-               print("❌ Multi-city validation failed")
-               return
-           }
-           
-           // Save to recent searches before executing the search
-           saveToRecentSearches()
-           
-           // UPDATED: Pass direct flights preference
-           SharedSearchDataStore.shared.executeSearchFromHome(
-               fromLocation: fromLocation,
-               toLocation: toLocation,
-               fromIataCode: fromIataCode,
-               toIataCode: toIataCode,
-               selectedDates: selectedDates,
-               isRoundTrip: isRoundTrip,
-               selectedTab: selectedTab,
-               adultsCount: adultsCount,
-               childrenCount: childrenCount,
-               childrenAges: childrenAges,
-               selectedCabinClass: selectedCabinClass,
-               multiCityTrips: multiCityTrips,
-               directFlightsOnly: directFlightsOnly
-           )
-           
-           print("✅ Multi-city search executed with \(multiCityTrips.count) trips")
-       }
+        // Validate all trips have required data
+        let isValid = multiCityTrips.allSatisfy { trip in
+            !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+        }
+        
+        guard isValid else {
+            print("❌ Multi-city validation failed")
+            return
+        }
+        
+        // Save to recent searches before executing the search
+        saveToRecentSearches()
+        
+        // UPDATED: Pass direct flights preference
+        SharedSearchDataStore.shared.executeSearchFromHome(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips,
+            directFlightsOnly: directFlightsOnly
+        )
+        
+        print("✅ Multi-city search executed with \(multiCityTrips.count) trips")
+    }
     
     // Use the shared recent search manager
     var recentSearchManager: RecentSearchManager {
@@ -88,26 +86,26 @@ class SharedFlightSearchViewModel: ObservableObject {
     
     // UPDATED: executeSearch to use shared data store
     func executeSearch() {
-            // Save to recent searches before executing the search
-            saveToRecentSearches()
-            
-            // UPDATED: Pass direct flights preference
-            SharedSearchDataStore.shared.executeSearchFromHome(
-                fromLocation: fromLocation,
-                toLocation: toLocation,
-                fromIataCode: fromIataCode,
-                toIataCode: toIataCode,
-                selectedDates: selectedDates,
-                isRoundTrip: isRoundTrip,
-                selectedTab: selectedTab,
-                adultsCount: adultsCount,
-                childrenCount: childrenCount,
-                childrenAges: childrenAges,
-                selectedCabinClass: selectedCabinClass,
-                multiCityTrips: multiCityTrips,
-                directFlightsOnly: directFlightsOnly
-            )
-        }
+        // Save to recent searches before executing the search
+        saveToRecentSearches()
+        
+        // UPDATED: Pass direct flights preference
+        SharedSearchDataStore.shared.executeSearchFromHome(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips,
+            directFlightsOnly: directFlightsOnly
+        )
+    }
     
     // Save current search to recent searches
     private func saveToRecentSearches() {
@@ -139,10 +137,11 @@ struct HomeView: View {
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
     
-    // REMOVED: showingExploreResults - no longer needed
-    
     // Add CheapFlights view model
     @StateObject private var cheapFlightsViewModel = CheapFlightsViewModel()
+    
+    // UPDATED: Observe the recent search manager to track data changes
+    @StateObject private var recentSearchManager = RecentSearchManager.shared
     
 
     var body: some View {
@@ -188,7 +187,8 @@ struct HomeView: View {
                         .frame(height: 0)
 
                         VStack(alignment: .leading, spacing: 16) {
-                            updatedRecentSearchSection
+                            // UPDATED: Conditionally show recent search section
+                            conditionalRecentSearchSection
                             
                             // Updated dynamic cheap flights section
                             dynamicCheapFlightsSection
@@ -211,14 +211,51 @@ struct HomeView: View {
             .navigationDestination(isPresented: $navigateToAccount) {
                 AccountView()
             }
-            // REMOVED: ExploreResultsWrapperView navigation - no longer needed
             .onAppear {
                 // Fetch cheap flights data when home view appears
                 cheapFlightsViewModel.fetchCheapFlights()
             }
         }
         .scrollIndicators(.hidden)
-        // REMOVED: onChange for shouldNavigateToResults - no longer needed
+    }
+
+    // MARK: - UPDATED: Conditional Recent Search Section
+    @ViewBuilder
+    private var conditionalRecentSearchSection: some View {
+        if !recentSearchManager.recentSearches.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Recent Search")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button(action: {
+                        // UPDATED: Animate the section away when clearing
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            recentSearchManager.clearAllRecentSearches()
+                        }
+                    }) {
+                        Text("Clear All")
+                            .foregroundColor(Color("ThridColor"))
+                            .font(.system(size: 14))
+                            .fontWeight(.bold)
+                    }
+                }
+                .padding(.horizontal)
+
+                RecentSearch(searchViewModel: searchViewModel)
+            }
+            .transition(.asymmetric(
+                insertion: .move(edge: .top)
+                    .combined(with: .opacity)
+                    .combined(with: .scale(scale: 0.95)),
+                removal: .move(edge: .top)
+                    .combined(with: .opacity)
+                    .combined(with: .scale(scale: 0.95))
+            ))
+            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: recentSearchManager.recentSearches.isEmpty)
+        }
     }
 
     // MARK: - Dynamic Cheap Flights Section
@@ -282,31 +319,6 @@ struct HomeView: View {
         .padding(.top, 20)
         .padding(.bottom, 20)
     }
-
-    // MARK: - Updated Recent Search Section
-    var updatedRecentSearchSection: some View {
-           VStack(alignment: .leading, spacing: 10) {
-               HStack {
-                   Text("Recent Search")
-                       .font(.system(size: 18))
-                       .foregroundColor(.black)
-                       .fontWeight(.semibold)
-                   Spacer()
-                   Button(action: {
-                       // Use the shared recent search manager
-                       RecentSearchManager.shared.clearAllRecentSearches()
-                   }) {
-                       Text("Clear All")
-                           .foregroundColor(Color("ThridColor"))
-                           .font(.system(size: 14))
-                           .fontWeight(.bold)
-                   }
-               }
-               .padding(.horizontal)
-
-               RecentSearch(searchViewModel: searchViewModel)
-           }
-       }
     
     // MARK: - Rating Prompt (original style)
     var ratingPrompt: some View {
