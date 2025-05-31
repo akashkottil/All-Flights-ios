@@ -2137,10 +2137,8 @@ class ExploreViewModel: ObservableObject {
     }
 }
 
+
 // MARK: - Main View
-
-// Updated ExploreScreen with proper back navigation handling for selected flights
-
 struct ExploreScreen: View {
     // MARK: - Properties
     @StateObject private var viewModel = ExploreViewModel()
@@ -2268,7 +2266,12 @@ struct ExploreScreen: View {
                     selectedTab: $selectedTab,
                     isRoundTrip: $isRoundTrip,
                     searchCardNamespace: searchCardNamespace,
-                    handleBackNavigation: handleBackNavigation
+                    handleBackNavigation: handleBackNavigation,
+                    onDragCollapse: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                            isCollapsed = true
+                        }
+                    }
                 )
                 .transition(.opacity.combined(with: .scale(scale: 1.05)))
             }
@@ -2607,13 +2610,30 @@ struct ExploreScreen: View {
     }
 }
 
-// MARK: - Expanded Search Card Component
+// MARK: - Expanded Search Card Component (UPDATED with drag gesture)
 struct ExpandedSearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     @Binding var selectedTab: Int
     @Binding var isRoundTrip: Bool
     let searchCardNamespace: Namespace.ID
     let handleBackNavigation: () -> Void
+    let onDragCollapse: () -> Void  // ADD: Closure to handle drag collapse
+    
+    // ADD: Drag gesture state
+    @GestureState private var dragOffset: CGFloat = 0
+    
+    // ADD: Drag Gesture defined locally
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .updating($dragOffset) { value, state, _ in
+                state = value.translation.height
+            }
+            .onEnded { value in
+                if value.translation.height < -20 {
+                    onDragCollapse()
+                }
+            }
+    }
     
     var body: some View {
         VStack {
@@ -2663,6 +2683,7 @@ struct ExpandedSearchCard: View {
                 }
             )
             .padding()
+            .gesture(dragGesture)  // MOVED: Apply drag gesture to entire search card area
         }
         .background(
             GeometryReader { geo in
@@ -2677,7 +2698,7 @@ struct ExpandedSearchCard: View {
     }
 }
 
-// MARK: - Collapsed Search Card Component
+// MARK: - Collapsed Search Card Component (with passenger count)
 struct CollapsedSearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     let searchCardNamespace: Namespace.ID
@@ -2716,6 +2737,12 @@ struct CollapsedSearchCard: View {
         return "Anytime"
     }
     
+    // ADD: Passenger display text for collapsed state
+    private func getPassengerDisplayText() -> String {
+        let totalPassengers = viewModel.adultsCount + viewModel.childrenCount
+        return "\(totalPassengers)"
+    }
+    
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 0) {
@@ -2730,7 +2757,7 @@ struct CollapsedSearchCard: View {
                     
                     Spacer()
                     
-                    // Compact trip info - UPDATED
+                    // Compact trip info - UPDATED with passenger count
                     HStack(spacing: 8) {
                         Text(getLocationDisplayText())
                             .font(.system(size: 14, weight: .medium))
@@ -2740,20 +2767,28 @@ struct CollapsedSearchCard: View {
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 4, height: 4)
                         
-                        // Date display logic - UPDATED
+                        // Date display
                         Text(getDateDisplayText())
                             .foregroundColor(.primary)
                             .font(.system(size: 14, weight: .medium))
+                        
+                        // ADD: Passenger count after date
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 4, height: 4)
+                        
+                        HStack {
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.black)
+                            Text(getPassengerDisplayText())
+                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                        }
                     }
                     .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
                     
                     Spacer()
                     
-                    // Expand indicator
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
-                        .rotationEffect(.degrees(180))
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
