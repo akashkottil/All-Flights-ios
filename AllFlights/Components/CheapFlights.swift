@@ -2,14 +2,12 @@
 import SwiftUI
 import Combine
 import Foundation
-// MARK: - Simple Cheap Flights View Model (No Navigation)
+
+// MARK: - Updated Cheap Flights View Model (Navigation to Explore)
 class CheapFlightsViewModel: ObservableObject {
     @Published var destinations: [ExploreDestination] = []
-    @Published var cities: [ExploreDestination] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
-    @Published var showingCities = false
-    @Published var selectedCountryName: String? = nil
     @Published var fromLocationName = "Delhi"
     @Published var fromLocationCode = "DEL"
     @Published var currencyInfo: CurrencyDetail?
@@ -39,29 +37,12 @@ class CheapFlightsViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func fetchCitiesFor(countryId: String, countryName: String) {
-        isLoading = true
-        errorMessage = nil
-        selectedCountryName = countryName
-        
-        service.fetchDestinations(arrivalType: "city", arrivalId: countryId)
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoading = false
-                if case .failure(let error) = completion {
-                    self?.errorMessage = error.localizedDescription
-                }
-                self?.showingCities = true
-            }, receiveValue: { [weak self] destinations in
-                self?.cities = destinations
-            })
-            .store(in: &cancellables)
-    }
-    
-    func goBackToCountries() {
-        showingCities = false
-        selectedCountryName = nil
-        cities = []
+    // NEW: Navigate to explore screen to show cities for a country
+    func navigateToExploreCities(countryId: String, countryName: String) {
+        SharedSearchDataStore.shared.navigateToExploreCities(
+            countryId: countryId,
+            countryName: countryName
+        )
     }
     
     // Helper method to format price with currency
@@ -83,7 +64,7 @@ class CheapFlightsViewModel: ObservableObject {
     }
 }
 
-// MARK: - Updated Dynamic Cheap Flights View (Fixed width constraints)
+// MARK: - Updated Dynamic Cheap Flights View (Simplified - No Cities List)
 struct DynamicCheapFlights: View {
     @ObservedObject var viewModel: CheapFlightsViewModel
     
@@ -106,44 +87,8 @@ struct DynamicCheapFlights: View {
                 Text("Failed to load destinations: \(error)")
                     .foregroundColor(.red)
                     .padding()
-            } else if viewModel.showingCities {
-                // Cities view
-                VStack(alignment: .leading, spacing: 10) {
-                    // Back button for cities
-                    HStack {
-                        Button(action: {
-                            viewModel.goBackToCountries()
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                Text("Back to Countries")
-                            }
-                            .foregroundColor(.blue)
-                            .font(.system(size: 14))
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    
-                    // Cities scroll view - No tap action, just display
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            ForEach(viewModel.cities) { city in
-                                OriginalStyleCheapFlightCard(
-                                    destination: city,
-                                    viewModel: viewModel,
-                                    imageType: "city"
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                        .scrollTargetLayout()
-                    }
-                    .scrollTargetBehavior(.viewAligned)
-                    .animation(.easeInOut(duration: 0.3), value: viewModel.cities.count)
-                }
             } else {
-                // Countries view
+                // Countries view - Navigate to explore on tap
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
                         ForEach(viewModel.destinations) { destination in
@@ -152,8 +97,8 @@ struct DynamicCheapFlights: View {
                                 viewModel: viewModel,
                                 imageType: "country"
                             ) {
-                                // Only navigate to cities when country is tapped
-                                viewModel.fetchCitiesFor(
+                                // Navigate to explore screen to show cities
+                                viewModel.navigateToExploreCities(
                                     countryId: destination.location.entityId,
                                     countryName: destination.location.name
                                 )
@@ -170,7 +115,7 @@ struct DynamicCheapFlights: View {
     }
 }
 
-// MARK: - Fixed Original Style Cheap Flight Card (Consistent Width)
+// MARK: - Updated Original Style Cheap Flight Card
 struct OriginalStyleCheapFlightCard: View {
     let destination: ExploreDestination
     @ObservedObject var viewModel: CheapFlightsViewModel

@@ -31,6 +31,11 @@ class SharedSearchDataStore: ObservableObject {
     // Navigation trigger
     @Published var shouldNavigateToExplore = false
     
+    // NEW: Country-to-cities navigation
+    @Published var shouldNavigateToExploreCities = false
+    @Published var selectedCountryId = ""
+    @Published var selectedCountryName = ""
+    
     private init() {}
     
     // MARK: - Updated Execute Search Methods
@@ -64,6 +69,11 @@ class SharedSearchDataStore: ObservableObject {
         self.multiCityTrips = multiCityTrips
         self.directFlightsOnly = directFlightsOnly
         
+        // Clear any country navigation state
+        self.shouldNavigateToExploreCities = false
+        self.selectedCountryId = ""
+        self.selectedCountryName = ""
+        
         // Trigger navigation to explore tab
         shouldNavigateToExplore = true
         
@@ -74,10 +84,53 @@ class SharedSearchDataStore: ObservableObject {
         }
     }
     
+    // NEW: Navigate to explore and show cities for a specific country
+    func navigateToExploreCities(countryId: String, countryName: String) {
+        // Clear any search state first
+        self.shouldExecuteSearch = false
+        self.fromLocation = ""
+        self.toLocation = ""
+        self.fromIataCode = ""
+        self.toIataCode = ""
+        self.selectedDates = []
+        self.multiCityTrips = []
+        self.directFlightsOnly = false
+        
+        // Set country navigation state
+        self.selectedCountryId = countryId
+        self.selectedCountryName = countryName
+        self.shouldNavigateToExploreCities = true
+        
+        // Trigger navigation to explore tab
+        shouldNavigateToExplore = true
+    }
+    
     func resetSearch() {
         shouldExecuteSearch = false
         shouldNavigateToExplore = false
         directFlightsOnly = false
+        
+        // Don't reset country navigation data immediately
+        // Let the explore screen handle it when appropriate
+        // shouldNavigateToExploreCities = false
+        // selectedCountryId = ""
+        // selectedCountryName = ""
+    }
+    
+    // NEW: Method to completely reset everything (for when user really wants to clear all state)
+    func resetAll() {
+        shouldExecuteSearch = false
+        shouldNavigateToExplore = false
+        shouldNavigateToExploreCities = false
+        directFlightsOnly = false
+        selectedCountryId = ""
+        selectedCountryName = ""
+        fromLocation = ""
+        toLocation = ""
+        fromIataCode = ""
+        toIataCode = ""
+        selectedDates = []
+        multiCityTrips = []
     }
     
     // Helper method to check if search data is valid

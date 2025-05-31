@@ -35,9 +35,20 @@ struct RootTabView: View {
                 // Switch to explore tab
                 selectedTab = 2
                 
-                // Reset the navigation trigger
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                // Reset the navigation trigger after a delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     sharedSearchData.shouldNavigateToExplore = false
+                    
+                    // Also reset country navigation flag if it was a country navigation
+                    if sharedSearchData.shouldNavigateToExploreCities {
+                        // Don't reset it immediately, let the explore screen handle it
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            if !sharedSearchData.shouldExecuteSearch {
+                                // Only reset if no search is pending
+                                sharedSearchData.shouldNavigateToExploreCities = false
+                            }
+                        }
+                    }
                 }
             }
         }

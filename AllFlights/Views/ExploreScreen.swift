@@ -2152,6 +2152,9 @@ struct ExploreScreen: View {
     // ADD: Observe shared search data
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     
+    // NEW: Flag to track if we're in country navigation mode
+    @State private var isCountryNavigationActive = false
+    
     // Collapsible card states
     @State private var isCollapsed = false
     @State private var scrollOffset: CGFloat = 0
@@ -2180,10 +2183,12 @@ struct ExploreScreen: View {
             } else if viewModel.showingDetailedFlightList {
                 // If on flight list, go back and clear form
                 print("Action: Going back from direct search flight list - clearing form")
+                isCountryNavigationActive = false // Reset the flag
                 viewModel.clearSearchFormAndReturnToExplore()
             } else {
                 // Fallback - clear form
                 print("Action: Fallback direct search back navigation - clearing form")
+                isCountryNavigationActive = false // Reset the flag
                 viewModel.clearSearchFormAndReturnToExplore()
             }
             print("=== End Back Navigation Debug ===")
@@ -2193,6 +2198,8 @@ struct ExploreScreen: View {
         // Special handling for "Anywhere" destination in explore flow
         if viewModel.toLocation == "Anywhere" {
             print("Action: Handling Anywhere destination - going back to countries")
+            isCountryNavigationActive = false // Reset the flag
+            sharedSearchData.resetAll() // Use the new resetAll method
             viewModel.resetToAnywhereDestination()
             return
         }
@@ -2210,6 +2217,7 @@ struct ExploreScreen: View {
             // Go back from flight results to cities or countries
             if viewModel.toLocation == "Anywhere" {
                 print("Action: Going back from flight results to countries (Anywhere)")
+                isCountryNavigationActive = false // Reset the flag
                 viewModel.goBackToCountries()
             } else {
                 print("Action: Going back from flight results to cities")
@@ -2218,6 +2226,7 @@ struct ExploreScreen: View {
         } else if viewModel.showingCities {
             // Go back from cities to countries
             print("Action: Going back from cities to countries")
+            isCountryNavigationActive = false // Reset the flag
             viewModel.goBackToCountries()
         }
         print("=== End Back Navigation Debug ===")
@@ -2410,8 +2419,28 @@ struct ExploreScreen: View {
         .background(Color("scroll"))
         .ignoresSafeArea(edges: .bottom)
         .onAppear {
-            if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
-                viewModel.fetchCountries()
+            print("🔍 ExploreScreen onAppear - checking states...")
+            print("🔍 hasSearchedFlights: \(viewModel.hasSearchedFlights)")
+            print("🔍 showingDetailedFlightList: \(viewModel.showingDetailedFlightList)")
+            print("🔍 showingCities: \(viewModel.showingCities)")
+            print("🔍 shouldNavigateToExploreCities: \(sharedSearchData.shouldNavigateToExploreCities)")
+            print("🔍 shouldExecuteSearch: \(sharedSearchData.shouldExecuteSearch)")
+            print("🔍 isCountryNavigationActive: \(isCountryNavigationActive)")
+            
+            // Delay the country fetching to allow navigation handlers to process first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                // Only fetch countries if we're not in a specific navigation state
+                if !viewModel.hasSearchedFlights &&
+                   !viewModel.showingDetailedFlightList &&
+                   !viewModel.showingCities &&
+                   !sharedSearchData.shouldNavigateToExploreCities &&
+                   !sharedSearchData.shouldExecuteSearch &&
+                   !isCountryNavigationActive {
+                    print("🔍 Fetching countries...")
+                    viewModel.fetchCountries()
+                } else {
+                    print("🔍 Skipping country fetch due to active navigation state")
+                }
             }
             viewModel.setupAvailableMonths()
         }
@@ -2436,9 +2465,64 @@ struct ExploreScreen: View {
                 handleIncomingSearchFromHome()
             }
         }
+        // NEW: Handle country-to-cities navigation from HomeView
+        .onReceive(sharedSearchData.$shouldNavigateToExploreCities) { shouldNavigate in
+            if shouldNavigate && !sharedSearchData.selectedCountryId.isEmpty {
+                print("🏙️ Received country navigation signal - processing immediately")
+                // Process immediately to beat the onAppear delay
+                handleIncomingCountryNavigation()
+            }
+        }
     }
     
-    // NEW: Handle search data from HomeView
+    // NEW: Handle country-to-cities navigation from HomeView
+    private func handleIncomingCountryNavigation() {
+        print("🏙️ ExploreScreen: Received country navigation from HomeView")
+        print("🏙️ Country: \(sharedSearchData.selectedCountryName) (ID: \(sharedSearchData.selectedCountryId))")
+        
+        // IMMEDIATELY set the flag to prevent auto-fetching countries
+        isCountryNavigationActive = true
+        
+        // Reset only the necessary search states (don't clear everything)
+        viewModel.isDirectSearch = false
+        viewModel.showingDetailedFlightList = false
+        viewModel.hasSearchedFlights = false
+        viewModel.flightResults = []
+        viewModel.detailedFlightResults = []
+        viewModel.selectedFlightId = nil
+        
+        // Set destination to "Anywhere" to show explore mode
+        viewModel.toLocation = "Anywhere"
+        viewModel.toIataCode = ""
+        
+        // IMMEDIATELY set up the view model to show cities for the specified country
+        viewModel.showingCities = true
+        viewModel.selectedCountryName = sharedSearchData.selectedCountryName
+        
+        // Store the navigation data locally before clearing it from shared store
+        let countryId = sharedSearchData.selectedCountryId
+        let countryName = sharedSearchData.selectedCountryName
+        
+        // Clear the shared search data immediately to prevent conflicts
+        DispatchQueue.main.async {
+            sharedSearchData.shouldNavigateToExploreCities = false
+            sharedSearchData.selectedCountryId = ""
+            sharedSearchData.selectedCountryName = ""
+        }
+        
+        // Fetch cities for the selected country
+        viewModel.fetchCitiesFor(countryId: countryId, countryName: countryName)
+        
+        // Reset the local flag after cities have loaded and settled
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            isCountryNavigationActive = false
+            print("🏙️ Country navigation flag reset")
+        }
+        
+        print("🏙️ ExploreScreen: City navigation initiated successfully")
+    }
+    
+    // Existing handleIncomingSearchFromHome method remains the same...
     private func handleIncomingSearchFromHome() {
         print("🔥 ExploreScreen: Received search data from HomeView")
         print("🔥 Direct flights only: \(sharedSearchData.directFlightsOnly)")
