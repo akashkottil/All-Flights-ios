@@ -386,6 +386,66 @@ struct EnhancedSearchInput: View {
     // Animation namespace for matched geometry effects
        @Namespace private var tripAnimation
     
+    private func getFromLocationDisplayText() -> String {
+        if searchViewModel.fromIataCode.isEmpty {
+            return ""
+        }
+        return searchViewModel.fromIataCode
+    }
+
+    private func getFromLocationTextColor() -> Color {
+        if searchViewModel.fromIataCode.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
+
+    private func getFromLocationNameTextColor() -> Color {
+        if searchViewModel.fromLocation.isEmpty || searchViewModel.fromLocation == "Departure?" {
+            return .gray
+        }
+        return .primary
+    }
+
+    private func getToLocationDisplayText() -> String {
+        if searchViewModel.toIataCode.isEmpty {
+            return ""
+        }
+        return searchViewModel.toIataCode
+    }
+
+    private func getToLocationTextColor() -> Color {
+        if searchViewModel.toIataCode.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
+
+    private func getToLocationNameTextColor() -> Color {
+        if searchViewModel.toLocation.isEmpty || searchViewModel.toLocation == "Destination?" {
+            return .gray
+        }
+        return .primary
+    }
+
+    private func getDateDisplayText() -> String {
+        if searchViewModel.selectedDates.isEmpty {
+            return "Select dates"
+        } else if searchViewModel.selectedDates.count == 1 {
+            return formatDateForDisplay(searchViewModel.selectedDates[0])
+        } else {
+            let sortedDates = searchViewModel.selectedDates.sorted()
+            return "\(formatDateForDisplay(sortedDates[0])) - \(formatDateForDisplay(sortedDates[1]))"
+        }
+    }
+
+    private func getDateTextColor() -> Color {
+        if searchViewModel.selectedDates.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
+    
     private func animatedSwapLocations() {
         // Animate 360 degrees rotation
         withAnimation(.easeInOut(duration: 0.6)) {
@@ -720,27 +780,23 @@ struct EnhancedSearchInput: View {
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
-             
                 HStack(spacing: 5) {
-                                    Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(.primary)
-                                    Text(searchViewModel.fromLocation)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .foregroundColor(.primary)
-                                }
-                
+                    Text(getFromLocationDisplayText())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(getFromLocationTextColor())
+                    Text(searchViewModel.fromLocation)
+                        .font(.system(size: 16, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundColor(getFromLocationNameTextColor())
+                }
                 
                 Spacer()
             }
             .padding(.top, 12)
             .padding(.horizontal, 12)
-           
         }
     }
-    
     private var swapButton: some View {
         HStack {
             Spacer()
@@ -777,26 +833,22 @@ struct EnhancedSearchInput: View {
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
-              
-                HStack( spacing: 5) {
-                                   Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                                       .font(.system(size: 16, weight: .bold))
-                                       .foregroundColor(.primary)
-                                   Text(searchViewModel.toLocation)
-                                       .font(.system(size: 16, weight: .medium))
-                                       .lineLimit(1)
-                                       .truncationMode(.tail)
-                                       .foregroundColor(.primary)
-                               }
- 
-                
+                HStack(spacing: 5) {
+                    Text(getToLocationDisplayText())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(getToLocationTextColor())
+                    Text(searchViewModel.toLocation)
+                        .font(.system(size: 16, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundColor(getToLocationNameTextColor())
+                }
+     
                 Spacer()
             }
             .padding(.bottom, 12)
             .padding(.horizontal, 12)
-            
         }
-//        .offset(y: -12)
     }
     
     private var dateButton: some View {
@@ -808,17 +860,15 @@ struct EnhancedSearchInput: View {
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
-                Text(dateDisplayText)
+                Text(getDateDisplayText())
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundColor(getDateTextColor())
                 
                 Spacer()
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 12)
-           
         }
-//        .offset(y: -12)
     }
     
     private var passengerButton: some View {
@@ -1046,11 +1096,40 @@ struct HomeMultiCitySegmentView: View {
     let trip: MultiCityTrip
     let index: Int
     let canRemove: Bool
-    let isLastRow: Bool       // New param to control bottom line
+    let isLastRow: Bool
     let onFromTap: () -> Void
     let onToTap: () -> Void
     let onDateTap: () -> Void
     let onRemove: () -> Void
+    
+    // Helper methods for dynamic colors
+    private func getFromLocationTextColor() -> Color {
+        if trip.fromIataCode.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
+    
+    private func getFromLocationNameTextColor() -> Color {
+        if trip.fromLocation.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
+    
+    private func getToLocationTextColor() -> Color {
+        if trip.toIataCode.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
+    
+    private func getToLocationNameTextColor() -> Color {
+        if trip.toLocation.isEmpty {
+            return .gray
+        }
+        return .primary
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1066,12 +1145,12 @@ struct HomeMultiCitySegmentView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(trip.fromIataCode.isEmpty ? "FROM" : trip.fromIataCode)
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.primary)
+                            .foregroundColor(getFromLocationTextColor())
                         Text(trip.fromLocation.isEmpty ? "City" : trip.fromLocation)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .foregroundColor(getFromLocationNameTextColor())
                     }
                     .padding(.horizontal, 8)
                 }
@@ -1087,12 +1166,12 @@ struct HomeMultiCitySegmentView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(trip.toIataCode.isEmpty ? "TO" : trip.toIataCode)
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.primary)
+                            .foregroundColor(getToLocationTextColor())
                         Text(trip.toLocation.isEmpty ? "City" : trip.toLocation)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .foregroundColor(getToLocationNameTextColor())
                     }
                     .padding(.horizontal, 8)
                 }
@@ -1130,8 +1209,6 @@ struct HomeMultiCitySegmentView: View {
                 }
             }
             .frame(height: 48)
-            
-
         }
     }
 }
