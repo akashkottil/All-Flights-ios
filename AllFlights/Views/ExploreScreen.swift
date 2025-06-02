@@ -8053,79 +8053,121 @@ struct RangeSliderView: View {
 
 
 struct PaginatedFlightList: View {
-@ObservedObject var viewModel: ExploreViewModel
-let filteredResults: [FlightDetailResult]
-let isMultiCity: Bool
-var body: some View {
-    ScrollView {
-        LazyVStack(spacing: 16) {
-            ForEach(filteredResults, id: \.id) { result in
-                if isMultiCity {
-                    ModernMultiCityFlightCardWrapper(
-                        result: result,
-                        viewModel: viewModel,
-                        onTap: {
-                            viewModel.selectedFlightId = result.id
+    @ObservedObject var viewModel: ExploreViewModel
+    let filteredResults: [FlightDetailResult]
+    let isMultiCity: Bool
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                // Flight results
+                ForEach(filteredResults, id: \.id) { result in
+                    if isMultiCity {
+                        ModernMultiCityFlightCardWrapper(
+                            result: result,
+                            viewModel: viewModel,
+                            onTap: {
+                                viewModel.selectedFlightId = result.id
+                            }
+                        )
+                        .padding(.horizontal)
+                    } else {
+                        DetailedFlightCardWrapper(
+                            result: result,
+                            viewModel: viewModel,
+                            onTap: {
+                                viewModel.selectedFlightId = result.id
+                            }
+                        )
+                        .padding(.horizontal)
+                    }
+                }
+                
+                // Footer with load more mechanism
+                if viewModel.hasMoreFlights {
+                    VStack {
+                        if viewModel.isLoadingMoreFlights {
+                            // Loading spinner
+                            ProgressView()
+                                .scaleEffect(1.3)
+                                .padding(.top, 10)
+                            
+                            Text("Loading more flights...")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                                .padding(.top, 8)
+                                .padding(.bottom, 10)
+                        } else {
+                            // Load more button
+                            Button(action: {
+                                viewModel.loadMoreFlights()
+                            }) {
+                                HStack {
+                                    Text("Load more flights")
+                                        .font(.system(size: 15, weight: .medium))
+                                    
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .font(.system(size: 15))
+                                }
+                                .foregroundColor(.white)
+                                .frame(height: 44)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .padding(.horizontal)
+                            }
+                            .padding(.vertical, 10)
                         }
-                    )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white)
+                    .cornerRadius(10)
+                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                     .padding(.horizontal)
-                } else {
-                    DetailedFlightCardWrapper(
-                        result: result,
-                        viewModel: viewModel,
-                        onTap: {
-                            viewModel.selectedFlightId = result.id
+                    .padding(.top, 10)
+                    .padding(.bottom, 20)
+                    
+                    // Invisible element for detection
+                    Color.clear
+                        .frame(height: 1)
+                        .onAppear {
+                            // User has scrolled to the bottom
+                            // Note: If you want automatic loading, uncomment the line below
+                            // viewModel.loadMoreFlights()
                         }
-                    )
-                    .padding(.horizontal)
+                } else if !filteredResults.isEmpty {
+                    // End of results message
+                    HStack {
+                        Spacer()
+                        Text("All flights loaded")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Spacer()
+                    }
+                    .padding(.vertical, 20)
                 }
+                
+                // Bottom spacer
+                Spacer(minLength: 50)
             }
-            
-            // Loading indicator at bottom
-            if viewModel.isLoadingMoreFlights {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                        .scaleEffect(1.2)
-                    Text("Loading more flights...")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .padding(.leading, 8)
-                    Spacer()
-                }
-                .padding(.vertical, 20)
-            } else if !viewModel.hasMoreFlights && !filteredResults.isEmpty {
-                HStack {
-                    Spacer()
-                    Text("All flights loaded")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
-                .padding(.vertical, 20)
-            }
-            
-            // Bottom spacer for better scrolling experience
-            Spacer(minLength: 100)
+            .padding(.vertical)
         }
-        .padding(.vertical)
-        .background(
-            GeometryReader { geometry in
-                Color.clear.preference(
-                    key: ScrollOffsetPreferenceKey.self,
-                    value: geometry.frame(in: .named("scrollView")).maxY
-                )
-            }
-        )
+        .background(Color("scroll"))
     }
-    .coordinateSpace(name: "scrollView")
-    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { maxY in
-        // Detect when user scrolls near bottom
-        if maxY < 200 && viewModel.hasMoreFlights && !viewModel.isLoadingMoreFlights && !viewModel.isLoadingDetailedFlights {
-            viewModel.loadMoreFlights()
-        }
-    }
-    .background(Color("scroll"))
 }
+
+// Preference keys for tracking scroll state
+struct ScrollViewHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+struct ScrollViewOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
 }
 
