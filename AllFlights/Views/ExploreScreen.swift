@@ -6246,439 +6246,442 @@ struct FlightFilterTabView: View {
 }
 
 
-// Updated ModifiedDetailedFlightListView and MultiCityFlightCardWrapper
 struct ModifiedDetailedFlightListView: View {
-@ObservedObject var viewModel: ExploreViewModel
-@State private var selectedFilter: FlightFilterTabView.FilterOption = .all
-@State private var filteredResults: [FlightDetailResult] = []
-@State private var resultCount: Int = 0
-@State private var showingFilterSheet = false
-@State private var hasAppliedInitialDirectFilter = false
-// Added state to track if we need to auto-apply filters
-@State private var hasAppliedInitialFilters = false
-@State private var isInitialLoad = true
-
-// ... your existing computed properties (formattedDates, isMultiCity, etc.) remain the same ...
-
-private var formattedDates: String {
-    if viewModel.dates.count >= 2 {
-        let sortedDates = viewModel.dates.sorted()
-        return "\(viewModel.formatDateForDisplay(date: sortedDates[0])) - \(viewModel.formatDateForDisplay(date: sortedDates[1]))"
-    } else if viewModel.dates.count == 1 {
-        return viewModel.formatDateForDisplay(date: viewModel.dates[0])
-    } else if !viewModel.selectedDepartureDatee.isEmpty && !viewModel.selectedReturnDatee.isEmpty {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        
-        if let departureDate = formatter.date(from: viewModel.selectedDepartureDatee),
-           let returnDate = formatter.date(from: viewModel.selectedReturnDatee) {
-            return "\(viewModel.formatDateForDisplay(date: departureDate)) - \(viewModel.formatDateForDisplay(date: returnDate))"
-        }
-    }
-    return "Selected dates"
-}
-
-private var isMultiCity: Bool {
-    return viewModel.multiCityTrips.count >= 2
-}
-
-private func multiCityRouteText() -> String {
-    if viewModel.multiCityTrips.count <= 1 {
-        return "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)"
-    }
+    @ObservedObject var viewModel: ExploreViewModel
+    @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
+    @State private var filteredResults: [FlightDetailResult] = []
+    @State private var resultCount: Int = 0
+    @State private var showingFilterSheet = false
+    @State private var hasAppliedInitialDirectFilter = false
     
-    let firstOrigin = viewModel.multiCityTrips.first?.fromIataCode ?? viewModel.selectedOriginCode
-    let lastDestination = viewModel.multiCityTrips.last?.toIataCode ?? viewModel.selectedDestinationCode
-    
-    return "\(firstOrigin) → ... → \(lastDestination)"
-}
+    // UPDATED: Better state management for auto-filter application
+    @State private var hasTriedAutoFilter = false
+    @State private var shouldShowSkeleton = true
+    @State private var autoFilterAttempts = 0
+    @State private var isRetryingInBackground = false
 
-private func multiCityDatesText() -> String {
-    if viewModel.multiCityTrips.isEmpty {
-        return formattedDates
-    }
-    
-    let formatter = DateFormatter()
-    formatter.dateFormat = "d MMM"
-    
-    let firstDate = formatter.string(from: viewModel.multiCityTrips.first?.date ?? Date())
-    let lastDate = formatter.string(from: viewModel.multiCityTrips.last?.date ?? Date())
-    
-    return "\(firstDate) - \(lastDate)"
-}
+    // ... your existing computed properties (formattedDates, isMultiCity, etc.) remain the same ...
 
-var body: some View {
-    VStack(spacing: 0) {
-        // Filter tabs with scroll background
-        HStack {
-            // Filter button
-            FilterButton {
-                showingFilterSheet = true
-            }
-            .padding(.leading, 20)
+    private var formattedDates: String {
+        if viewModel.dates.count >= 2 {
+            let sortedDates = viewModel.dates.sorted()
+            return "\(viewModel.formatDateForDisplay(date: sortedDates[0])) - \(viewModel.formatDateForDisplay(date: sortedDates[1]))"
+        } else if viewModel.dates.count == 1 {
+            return viewModel.formatDateForDisplay(date: viewModel.dates[0])
+        } else if !viewModel.selectedDepartureDatee.isEmpty && !viewModel.selectedReturnDatee.isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
             
-            FlightFilterTabView(
-                selectedFilter: selectedFilter,
-                onSelectFilter: { filter in
-                    selectedFilter = filter
-                    applyLocalFilters()
-                }
-            )
+            if let departureDate = formatter.date(from: viewModel.selectedDepartureDatee),
+               let returnDate = formatter.date(from: viewModel.selectedReturnDatee) {
+                return "\(viewModel.formatDateForDisplay(date: departureDate)) - \(viewModel.formatDateForDisplay(date: returnDate))"
+            }
         }
-        .padding(.trailing, 16)
-        .padding(.vertical, 8)
-        .background(Color("scroll"))
+        return "Selected dates"
+    }
+
+    private var isMultiCity: Bool {
+        return viewModel.multiCityTrips.count >= 2
+    }
+
+    private func multiCityRouteText() -> String {
+        if viewModel.multiCityTrips.count <= 1 {
+            return "\(viewModel.selectedOriginCode) → \(viewModel.selectedDestinationCode)"
+        }
         
-        // UPDATED: Flight count display to always show the total count from API
-        if !filteredResults.isEmpty && viewModel.selectedFlightId == nil {
+        let firstOrigin = viewModel.multiCityTrips.first?.fromIataCode ?? viewModel.selectedOriginCode
+        let lastDestination = viewModel.multiCityTrips.last?.toIataCode ?? viewModel.selectedDestinationCode
+        
+        return "\(firstOrigin) → ... → \(lastDestination)"
+    }
+
+    private func multiCityDatesText() -> String {
+        if viewModel.multiCityTrips.isEmpty {
+            return formattedDates
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        
+        let firstDate = formatter.string(from: viewModel.multiCityTrips.first?.date ?? Date())
+        let lastDate = formatter.string(from: viewModel.multiCityTrips.last?.date ?? Date())
+        
+        return "\(firstDate) - \(lastDate)"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Filter tabs with scroll background
             HStack {
-                // Always show the total count from the API response, not the number of loaded results
-                Text("\(viewModel.totalFlightCount) flights found")
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(8)
-            .background(Color("scroll"))
-        }
-        
-        // MAIN CONTENT SECTION
-        if (viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty) || isInitialLoad {
-            // Show skeleton when loading OR during initial load
-            VStack {
-                Spacer()
-                ForEach(0..<4, id: \.self) { _ in
-                    DetailedFlightCardSkeleton()
-                        .padding(.bottom, 5)
+                // Filter button
+                FilterButton {
+                    showingFilterSheet = true
                 }
-                Spacer()
+                .padding(.leading, 20)
+                
+                FlightFilterTabView(
+                    selectedFilter: selectedFilter,
+                    onSelectFilter: { filter in
+                        selectedFilter = filter
+                        applyLocalFilters()
+                    }
+                )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.trailing, 16)
+            .padding(.vertical, 8)
             .background(Color("scroll"))
-            .onAppear {
-                // Automatically apply filters after a short delay if needed
-                if !hasAppliedInitialFilters {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        autoApplyFilters()
+            
+            // UPDATED: Flight count display to always show the total count from API
+            if !filteredResults.isEmpty && viewModel.selectedFlightId == nil {
+                HStack {
+                    // Always show the total count from the API response, not the number of loaded results
+                    Text("\(viewModel.totalFlightCount) flights found")
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(8)
+                .background(Color("scroll"))
+            }
+            
+            // UPDATED: MAIN CONTENT SECTION - only show skeleton or results
+            if shouldShowSkeleton {
+                // Show skeleton when we need to load data or during auto-filter attempts
+                VStack {
+                    Spacer()
+                    ForEach(0..<4, id: \.self) { _ in
+                        DetailedFlightCardSkeleton()
+                            .padding(.bottom, 5)
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color("scroll"))
+                .onAppear {
+                    // IMPROVED: Always try auto-filter if we don't have results
+                    if !hasTriedAutoFilter {
+                        triggerAutoFilterWithRetry()
                     }
                 }
-            }
-        } else if !viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
-            // Show error/no results only when not loading and no results
-            VStack {
-                Spacer()
-                if let error = viewModel.detailedFlightError {
-                    Text("Error: \(error)")
-                        .foregroundColor(.red)
-                        .padding()
-                } else {
-                    Text("No flights found for these dates")
-                        .foregroundColor(.gray)
-                        .padding()
-                }
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color("scroll"))
-        } else {
-            VStack(spacing: 0) {
-                // If we have a selected flight, show the FlightDetailCard for it
-                if let selectedId = viewModel.selectedFlightId,
-                   let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
-                    
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // Your existing flight details display code remains the same
-                            if isMultiCity {
-                                ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
-                                    let leg = selectedFlight.legs[legIndex]
-                                    
-                                    HStack {
-                                        Text("Flight \(legIndex + 1): \(leg.originCode) → \(leg.destinationCode)")
-                                            .font(.headline)
-                                            .padding(.bottom, 4)
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal)
-                                    .padding(.top, legIndex > 0 ? 16 : 0)
-                                    
-                                    if leg.stopCount == 0 && !leg.segments.isEmpty {
-                                        let segment = leg.segments.first!
-                                        displayDirectFlight(leg: leg, segment: segment)
-                                    } else if leg.stopCount > 0 && leg.segments.count > 1 {
-                                        displayConnectingFlight(leg: leg)
-                                    }
-                                    
-                                    if legIndex < selectedFlight.legs.count - 1 {
-                                        Divider()
-                                            .padding(.horizontal)
-                                            .padding(.vertical, 8)
-                                    }
-                                }
-                            } else {
-                                // Regular flights display code remains the same
-                                if let outboundLeg = selectedFlight.legs.first {
-                                    if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
-                                        let segment = outboundLeg.segments.first!
-                                        displayDirectFlight(leg: outboundLeg, segment: segment)
-                                    } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
-                                        displayConnectingFlight(leg: outboundLeg)
-                                    }
-                                    
-                                    if selectedFlight.legs.count > 1,
-                                       let returnLeg = selectedFlight.legs.last,
-                                       returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+            } else {
+                VStack(spacing: 0) {
+                    // If we have a selected flight, show the FlightDetailCard for it
+                    if let selectedId = viewModel.selectedFlightId,
+                       let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
+                        
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                // Your existing flight details display code remains the same
+                                if isMultiCity {
+                                    ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
+                                        let leg = selectedFlight.legs[legIndex]
                                         
-                                        if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
-                                            let segment = returnLeg.segments.first!
-                                            displayDirectFlight(leg: returnLeg, segment: segment)
-                                        } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
-                                            displayConnectingFlight(leg: returnLeg)
+                                        HStack {
+                                            Text("Flight \(legIndex + 1): \(leg.originCode) → \(leg.destinationCode)")
+                                                .font(.headline)
+                                                .padding(.bottom, 4)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal)
+                                        .padding(.top, legIndex > 0 ? 16 : 0)
+                                        
+                                        if leg.stopCount == 0 && !leg.segments.isEmpty {
+                                            let segment = leg.segments.first!
+                                            displayDirectFlight(leg: leg, segment: segment)
+                                        } else if leg.stopCount > 0 && leg.segments.count > 1 {
+                                            displayConnectingFlight(leg: leg)
+                                        }
+                                        
+                                        if legIndex < selectedFlight.legs.count - 1 {
+                                            Divider()
+                                                .padding(.horizontal)
+                                                .padding(.vertical, 8)
+                                        }
+                                    }
+                                } else {
+                                    // Regular flights display code remains the same
+                                    if let outboundLeg = selectedFlight.legs.first {
+                                        if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
+                                            let segment = outboundLeg.segments.first!
+                                            displayDirectFlight(leg: outboundLeg, segment: segment)
+                                        } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
+                                            displayConnectingFlight(leg: outboundLeg)
+                                        }
+                                        
+                                        if selectedFlight.legs.count > 1,
+                                           let returnLeg = selectedFlight.legs.last,
+                                           returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+                                            
+                                            if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                                let segment = returnLeg.segments.first!
+                                                displayDirectFlight(leg: returnLeg, segment: segment)
+                                            } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                                displayConnectingFlight(leg: returnLeg)
+                                            }
                                         }
                                     }
                                 }
+                                
+                                // Price section
+                                PriceSection(price: "₹\(Int(selectedFlight.minPrice))", passengers: "2")
+                                    .padding()
                             }
-                            
-                            // Price section
-                            PriceSection(price: "₹\(Int(selectedFlight.minPrice))", passengers: "2")
-                                .padding()
                         }
+                        .background(Color("scroll"))
                     }
-                    .background(Color("scroll"))
-                }
-                else {
-                    // Use the PaginatedFlightList component
-                    PaginatedFlightList(
-                        viewModel: viewModel,
-                        filteredResults: filteredResults,
-                        isMultiCity: isMultiCity
-                    )
+                    else {
+                        // Use the PaginatedFlightList component
+                        PaginatedFlightList(
+                            viewModel: viewModel,
+                            filteredResults: filteredResults,
+                            isMultiCity: isMultiCity
+                        )
+                    }
                 }
             }
         }
-    }
-    .sheet(isPresented: $showingFilterSheet) {
-        FlightFilterSheet(viewModel: viewModel)
-    }
-    .onAppear {
-        print("ModifiedDetailedFlightListView onAppear - detailedFlightResults count: \(viewModel.detailedFlightResults.count)")
-        
-        viewModel.initializeDatesFromStrings()
-        applyInitialDirectFilterIfNeeded()
-        updateFilteredResults()
-        
-        // Auto-apply filters if needed
-        if !hasAppliedInitialFilters && viewModel.detailedFlightResults.isEmpty {
-            // Set isInitialLoad to show skeleton
-            isInitialLoad = true
+        .sheet(isPresented: $showingFilterSheet) {
+            FlightFilterSheet(viewModel: viewModel)
+        }
+        .onAppear {
+            print("ModifiedDetailedFlightListView onAppear - detailedFlightResults count: \(viewModel.detailedFlightResults.count)")
             
-            // Auto-apply filters after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                autoApplyFilters()
-            }
-        } else {
-            // If we already have results, we don't need to show loading state
-            isInitialLoad = false
-        }
-    }
-    .onReceive(viewModel.$detailedFlightResults) { newResults in
-        print("Received new results: \(newResults.count) flights")
-        
-        if !hasAppliedInitialDirectFilter {
+            viewModel.initializeDatesFromStrings()
             applyInitialDirectFilterIfNeeded()
-        }
-        
-        // When results come in, we're no longer in initial loading state
-        if !newResults.isEmpty {
-            isInitialLoad = false
-        }
-        
-        DispatchQueue.main.async {
             updateFilteredResults()
+            
+            // IMPROVED: Always check if we need to auto-apply filters
+            checkAndTriggerAutoFilter()
+        }
+        .onReceive(viewModel.$detailedFlightResults) { newResults in
+            print("📱 Received new results: \(newResults.count) flights")
+            
+            if !hasAppliedInitialDirectFilter {
+                applyInitialDirectFilterIfNeeded()
+            }
+            
+            // UPDATED: Better handling of results
+            handleNewResults(newResults)
+            
+            DispatchQueue.main.async {
+                updateFilteredResults()
+            }
+        }
+        .onReceive(viewModel.$isLoadingDetailedFlights) { isLoading in
+            print("📱 Loading state changed: \(isLoading)")
+            // Don't hide skeleton just because loading stopped - wait for actual results
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color("scroll"))
+    }
+
+    // MARK: - IMPROVED Helper Methods
+
+    // NEW: Improved auto-filter trigger with persistent retry logic
+    private func triggerAutoFilterWithRetry() {
+        print("🚀 Triggering auto-filter attempt \(autoFilterAttempts + 1)")
+        
+        hasTriedAutoFilter = true
+        autoFilterAttempts += 1
+        isRetryingInBackground = true
+        
+        // Create a minimal filter request to trigger data load (same as clicking Apply in filter sheet)
+        let filterRequest = FlightFilterRequest()
+        
+        // Apply the filter
+        viewModel.applyPollFilters(filterRequest: filterRequest)
+        
+        // Set a timeout to retry if no results after reasonable time
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            if viewModel.detailedFlightResults.isEmpty && isRetryingInBackground {
+                print("🔄 Retrying auto-filter - attempt \(autoFilterAttempts + 1)")
+                triggerAutoFilterWithRetry()
+            }
         }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color("scroll"))
-}
-
-// MARK: - Helper Methods
-
-// NEW: Auto-apply filters method
-private func autoApplyFilters() {
-    // Create a minimal filter request to trigger data load
-    let filterRequest = FlightFilterRequest()
     
-    print("🚀 Auto-applying filters to load initial data...")
-    viewModel.applyPollFilters(filterRequest: filterRequest)
-    
-    // Mark that we've applied initial filters
-    hasAppliedInitialFilters = true
-    
-    // After a reasonable time, turn off loading state if still no results
-    DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-        isInitialLoad = false
-    }
-}
-
-private func applyInitialDirectFilterIfNeeded() {
-    if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
-        print("🔥 Applying initial direct flights filter from HomeView")
-        selectedFilter = .direct
-        hasAppliedInitialDirectFilter = true
-        
-        if !viewModel.detailedFlightResults.isEmpty {
-            applyLocalFilters()
+    // NEW: Check if we need to trigger auto-filter
+    private func checkAndTriggerAutoFilter() {
+        // Always trigger auto-filter if we don't have results yet
+        if viewModel.detailedFlightResults.isEmpty && !hasTriedAutoFilter {
+            print("🎯 No results detected, triggering auto-filter")
+            triggerAutoFilterWithRetry()
+        } else if !viewModel.detailedFlightResults.isEmpty {
+            print("✅ Results already available, hiding skeleton")
+            shouldShowSkeleton = false
+            isRetryingInBackground = false
         }
     }
-}
-
-private func updateFilteredResults() {
-    print("Updating filtered results - Source count: \(viewModel.detailedFlightResults.count), Current filter: \(selectedFilter)")
     
-    filteredResults = viewModel.detailedFlightResults
-    applyLocalFilters()
-    
-    print("Updated filtered results - Final count: \(filteredResults.count)")
-}
-
-private func applyLocalFilters() {
-    print("Applying local filters. Total results: \(viewModel.detailedFlightResults.count), Selected filter: \(selectedFilter)")
-    
-    let sourceResults = viewModel.detailedFlightResults
-    
-    switch selectedFilter {
-    case .all:
-        filteredResults = sourceResults
-        
-    case .best:
-        let bestResults = sourceResults.filter { $0.isBest }
-        let otherResults = sourceResults.filter { !$0.isBest }
-        filteredResults = bestResults + otherResults
-        
-    case .cheapest:
-        let cheapestResults = sourceResults.filter { $0.isCheapest }
-        let otherResults = sourceResults.filter { !$0.isCheapest }.sorted { $0.minPrice < $1.minPrice }
-        filteredResults = cheapestResults + otherResults
-        
-    case .fastest:
-        let fastestResults = sourceResults.filter { $0.isFastest }
-        let otherResults = sourceResults.filter { !$0.isFastest }.sorted { $0.totalDuration < $1.totalDuration }
-        filteredResults = fastestResults + otherResults
-        
-    case .direct:
-        let directFlights = sourceResults.filter { flight in
-            flight.legs.allSatisfy { $0.stopCount == 0 }
-        }.sorted { $0.minPrice < $1.minPrice }
-        
-        let connectingFlights = sourceResults.filter { flight in
-            !flight.legs.allSatisfy { $0.stopCount == 0 }
-        }.sorted { $0.minPrice < $1.minPrice }
-        
-        filteredResults = directFlights + connectingFlights
+    // NEW: Handle new results with better skeleton management
+    private func handleNewResults(_ newResults: [FlightDetailResult]) {
+        if !newResults.isEmpty {
+            print("✅ Got \(newResults.count) results, hiding skeleton")
+            shouldShowSkeleton = false
+            isRetryingInBackground = false
+        }
+        // If empty results, keep skeleton showing and keep retrying in background
     }
     
-    print("Local filtering complete. Filtered results count: \(filteredResults.count)")
-}
+    private func applyInitialDirectFilterIfNeeded() {
+        if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
+            print("🔥 Applying initial direct flights filter from HomeView")
+            selectedFilter = .direct
+            hasAppliedInitialDirectFilter = true
+            
+            if !viewModel.detailedFlightResults.isEmpty {
+                applyLocalFilters()
+            }
+        }
+    }
 
-// Your existing helper methods remain the same
-@ViewBuilder
-private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
-    FlightDetailCard(
-        destination: leg.destination,
-        isDirectFlight: true,
-        flightDuration: formatDuration(minutes: leg.duration),
-        flightClass: segment.cabinClass ?? "Economy",
-        departureDate: formatDate(from: segment.departureTimeAirport),
-        departureTime: formatTime(from: segment.departureTimeAirport),
-        departureAirportCode: segment.originCode,
-        departureAirportName: segment.origin,
-        departureTerminal: "1",
-        airline: segment.airlineName,
-        flightNumber: segment.flightNumber,
-        airlineLogo: segment.airlineLogo,
-        arrivalDate: formatDate(from: segment.arriveTimeAirport),
-        arrivalTime: formatTime(from: segment.arriveTimeAirport),
-        arrivalAirportCode: segment.destinationCode,
-        arrivalAirportName: segment.destination,
-        arrivalTerminal: "2",
-        arrivalNextDay: segment.arrivalDayDifference > 0
-    )
-    .padding(.horizontal)
-    .padding(.bottom, 16)
-}
+    private func updateFilteredResults() {
+        print("Updating filtered results - Source count: \(viewModel.detailedFlightResults.count), Current filter: \(selectedFilter)")
+        
+        filteredResults = viewModel.detailedFlightResults
+        applyLocalFilters()
+        
+        print("Updated filtered results - Final count: \(filteredResults.count)")
+    }
 
-@ViewBuilder
-private func displayConnectingFlight(leg: FlightLegDetail) -> some View {
-    let connectionSegments = createConnectionSegments(from: leg)
-    
-    FlightDetailCard(
-        destination: leg.destination,
-        flightDuration: formatDuration(minutes: leg.duration),
-        flightClass: leg.segments.first?.cabinClass ?? "Economy",
-        connectionSegments: connectionSegments
-    )
-    .padding(.horizontal)
-    .padding(.bottom, 16)
-}
-
-private func createConnectionSegments(from leg: FlightLegDetail) -> [ConnectionSegment] {
-    var segments: [ConnectionSegment] = []
-    
-    for (index, segment) in leg.segments.enumerated() {
-        var connectionDuration: String? = nil
-        if index < leg.segments.count - 1 {
-            let nextSegment = leg.segments[index + 1]
-            let connectionMinutes = (nextSegment.departureTimeAirport - segment.arriveTimeAirport) / 60
-            let hours = connectionMinutes / 60
-            let mins = connectionMinutes % 60
-            connectionDuration = "\(hours)h \(mins)m connection Airport"
+    private func applyLocalFilters() {
+        print("Applying local filters. Total results: \(viewModel.detailedFlightResults.count), Selected filter: \(selectedFilter)")
+        
+        let sourceResults = viewModel.detailedFlightResults
+        
+        switch selectedFilter {
+        case .all:
+            filteredResults = sourceResults
+            
+        case .best:
+            let bestResults = sourceResults.filter { $0.isBest }
+            let otherResults = sourceResults.filter { !$0.isBest }
+            filteredResults = bestResults + otherResults
+            
+        case .cheapest:
+            let cheapestResults = sourceResults.filter { $0.isCheapest }
+            let otherResults = sourceResults.filter { !$0.isCheapest }.sorted { $0.minPrice < $1.minPrice }
+            filteredResults = cheapestResults + otherResults
+            
+        case .fastest:
+            let fastestResults = sourceResults.filter { $0.isFastest }
+            let otherResults = sourceResults.filter { !$0.isFastest }.sorted { $0.totalDuration < $1.totalDuration }
+            filteredResults = fastestResults + otherResults
+            
+        case .direct:
+            let directFlights = sourceResults.filter { flight in
+                flight.legs.allSatisfy { $0.stopCount == 0 }
+            }.sorted { $0.minPrice < $1.minPrice }
+            
+            let connectingFlights = sourceResults.filter { flight in
+                !flight.legs.allSatisfy { $0.stopCount == 0 }
+            }.sorted { $0.minPrice < $1.minPrice }
+            
+            filteredResults = directFlights + connectingFlights
         }
         
-        segments.append(
-            ConnectionSegment(
-                departureDate: formatDate(from: segment.departureTimeAirport),
-                departureTime: formatTime(from: segment.departureTimeAirport),
-                departureAirportCode: segment.originCode,
-                departureAirportName: segment.origin,
-                departureTerminal: "1",
-                arrivalDate: formatDate(from: segment.arriveTimeAirport),
-                arrivalTime: formatTime(from: segment.arriveTimeAirport),
-                arrivalAirportCode: segment.destinationCode,
-                arrivalAirportName: segment.destination,
-                arrivalTerminal: "2",
-                arrivalNextDay: segment.arrivalDayDifference > 0,
-                airline: segment.airlineName,
-                flightNumber: segment.flightNumber,
-                airlineLogo: segment.airlineLogo,
-                connectionDuration: connectionDuration
-            )
+        print("Local filtering complete. Filtered results count: \(filteredResults.count)")
+    }
+
+    // Your existing helper methods remain the same
+    @ViewBuilder
+    private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
+        FlightDetailCard(
+            destination: leg.destination,
+            isDirectFlight: true,
+            flightDuration: formatDuration(minutes: leg.duration),
+            flightClass: segment.cabinClass ?? "Economy",
+            departureDate: formatDate(from: segment.departureTimeAirport),
+            departureTime: formatTime(from: segment.departureTimeAirport),
+            departureAirportCode: segment.originCode,
+            departureAirportName: segment.origin,
+            departureTerminal: "1",
+            airline: segment.airlineName,
+            flightNumber: segment.flightNumber,
+            airlineLogo: segment.airlineLogo,
+            arrivalDate: formatDate(from: segment.arriveTimeAirport),
+            arrivalTime: formatTime(from: segment.arriveTimeAirport),
+            arrivalAirportCode: segment.destinationCode,
+            arrivalAirportName: segment.destination,
+            arrivalTerminal: "2",
+            arrivalNextDay: segment.arrivalDayDifference > 0
         )
+        .padding(.horizontal)
+        .padding(.bottom, 16)
     }
-    
-    return segments
-}
 
-// Helper functions for formatting
-private func formatDate(from timestamp: Int) -> String {
-    let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
-    let formatter = DateFormatter()
-    formatter.dateFormat = "EEE, d MMM"
-    return formatter.string(from: date)
-}
+    @ViewBuilder
+    private func displayConnectingFlight(leg: FlightLegDetail) -> some View {
+        let connectionSegments = createConnectionSegments(from: leg)
+        
+        FlightDetailCard(
+            destination: leg.destination,
+            flightDuration: formatDuration(minutes: leg.duration),
+            flightClass: leg.segments.first?.cabinClass ?? "Economy",
+            connectionSegments: connectionSegments
+        )
+        .padding(.horizontal)
+        .padding(.bottom, 16)
+    }
 
-private func formatTime(from timestamp: Int) -> String {
-    let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
-    let formatter = DateFormatter()
-    formatter.dateFormat = "HH:mm"
-    return formatter.string(from: date)
-}
+    private func createConnectionSegments(from leg: FlightLegDetail) -> [ConnectionSegment] {
+        var segments: [ConnectionSegment] = []
+        
+        for (index, segment) in leg.segments.enumerated() {
+            var connectionDuration: String? = nil
+            if index < leg.segments.count - 1 {
+                let nextSegment = leg.segments[index + 1]
+                let connectionMinutes = (nextSegment.departureTimeAirport - segment.arriveTimeAirport) / 60
+                let hours = connectionMinutes / 60
+                let mins = connectionMinutes % 60
+                connectionDuration = "\(hours)h \(mins)m connection Airport"
+            }
+            
+            segments.append(
+                ConnectionSegment(
+                    departureDate: formatDate(from: segment.departureTimeAirport),
+                    departureTime: formatTime(from: segment.departureTimeAirport),
+                    departureAirportCode: segment.originCode,
+                    departureAirportName: segment.origin,
+                    departureTerminal: "1",
+                    arrivalDate: formatDate(from: segment.arriveTimeAirport),
+                    arrivalTime: formatTime(from: segment.arriveTimeAirport),
+                    arrivalAirportCode: segment.destinationCode,
+                    arrivalAirportName: segment.destination,
+                    arrivalTerminal: "2",
+                    arrivalNextDay: segment.arrivalDayDifference > 0,
+                    airline: segment.airlineName,
+                    flightNumber: segment.flightNumber,
+                    airlineLogo: segment.airlineLogo,
+                    connectionDuration: connectionDuration
+                )
+            )
+        }
+        
+        return segments
+    }
 
-private func formatDuration(minutes: Int) -> String {
-    let hours = minutes / 60
-    let mins = minutes % 60
-    return "\(hours)h \(mins)m"
-}
+    // Helper functions for formatting
+    private func formatDate(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
 }
 
 
@@ -7675,7 +7678,7 @@ struct FlightFilterSheet: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
+                        .background(Color.orange)
                         .cornerRadius(8)
                         .padding()
                 }
