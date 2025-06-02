@@ -5,7 +5,7 @@ import Combine
 class SharedFlightSearchViewModel: ObservableObject {
     @Published var fromLocation = "Departure?"
     @Published var toLocation = "Destination?"
-    @Published var fromIataCode: String = "DEL" // Default to Delhi
+    @Published var fromIataCode: String = "" // Default to Delhi
     @Published var toIataCode: String = ""
     
     @Published var selectedDates: [Date] = []

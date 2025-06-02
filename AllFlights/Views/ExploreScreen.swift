@@ -6720,18 +6720,7 @@ struct ModernMultiCityFlightCardWrapper: View {
                         Divider()
                             .padding(.horizontal, 16)
                     }
-                    
-                    // Flight leg header
-                    HStack {
-                        Text("Flight \(index + 1)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.blue)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, index > 0 ? 8 : 0)
-                    .padding(.bottom, 4)
-                    
+ 
                     // Flight leg details with airline logo
                     if let segment = leg.segments.first {
                         HStack(alignment: .center, spacing: 12) {
