@@ -8229,6 +8229,7 @@ struct GoodToKnowSection: View {
         .padding(.horizontal)
         .sheet(isPresented: $showingSelfTransferInfo) {
             SelfTransferInfoSheet()
+                .presentationDetents([.fraction(0.75)])
         }
     }
 }
@@ -8238,46 +8239,145 @@ struct SelfTransferInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        NavigationView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Self Transfer")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .padding(.top)
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("What is a self transfer?")
-                        .font(.headline)
-                    
-                    Text("A self transfer means you'll need to collect your baggage and check in again for your connecting flight. This is common when flying with different airlines or when the airlines don't have an interline agreement.")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Important things to remember:")
-                        .font(.headline)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Allow extra time for connections", systemImage: "clock")
-                        Label("Check visa requirements for transit", systemImage: "doc.text")
-                        Label("Collect and re-check your baggage", systemImage: "bag")
-                    }
-                    .font(.body)
-                    .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.primary)
                 }
                 
                 Spacer()
+                
+                Text("Self-transfer")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                // Invisible spacer to center the title
+                Image(systemName: "xmark")
+                    .font(.system(size: 18))
+                    .opacity(0)
             }
-            .padding()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+            .padding(.horizontal)
+            .padding(.vertical, 16)
+            .background(Color(.systemBackground))
+            
+            Divider()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Main explanation text
+                    Text("In a self-transfer trip, you book separate flights, and you're responsible for moving between them — including baggage, check-ins, and reaching the next gate or airport on time.")
+                        .font(.system(size: 16))
+                        .foregroundColor(.primary)
+                        .lineSpacing(4)
+                        .padding(.top, 20)
+                    
+                    // What You'll Need to Do section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 6) {
+                            Text("🧳")
+                                .font(.system(size: 16))
+                            
+                            Text("What You'll Need to Do:")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            bulletPoint("Collect and recheck baggage between flights.")
+                            bulletPoint("Clear immigration/customs if switching countries.")
+                            bulletPoint("Check in again for your next flight.")
+                            bulletPoint("Leave extra time between flights — delays can affect your next journey.")
+                        }
+                        .padding(.leading, 22)
                     }
+                    
+                    // Example section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 6) {
+                            Text("📍")
+                                .font(.system(size: 16))
+                            
+                            Text("Example:")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Flight 1: New York → Paris")
+                                .font(.system(size: 15))
+                                .foregroundColor(.primary)
+                            
+                            Text("Flight 2: Paris → Rome")
+                                .font(.system(size: 15))
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.leading, 22)
+                        
+                        HStack(spacing: 6) {
+                            Text("✈️")
+                                .font(.system(size: 14))
+                            
+                            Text("Once you land in Paris, you'll collect your bags, clear immigration, and check in again.")
+                                .font(.system(size: 15))
+                                .foregroundColor(.secondary)
+                                .lineSpacing(2)
+                        }
+                        .padding(.leading, 22)
+                        .padding(.top, 8)
+                    }
+                    
+                    // You're in control section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 6) {
+                            Text("⚠️")
+                                .font(.system(size: 16))
+                            
+                            Text("You're in control:")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("These flights aren't connected. If delayed, airlines aren't responsible for missed connections.")
+                                .font(.system(size: 15))
+                                .foregroundColor(.primary)
+                                .lineSpacing(2)
+                            
+                            Text("We recommend at least 4-6 hours between flights.")
+                                .font(.system(size: 15))
+                                .foregroundColor(.primary)
+                                .lineSpacing(2)
+                        }
+                        .padding(.leading, 22)
+                    }
+                    
+                    Spacer(minLength: 40)
                 }
+                .padding(.horizontal, 20)
             }
+        }
+        .background(Color(.systemBackground))
+    }
+    
+    @ViewBuilder
+    private func bulletPoint(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.primary)
+                .padding(.top, 1)
+            
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundColor(.primary)
+                .lineSpacing(2)
         }
     }
 }
