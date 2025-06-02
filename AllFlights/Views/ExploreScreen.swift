@@ -8490,11 +8490,14 @@ struct DealsSection: View {
     }
 }
 
-// MARK: - Provider Selection Sheet
+
+// MARK: - Provider Selection Sheet - Updated to match exact UI
 struct ProviderSelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
     let providers: [FlightProvider]
     let onProviderSelected: (String) -> Void
+    
+    @State private var isReadBeforeBookingExpanded = false
     
     private var sortedProviders: [SplitProvider] {
         let allProviders = providers.flatMap { $0.splitProviders }
@@ -8506,7 +8509,7 @@ struct ProviderSelectionSheet: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Text("\(sortedProviders.count) providers - Price in INR")
+                    Text("\(sortedProviders.count) providers - Price in USD")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                     Spacer()
@@ -8514,20 +8517,82 @@ struct ProviderSelectionSheet: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 
-                // Read Before Booking expandable section
-                DisclosureGroup("Read Before Booking") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("• Prices may change before booking")
-                        Text("• Check baggage policies with your provider")
-                        Text("• Review cancellation and change policies")
-                        Text("• Verify travel document requirements")
+                // Read Before Booking expandable section - EXACT UI MATCH
+                VStack(spacing: 0) {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isReadBeforeBookingExpanded.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Text("Read Before Booking")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.blue)
+                            
+
+                            
+                            Image(systemName: isReadBeforeBookingExpanded ? "chevron.up" : "chevron.down")
+                                .foregroundColor(.blue)
+                                .font(.system(size: 14))
+                                .rotationEffect(.degrees(isReadBeforeBookingExpanded ? 0 : 0))
+                                .animation(.easeInOut(duration: 0.3), value: isReadBeforeBookingExpanded)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
                     }
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 8)
+                    
+                    if isReadBeforeBookingExpanded {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // First paragraph - Prices information
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Prices shown always include an estimate of all mandatory taxes and charges, but remember ")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                                + Text("to check all ticket details, final prices and terms and conditions")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                + Text(" on the booking website before you book.")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                            }
+                            
+                            // Second section - Check for extra fees
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Check for extra fees")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Some airlines / travel agencies charge extra for baggage, insurance or use of credit cards and include a service fee.")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.primary)
+                                    
+                                    Text("View airlines fees.")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.primary)
+                                       
+                                }
+                            }
+                            
+                            // Third section - Check T&Cs for travellers aged 12-16
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Check T&Cs for travellers aged 12-16")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                
+                                Text("Restrictions may apply to young passengers travelling alone.")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 16)
+                
                 
                 // Provider list
                 ScrollView {
@@ -8543,6 +8608,7 @@ struct ProviderSelectionSheet: View {
                         }
                     }
                     .padding(.horizontal)
+                    .padding(.top, 8)
                 }
             }
             .background(Color("scroll"))
@@ -8690,15 +8756,6 @@ struct WebViewSheet: View {
     var body: some View {
         NavigationView {
             WebView(url: url)
-                .navigationTitle("Book Flight")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Done") {
-                            dismiss()
-                        }
-                    }
-                }
         }
     }
 }
