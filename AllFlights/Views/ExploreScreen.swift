@@ -6234,6 +6234,10 @@ struct ModifiedDetailedFlightListView: View {
 @State private var resultCount: Int = 0
 @State private var showingFilterSheet = false
 @State private var hasAppliedInitialDirectFilter = false
+// Added state to track if we need to auto-apply filters
+@State private var hasAppliedInitialFilters = false
+@State private var isInitialLoad = true
+
 // ... your existing computed properties (formattedDates, isMultiCity, etc.) remain the same ...
 
 private var formattedDates: String {
@@ -6319,9 +6323,9 @@ var body: some View {
             .background(Color("scroll"))
         }
         
-        // MAIN CONTENT SECTION - This is where the major change happens
-        if viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
-            // Only show skeleton when actually loading AND no results yet
+        // MAIN CONTENT SECTION
+        if (viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty) || isInitialLoad {
+            // Show skeleton when loading OR during initial load
             VStack {
                 Spacer()
                 ForEach(0..<4, id: \.self) { _ in
@@ -6332,6 +6336,14 @@ var body: some View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color("scroll"))
+            .onAppear {
+                // Automatically apply filters after a short delay if needed
+                if !hasAppliedInitialFilters {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        autoApplyFilters()
+                    }
+                }
+            }
         } else if !viewModel.isLoadingDetailedFlights && viewModel.detailedFlightResults.isEmpty {
             // Show error/no results only when not loading and no results
             VStack {
@@ -6415,58 +6427,8 @@ var body: some View {
                     }
                     .background(Color("scroll"))
                 }
-                // REPLACED: This is the main section that gets replaced with PaginatedFlightList
                 else {
-                    // OLD CODE (REMOVE THIS ENTIRE SECTION):
-                    /*
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(filteredResults, id: \.id) { result in
-                                if isMultiCity {
-                                    ModernMultiCityFlightCardWrapper(
-                                        result: result,
-                                        viewModel: viewModel,
-                                        onTap: {
-                                            viewModel.selectedFlightId = result.id
-                                        }
-                                    )
-                                    .padding(.horizontal)
-                                } else {
-                                    DetailedFlightCardWrapper(
-                                        result: result,
-                                        viewModel: viewModel,
-                                        onTap: {
-                                            viewModel.selectedFlightId = result.id
-                                        }
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            }
-                            
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.vertical)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: UIScreen.main.bounds.height - 200)
-                    }
-                    .background(Color("scroll"))
-                    
-                    if viewModel.isLoadingDetailedFlights {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                            Text("Loading more flights...")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding(.leading, 8)
-                            Spacer()
-                        }
-                        .padding()
-                        .background(Color("scroll"))
-                    }
-                    */
-                    
-                    // NEW CODE: Replace the above section with this
+                    // Use the PaginatedFlightList component
                     PaginatedFlightList(
                         viewModel: viewModel,
                         filteredResults: filteredResults,
@@ -6485,12 +6447,31 @@ var body: some View {
         viewModel.initializeDatesFromStrings()
         applyInitialDirectFilterIfNeeded()
         updateFilteredResults()
+        
+        // Auto-apply filters if needed
+        if !hasAppliedInitialFilters && viewModel.detailedFlightResults.isEmpty {
+            // Set isInitialLoad to show skeleton
+            isInitialLoad = true
+            
+            // Auto-apply filters after a short delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                autoApplyFilters()
+            }
+        } else {
+            // If we already have results, we don't need to show loading state
+            isInitialLoad = false
+        }
     }
     .onReceive(viewModel.$detailedFlightResults) { newResults in
         print("Received new results: \(newResults.count) flights")
         
         if !hasAppliedInitialDirectFilter {
             applyInitialDirectFilterIfNeeded()
+        }
+        
+        // When results come in, we're no longer in initial loading state
+        if !newResults.isEmpty {
+            isInitialLoad = false
         }
         
         DispatchQueue.main.async {
@@ -6501,7 +6482,24 @@ var body: some View {
     .background(Color("scroll"))
 }
 
-// MARK: - Helper Methods (these remain the same)
+// MARK: - Helper Methods
+
+// NEW: Auto-apply filters method
+private func autoApplyFilters() {
+    // Create a minimal filter request to trigger data load
+    let filterRequest = FlightFilterRequest()
+    
+    print("🚀 Auto-applying filters to load initial data...")
+    viewModel.applyPollFilters(filterRequest: filterRequest)
+    
+    // Mark that we've applied initial filters
+    hasAppliedInitialFilters = true
+    
+    // After a reasonable time, turn off loading state if still no results
+    DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+        isInitialLoad = false
+    }
+}
 
 private func applyInitialDirectFilterIfNeeded() {
     if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
@@ -6662,7 +6660,6 @@ private func formatDuration(minutes: Int) -> String {
     return "\(hours)h \(mins)m"
 }
 }
-
 
 
 
