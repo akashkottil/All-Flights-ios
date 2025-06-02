@@ -464,161 +464,151 @@ class ExploreAPIService {
     private let session = Session()
     
     func pollFlightResultsPaginated(searchId: String, page: Int = 1, limit: Int = 20, filterRequest: FlightFilterRequest? = nil) -> AnyPublisher<FlightPollResponse, Error> {
-let baseURL = "https://staging.plane.lascade.com/api/poll/"
-    var parameters: [String: String] = [
-        "search_id": searchId,
-        "page": String(page),
-        "limit": String(limit)
-    ]
-    
-    var urlComponents = URLComponents(string: baseURL)!
-    urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
-    
-    var request = URLRequest(url: urlComponents.url!)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("IN", forHTTPHeaderField: "country")
-    
-    // FIXED: Only apply filters if explicitly provided and non-empty
-    var requestDict: [String: Any] = [:]
-    
-    // Only build request body if filters are explicitly provided by user
-    if let filterRequest = filterRequest, isFilterRequestNonEmpty(filterRequest) {
-        let isRoundTrip = viewModelReference?.isRoundTrip ?? true
+        let baseURL = "https://staging.plane.lascade.com/api/poll/"
+        var parameters: [String: String] = [
+            "search_id": searchId,
+            "page": String(page),
+            "limit": String(limit)
+        ]
         
-        print("📋 Applying user filters to pagination request")
+        var urlComponents = URLComponents(string: baseURL)!
+        urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
         
-        if let durationMax = filterRequest.durationMax, durationMax > 0 {
-            requestDict["duration_max"] = durationMax
-        }
+        var request = URLRequest(url: urlComponents.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("IN", forHTTPHeaderField: "country")
         
-        if let stopCountMax = filterRequest.stopCountMax {
-            requestDict["stop_count_max"] = stopCountMax
-        }
+        // Create request body - only include non-nil values
+        var requestDict: [String: Any] = [:]
         
-        if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
-            var rangesArray: [[String: Any]] = []
+        if let filterRequest = filterRequest {
+            if let durationMax = filterRequest.durationMax, durationMax > 0 {
+                requestDict["duration_max"] = durationMax
+            }
             
-            if let firstRange = ranges.first {
-                var rangeDict: [String: Any] = [:]
+            if let stopCountMax = filterRequest.stopCountMax {
+                requestDict["stop_count_max"] = stopCountMax
+            }
+            
+            if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
+                let isRoundTrip = viewModelReference?.isRoundTrip ?? true
+                var rangesArray: [[String: Any]] = []
                 
-                if let arrival = firstRange.arrival {
-                    var arrivalDict: [String: Any] = [:]
-                    if let min = arrival.min {
-                        arrivalDict["min"] = min
-                    }
-                    if let max = arrival.max {
-                        arrivalDict["max"] = max
-                    }
-                    if !arrivalDict.isEmpty {
-                        rangeDict["arrival"] = arrivalDict
-                    }
-                }
-                
-                if let departure = firstRange.departure {
-                    var departureDict: [String: Any] = [:]
-                    if let min = departure.min {
-                        departureDict["min"] = min
-                    }
-                    if let max = departure.max {
-                        departureDict["max"] = max
-                    }
-                    if !departureDict.isEmpty {
-                        rangeDict["departure"] = departureDict
-                    }
-                }
-                
-                if !rangeDict.isEmpty {
-                    rangesArray.append(rangeDict)
+                if let firstRange = ranges.first {
+                    var rangeDict: [String: Any] = [:]
                     
-                    if isRoundTrip {
+                    if let arrival = firstRange.arrival {
+                        var arrivalDict: [String: Any] = [:]
+                        if let min = arrival.min {
+                            arrivalDict["min"] = min
+                        }
+                        if let max = arrival.max {
+                            arrivalDict["max"] = max
+                        }
+                        if !arrivalDict.isEmpty {
+                            rangeDict["arrival"] = arrivalDict
+                        }
+                    }
+                    
+                    if let departure = firstRange.departure {
+                        var departureDict: [String: Any] = [:]
+                        if let min = departure.min {
+                            departureDict["min"] = min
+                        }
+                        if let max = departure.max {
+                            departureDict["max"] = max
+                        }
+                        if !departureDict.isEmpty {
+                            rangeDict["departure"] = departureDict
+                        }
+                    }
+                    
+                    if !rangeDict.isEmpty {
                         rangesArray.append(rangeDict)
+                        if isRoundTrip {
+                            rangesArray.append(rangeDict)
+                        }
+                    }
+                }
+                
+                if !rangesArray.isEmpty {
+                    requestDict["arrival_departure_ranges"] = rangesArray
+                }
+            }
+            
+            if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
+                requestDict["iata_codes_exclude"] = exclude
+            }
+            
+            if let include = filterRequest.iataCodesInclude, !include.isEmpty {
+                requestDict["iata_codes_include"] = include
+            }
+            
+            if let sortBy = filterRequest.sortBy, !sortBy.isEmpty {
+                // Only include valid sort options - removed "best" to fix 400 error
+                if sortBy == "price" || sortBy == "duration" {
+                    requestDict["sort_by"] = sortBy
+                    
+                    if let sortOrder = filterRequest.sortOrder, !sortOrder.isEmpty {
+                        requestDict["sort_order"] = sortOrder
+                    } else {
+                        requestDict["sort_order"] = "asc"
                     }
                 }
             }
             
-            if !rangesArray.isEmpty {
-                requestDict["arrival_departure_ranges"] = rangesArray
+            if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
+                requestDict["agency_exclude"] = agencyExclude
+            }
+            
+            if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
+                requestDict["agency_include"] = agencyInclude
+            }
+            
+            if let priceMin = filterRequest.priceMin, priceMin > 0 {
+                requestDict["price_min"] = priceMin
+            }
+            
+            if let priceMax = filterRequest.priceMax, priceMax > 0 {
+                requestDict["price_max"] = priceMax
             }
         }
         
-        if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
-            requestDict["iata_codes_exclude"] = exclude
-        }
-        
-        if let include = filterRequest.iataCodesInclude, !include.isEmpty {
-            requestDict["iata_codes_include"] = include
-        }
-        
-        if let sortBy = filterRequest.sortBy, !sortBy.isEmpty {
-            if sortBy == "price" || sortBy == "duration" || sortBy == "best" {
-                requestDict["sort_by"] = sortBy
-                
-                if let sortOrder = filterRequest.sortOrder, !sortOrder.isEmpty {
-                    requestDict["sort_order"] = sortOrder
-                } else {
-                    requestDict["sort_order"] = "asc"
-                }
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+            if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
+                print("Pagination request JSON: \(requestBody)")
             }
+        } catch {
+            print("Error encoding pagination request: \(error)")
+            return Fail(error: error).eraseToAnyPublisher()
         }
         
-        if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
-            requestDict["agency_exclude"] = agencyExclude
-        }
+        print("Fetching page \(page) with limit \(limit) for search ID: \(searchId)")
         
-        if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
-            requestDict["agency_include"] = agencyInclude
-        }
-        
-        if let priceMin = filterRequest.priceMin, priceMin > 0 {
-            requestDict["price_min"] = priceMin
-        }
-        
-        if let priceMax = filterRequest.priceMax, priceMax > 0 {
-            requestDict["price_max"] = priceMax
-        }
-    } else {
-        print("📋 No filters applied - using empty request body {}")
-    }
-    
-    do {
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
-        if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
-            print("Pagination request JSON: \(requestBody)")
-        }
-    } catch {
-        print("Error encoding pagination request: \(error)")
-        return Fail(error: error).eraseToAnyPublisher()
-    }
-    
-    print("Fetching page \(page) with limit \(limit) for search ID: \(searchId)")
-    
-    return Future<FlightPollResponse, Error> { promise in
-        AF.request(request)
-            .validate()
-            .responseData { [weak self] response in
-                switch response.result {
-                case .success(let data):
-                    do {
-                        let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
-                        
-                        // Store the response in the view model
-                        self?.viewModelReference?.lastPollResponse = pollResponse
-                        
-                        print("Successfully fetched page \(page): \(pollResponse.results.count) results, total count: \(pollResponse.count)")
-                        
-                        promise(.success(pollResponse))
-                    } catch {
-                        print("Pagination decoding error: \(error)")
+        return Future<FlightPollResponse, Error> { promise in
+            AF.request(request)
+                .validate()
+                .responseData { [weak self] response in
+                    switch response.result {
+                    case .success(let data):
+                        do {
+                            let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                            self?.viewModelReference?.lastPollResponse = pollResponse
+                            print("Successfully fetched page \(page): \(pollResponse.results.count) results, total count: \(pollResponse.count)")
+                            promise(.success(pollResponse))
+                        } catch {
+                            print("Pagination decoding error: \(error)")
+                            promise(.failure(error))
+                        }
+                    case .failure(let error):
+                        print("Pagination API error: \(error)")
                         promise(.failure(error))
                     }
-                case .failure(let error):
-                    print("Pagination API error: \(error)")
-                    promise(.failure(error))
                 }
-            }
-    }.eraseToAnyPublisher()
-}
+        }.eraseToAnyPublisher()
+    }
 
 // Helper function to check if filter request has any meaningful filters
 private func isFilterRequestNonEmpty(_ filterRequest: FlightFilterRequest) -> Bool {
@@ -1789,25 +1779,30 @@ class ExploreViewModel: ObservableObject {
     }
     
     func applyQuickFilter(_ filter: FlightFilterTabView.FilterOption) {
-        var filterRequest = FlightFilterRequest()
+        var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
         case .all:
             // No specific filters needed
-            currentFilterRequest = nil  // Clear the filter
+            currentFilterRequest = nil
         case .best:
-            filterRequest.sortBy = "best"
+            // For "best", don't set any sort parameter - let API return default best results
+            filterRequest = FlightFilterRequest()
+            // Don't set sortBy for best - this was causing the 400 error
             currentFilterRequest = filterRequest
         case .cheapest:
-            filterRequest.sortBy = "price"
-            filterRequest.sortOrder = "asc"
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "price"
+            filterRequest!.sortOrder = "asc"
             currentFilterRequest = filterRequest
         case .fastest:
-            filterRequest.sortBy = "duration"
-            filterRequest.sortOrder = "asc"
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "duration"
+            filterRequest!.sortOrder = "asc"
             currentFilterRequest = filterRequest
         case .direct:
-            filterRequest.stopCountMax = 0
+            filterRequest = FlightFilterRequest()
+            filterRequest!.stopCountMax = 0
             currentFilterRequest = filterRequest
         }
         
@@ -7836,78 +7831,79 @@ struct FlightFilterSheet: View {
     
     // Modified to only include filters that user has interacted with
     private func applyFilters() {
-            // Create an empty filter request
-            var filterRequest = FlightFilterRequest()
-            
-            // Only add sort options if changed by user
-            if hasSortChanged {
-                switch sortOption {
-                case .best:
-                    filterRequest.sortBy = "best"
-                case .cheapest:
-                    filterRequest.sortBy = "price"
-                    filterRequest.sortOrder = "asc"
-                case .fastest:
-                    filterRequest.sortBy = "duration"
-                    filterRequest.sortOrder = "asc"
-                case .outboundTakeOff:
-                    filterRequest.sortBy = "departure"
-                case .outboundLanding:
-                    filterRequest.sortBy = "arrival"
-                }
+        // Create an empty filter request
+        var filterRequest = FlightFilterRequest()
+        
+        // Only add sort options if changed by user
+        if hasSortChanged {
+            switch sortOption {
+            case .best:
+                // Don't set sortBy for "best" - let API return default results
+                filterRequest.sortBy = nil
+            case .cheapest:
+                filterRequest.sortBy = "price"
+                filterRequest.sortOrder = "asc"
+            case .fastest:
+                filterRequest.sortBy = "duration"
+                filterRequest.sortOrder = "asc"
+            case .outboundTakeOff:
+                filterRequest.sortBy = "departure"
+            case .outboundLanding:
+                filterRequest.sortBy = "arrival"
             }
-            
-            // Only add stop count if changed by user
-            if hasStopsChanged {
-                if directFlightsSelected && !oneStopSelected && !multiStopSelected {
-                    filterRequest.stopCountMax = 0
-                } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
-                    filterRequest.stopCountMax = 1
-                }
-            }
-            
-            // Only add price range if changed by user
-            if hasPriceChanged {
-                filterRequest.priceMin = Int(priceRange[0])
-                filterRequest.priceMax = Int(priceRange[1])
-            }
-            
-            // Only add duration if changed by user
-            if hasDurationChanged {
-                filterRequest.durationMax = Int(durationRange[1] * 60)
-            }
-            
-            // Only add time ranges if changed by user
-            if hasTimesChanged {
-                let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
-                let departureMax = Int(departureTimes[1] * 3600)
-                let arrivalMin = Int(arrivalTimes[0] * 3600)
-                let arrivalMax = Int(arrivalTimes[1] * 3600)
-                
-                let timeRange = ArrivalDepartureRange(
-                    arrival: TimeRange(min: arrivalMin, max: arrivalMax),
-                    departure: TimeRange(min: departureMin, max: departureMax)
-                )
-                filterRequest.arrivalDepartureRanges = [timeRange]
-            }
-            
-            // Only add airline filters if changed by user
-            if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
-                filterRequest.iataCodesInclude = Array(selectedAirlines)
-            }
-            
-            // SAVE FILTER STATE TO VIEW MODEL
-            saveFilterStateToViewModel()
-            
-            // Debug log to see what filters are being applied
-            printAppliedFilters(filterRequest)
-            
-            // Apply the filter
-            viewModel.applyPollFilters(filterRequest: filterRequest)
-            
-            // Dismiss the sheet
-            dismiss()
         }
+        
+        // Only add stop count if changed by user
+        if hasStopsChanged {
+            if directFlightsSelected && !oneStopSelected && !multiStopSelected {
+                filterRequest.stopCountMax = 0
+            } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
+                filterRequest.stopCountMax = 1
+            }
+        }
+        
+        // Only add price range if changed by user
+        if hasPriceChanged {
+            filterRequest.priceMin = Int(priceRange[0])
+            filterRequest.priceMax = Int(priceRange[1])
+        }
+        
+        // Only add duration if changed by user
+        if hasDurationChanged {
+            filterRequest.durationMax = Int(durationRange[1] * 60)
+        }
+        
+        // Only add time ranges if changed by user
+        if hasTimesChanged {
+            let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
+            let departureMax = Int(departureTimes[1] * 3600)
+            let arrivalMin = Int(arrivalTimes[0] * 3600)
+            let arrivalMax = Int(arrivalTimes[1] * 3600)
+            
+            let timeRange = ArrivalDepartureRange(
+                arrival: TimeRange(min: arrivalMin, max: arrivalMax),
+                departure: TimeRange(min: departureMin, max: departureMax)
+            )
+            filterRequest.arrivalDepartureRanges = [timeRange]
+        }
+        
+        // Only add airline filters if changed by user
+        if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
+            filterRequest.iataCodesInclude = Array(selectedAirlines)
+        }
+        
+        // SAVE FILTER STATE TO VIEW MODEL
+        saveFilterStateToViewModel()
+        
+        // Debug log to see what filters are being applied
+        printAppliedFilters(filterRequest)
+        
+        // Apply the filter
+        viewModel.applyPollFilters(filterRequest: filterRequest)
+        
+        // Dismiss the sheet
+        dismiss()
+    }
     
     private func saveFilterStateToViewModel() {
             viewModel.filterSheetState.sortOption = mapSortOptionToFilterOption(sortOption)
