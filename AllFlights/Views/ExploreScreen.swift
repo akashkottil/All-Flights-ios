@@ -1303,6 +1303,8 @@ class ExploreViewModel: ObservableObject {
     @Published var hasMoreFlights = true
     @Published var currentSearchId: String? = nil
     
+    @Published var isFirstLoad: Bool = true
+    
     func searchMultiCityFlightsWithPagination() {
     isLoadingDetailedFlights = true
     detailedFlightError = nil
@@ -1413,6 +1415,7 @@ class ExploreViewModel: ObservableObject {
         totalFlightCount = 0
         hasMoreFlights = true
         isLoadingMoreFlights = false
+        isFirstLoad = true // Reset first load flag
         
         // Store selected flight details
         selectedOriginCode = origin
@@ -1445,11 +1448,11 @@ class ExploreViewModel: ObservableObject {
             print("Search successful, got searchId: \(searchResponse.searchId)")
             self.currentSearchId = searchResponse.searchId
             
-            // Load first page
+            // Load first page with only 8 results for faster initial load
             return self.service.pollFlightResultsPaginated(
                 searchId: searchResponse.searchId,
                 page: 1,
-                limit: 20,
+                limit: 8, // Only load 8 results initially for faster response
                 filterRequest: self._currentFilterRequest
             )
         }
@@ -1465,7 +1468,7 @@ class ExploreViewModel: ObservableObject {
             receiveValue: { [weak self] pollResponse in
                 guard let self = self else { return }
                 
-                // Set total count from first response
+                // IMPORTANT: Set the total flight count from the response first thing
                 self.totalFlightCount = pollResponse.count
                 
                 // Set flight results
@@ -1477,12 +1480,59 @@ class ExploreViewModel: ObservableObject {
                 // Update loading state
                 self.isLoadingDetailedFlights = false
                 
-                print("First page loaded: \(pollResponse.results.count) flights, total: \(pollResponse.count)")
+                print("First page loaded: \(pollResponse.results.count) flights, total available: \(pollResponse.count)")
             }
         )
         .store(in: &cancellables)
     }
 
+    // 2. Also update the applyFiltersWithPagination method in ExploreViewModel
+    func applyFiltersWithPagination(filterRequest: FlightFilterRequest) {
+        // Store the filter request
+        self._currentFilterRequest = filterRequest
+        
+        // Reset pagination and reload from first page
+        guard let searchId = currentSearchId else { return }
+        
+        isLoadingDetailedFlights = true
+        detailedFlightResults = []
+        currentPage = 1
+        hasMoreFlights = true
+        isLoadingMoreFlights = false
+        isFirstLoad = true // Reset first load flag for filters too
+        
+        service.pollFlightResultsPaginated(
+            searchId: searchId,
+            page: 1,
+            limit: 8, // Use 8 results for initial load after filtering
+            filterRequest: filterRequest
+        )
+        .receive(on: DispatchQueue.main)
+        .sink(
+            receiveCompletion: { [weak self] completion in
+                self?.isLoadingDetailedFlights = false
+                if case .failure(let error) = completion {
+                    print("Filter application failed: \(error.localizedDescription)")
+                    self?.detailedFlightError = error.localizedDescription
+                }
+            },
+            receiveValue: { [weak self] pollResponse in
+                guard let self = self else { return }
+                
+                // IMPORTANT: Set total count from the API response immediately
+                self.totalFlightCount = pollResponse.count
+                
+                self.detailedFlightResults = pollResponse.results
+                self.hasMoreFlights = pollResponse.next != nil
+                self.isLoadingDetailedFlights = false
+                
+                print("Filters applied: \(pollResponse.results.count) flights loaded, total available: \(pollResponse.count)")
+            }
+        )
+        .store(in: &cancellables)
+    }
+
+    // Modified loadMoreFlights method in ExploreViewModel
     func loadMoreFlights() {
         guard let searchId = currentSearchId,
               hasMoreFlights,
@@ -1497,10 +1547,13 @@ class ExploreViewModel: ObservableObject {
         
         print("Loading more flights: page \(currentPage)")
         
+        // Use 30 results for subsequent pages
+        let pageSize = 30
+        
         service.pollFlightResultsPaginated(
             searchId: searchId,
             page: currentPage,
-            limit: 20,
+            limit: pageSize,
             filterRequest: _currentFilterRequest
         )
         .receive(on: DispatchQueue.main)
@@ -1522,6 +1575,7 @@ class ExploreViewModel: ObservableObject {
                 // Update pagination state
                 self.hasMoreFlights = pollResponse.next != nil
                 self.isLoadingMoreFlights = false
+                self.isFirstLoad = false // Mark that we're no longer on first load
                 
                 print("Page \(self.currentPage) loaded: \(pollResponse.results.count) new flights, total loaded: \(self.detailedFlightResults.count)")
             }
@@ -1529,47 +1583,7 @@ class ExploreViewModel: ObservableObject {
         .store(in: &cancellables)
     }
 
-    func applyFiltersWithPagination(filterRequest: FlightFilterRequest) {
-        // Store the filter request
-        self._currentFilterRequest = filterRequest
-        
-        // Reset pagination and reload from first page
-        guard let searchId = currentSearchId else { return }
-        
-        isLoadingDetailedFlights = true
-        detailedFlightResults = []
-        currentPage = 1
-        hasMoreFlights = true
-        isLoadingMoreFlights = false
-        
-        service.pollFlightResultsPaginated(
-            searchId: searchId,
-            page: 1,
-            limit: 20,
-            filterRequest: filterRequest
-        )
-        .receive(on: DispatchQueue.main)
-        .sink(
-            receiveCompletion: { [weak self] completion in
-                self?.isLoadingDetailedFlights = false
-                if case .failure(let error) = completion {
-                    print("Filter application failed: \(error.localizedDescription)")
-                    self?.detailedFlightError = error.localizedDescription
-                }
-            },
-            receiveValue: { [weak self] pollResponse in
-                guard let self = self else { return }
-                
-                self.totalFlightCount = pollResponse.count
-                self.detailedFlightResults = pollResponse.results
-                self.hasMoreFlights = pollResponse.next != nil
-                self.isLoadingDetailedFlights = false
-                
-                print("Filters applied: \(pollResponse.results.count) flights, total: \(pollResponse.count)")
-            }
-        )
-        .store(in: &cancellables)
-    }
+   
     
     func resetToAnywhereDestination() {
             print("resetToAnywhereDestination called")
@@ -6291,18 +6305,13 @@ var body: some View {
         .padding(.vertical, 8)
         .background(Color("scroll"))
         
-        // UPDATED: Flight count display with total count from API
+        // UPDATED: Flight count display to always show the total count from API
         if !filteredResults.isEmpty && viewModel.selectedFlightId == nil {
             HStack {
-                if viewModel.totalFlightCount > 0 {
-                    Text("\(viewModel.totalFlightCount) flights found")
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                } else {
-                    Text("\(filteredResults.count) flights found")
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                }
+                // Always show the total count from the API response, not the number of loaded results
+                Text("\(viewModel.totalFlightCount) flights found")
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
                 Spacer()
             }
             .padding(.horizontal)
