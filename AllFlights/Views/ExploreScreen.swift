@@ -3626,7 +3626,7 @@ struct TabButton: View {
     }
 }
 
-// MARK: - Updated TripTypeTabView
+// MARK: - Updated TripTypeTabView with Targeted Loading Protection
 struct TripTypeTabView: View {
     @Binding var selectedTab: Int
     @Binding var isRoundTrip: Bool
@@ -3647,6 +3647,13 @@ struct TripTypeTabView: View {
         return 5 // Positive value shifts to the right
     }
     
+    // MARK: - Targeted Loading State Check (Only for ModifiedDetailedFlightListView)
+    private var isLoadingInDetailedView: Bool {
+        return viewModel.showingDetailedFlightList &&
+               (viewModel.isLoadingDetailedFlights ||
+                (viewModel.detailedFlightResults.isEmpty && viewModel.isLoadingDetailedFlights))
+    }
+    
     var body: some View {
         ZStack(alignment: .leading) {
             // Background capsule
@@ -3665,59 +3672,72 @@ struct TripTypeTabView: View {
             // Tab buttons row with consistent spacing
             HStack(spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
-                            Button(action: {
-                                selectedTab = index
+                    Button(action: {
+                        // TARGETED SAFETY CHECK: Only block changes in ModifiedDetailedFlightListView during loading
+                        if isLoadingInDetailedView {
+                            print("Trip type change blocked - skeleton loading in detailed flight view")
+                            return
+                        }
+                        
+                        selectedTab = index
+                        
+                        // Handle multi-city selection
+                        if index == 2 {
+                            // Initialize multi city trips
+                            viewModel.initializeMultiCityTrips()
+                        } else {
+                            // Existing round trip/one way logic
+                            let newIsRoundTrip = (index == 0)
+                            
+                            if isRoundTrip != newIsRoundTrip {
+                                isRoundTrip = newIsRoundTrip
+                                viewModel.isRoundTrip = newIsRoundTrip
                                 
-                                // Handle multi-city selection
-                                if index == 2 {
-                                    // Initialize multi city trips
-                                    viewModel.initializeMultiCityTrips()
-                                } else {
-                                    // Existing round trip/one way logic
-                                    let newIsRoundTrip = (index == 0)
-                                    
-                                    if isRoundTrip != newIsRoundTrip {
-                                        isRoundTrip = newIsRoundTrip
-                                        viewModel.isRoundTrip = newIsRoundTrip
-                                        
-                                        // Clear dates if switching from round trip to one way and we have 2+ dates
-                                                                    if !newIsRoundTrip && viewModel.dates.count > 1 {
-                                                                        // Keep only the first date for one-way
-                                                                        viewModel.dates = Array(viewModel.dates.prefix(1))
-                                                                    }
-                                        
-                                        // Your existing search re-triggering logic
-                                        if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
-                                            // Clear current results first
-                                            viewModel.detailedFlightResults = []
-                                            viewModel.flightResults = []
-                                            
-                                            // Force immediate search
-                                            viewModel.updateDatesAndRunSearch()
-                                        } else if viewModel.selectedCity != nil {
-                                            // If a city was selected in explore view, re-fetch with new trip type
-                                            viewModel.fetchFlightDetails(destination: viewModel.selectedCity!.location.iata)
-                                        }
-                                    } else {
-                                        isRoundTrip = newIsRoundTrip
-                                    }
+                                // Clear dates if switching from round trip to one way and we have 2+ dates
+                                if !newIsRoundTrip && viewModel.dates.count > 1 {
+                                    // Keep only the first date for one-way
+                                    viewModel.dates = Array(viewModel.dates.prefix(1))
                                 }
+                                
+                                // Your existing search re-triggering logic
+                                if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
+                                    // Clear current results first
+                                    viewModel.detailedFlightResults = []
+                                    viewModel.flightResults = []
+                                    
+                                    // Force immediate search
+                                    viewModel.updateDatesAndRunSearch()
+                                } else if viewModel.selectedCity != nil {
+                                    // If a city was selected in explore view, re-fetch with new trip type
+                                    viewModel.fetchFlightDetails(destination: viewModel.selectedCity!.location.iata)
+                                }
+                            } else {
+                                isRoundTrip = newIsRoundTrip
+                            }
+                        }
                     }) {
                         Text(tabs[index])
                             .font(.system(size: 13, weight: selectedTab == index ? .semibold : .regular))
-                            .foregroundColor(selectedTab == index ? .blue : .black)
+                            .foregroundColor(
+                                // Only change appearance when loading in detailed view
+                                isLoadingInDetailedView ? .gray.opacity(0.5) : (selectedTab == index ? .blue : .black)
+                            )
                             .frame(width: tabWidth)
                             .padding(.vertical, 8)
                     }
+                    .disabled(isLoadingInDetailedView) // Only disable in detailed view during loading
                 }
             }
             .onChange(of: isRoundTrip) { newValue in
-                        // Update selectedTab to match the trip type
-                        selectedTab = newValue ? 0 : 1 // 0 for "Return", 1 for "One way"
-                    }
+                // Update selectedTab to match the trip type only if not loading in detailed view
+                if !isLoadingInDetailedView {
+                    selectedTab = newValue ? 0 : 1 // 0 for "Return", 1 for "One way"
+                }
+            }
         }
         .frame(width: totalWidth, height: 36)
         .padding(.horizontal, 4)
+        .opacity(isLoadingInDetailedView ? 0.6 : 1.0) // Visual feedback only when loading in detailed view
     }
 }
 
