@@ -1,6 +1,7 @@
 import SwiftUI
 import Alamofire
 import Combine
+import SafariServices
 
 
 // MARK: - Updated Models for the new API Response Structure
@@ -2647,7 +2648,9 @@ struct ExploreScreen: View {
             }
         }
         .background(Color("scroll"))
-        .ignoresSafeArea(edges: .bottom)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 50) // space equal to tab bar height
+        }
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
             print("🔍 hasSearchedFlights: \(viewModel.hasSearchedFlights)")
@@ -6423,9 +6426,9 @@ struct ModifiedDetailedFlightListView: View {
                                     }
                                 }
                                 
-                                // Price section
-                                PriceSection(price: "₹\(Int(selectedFlight.minPrice))", passengers: "2")
-                                    .padding()
+                                // Enhanced Price section with deals
+                                EnhancedPriceSection(selectedFlight: selectedFlight, viewModel: viewModel)
+                                    .padding(.top)
                             }
                         }
                         .background(Color("scroll"))
@@ -8163,3 +8166,481 @@ struct ScrollViewOffsetPreferenceKey: PreferenceKey {
     }
 }
 
+
+// MARK: - Good to Know Section
+struct GoodToKnowSection: View {
+    let originCode: String
+    let destinationCode: String
+    let isRoundTrip: Bool
+    @State private var showingSelfTransferInfo = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Good to Know")
+                .font(.headline)
+                .foregroundColor(.primary)
+                .padding(.horizontal)
+            
+            VStack(spacing: 12) {
+                // Departure/Return info
+                if isRoundTrip {
+                    HStack {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 16))
+                        
+                        Text("You are departing from \(originCode)\n but returning to \(destinationCode)")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Self Transfer row
+                Button(action: {
+                    showingSelfTransferInfo = true
+                }) {
+                    HStack {
+                        Image(systemName: "suitcase.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 16))
+                        
+                        Text("Self Transfer")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14))
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                .background(Color(.systemBackground))
+            }
+        }
+        .padding(.vertical)
+        .background(Color(.white))
+        .cornerRadius(16)
+        .padding(.horizontal)
+        .sheet(isPresented: $showingSelfTransferInfo) {
+            SelfTransferInfoSheet()
+        }
+    }
+}
+
+// MARK: - Self Transfer Info Sheet
+struct SelfTransferInfoSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Self Transfer")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .padding(.top)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("What is a self transfer?")
+                        .font(.headline)
+                    
+                    Text("A self transfer means you'll need to collect your baggage and check in again for your connecting flight. This is common when flying with different airlines or when the airlines don't have an interline agreement.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Important things to remember:")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Allow extra time for connections", systemImage: "clock")
+                        Label("Check visa requirements for transit", systemImage: "doc.text")
+                        Label("Collect and re-check your baggage", systemImage: "bag")
+                    }
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Deals Section
+struct DealsSection: View {
+    let providers: [FlightProvider]
+    let cheapestProvider: FlightProvider?
+    @State private var showingAllDeals = false
+    @State private var showingWebView = false
+    @State private var webViewURL: String = ""
+    
+    private var additionalDealsCount: Int {
+        return max(0, providers.count - 1)
+    }
+    
+    var body: some View {
+        VStack(spacing: 12) {
+           
+                // More deals available button
+                if additionalDealsCount > 0 {
+                    Button(action: {
+                        showingAllDeals = true
+                    }) {
+                        HStack {
+                            Text("\(additionalDealsCount) more deals available")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.blue)
+                            
+                            Image(systemName: "chevron.up")
+                                .foregroundColor(.blue)
+                                .font(.system(size: 14))
+                        }
+
+                    }
+                    .padding(.horizontal)
+                    .padding(.top,20)
+                }
+            
+            if additionalDealsCount > 0 {
+                Divider()
+            }
+                
+                // Cheapest deal section
+                if let cheapest = cheapestProvider,
+                   let splitProvider = cheapest.splitProviders.first {
+                    
+                    HStack {
+                        Text("Cheap Deal for you")
+                            .font(.system(size: 16,))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top,12)
+                    
+                    HStack {
+                        
+                        
+                        
+                        Text(splitProvider.name)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.primary)
+                        
+                        
+                        
+                        Spacer()
+                        
+                        // Price and View Deal button
+                      
+                            
+                            Button(action: {
+                                webViewURL = splitProvider.deeplink
+                                showingWebView = true
+                            }) {
+                                Text("View Deal")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding( 16)
+                                  
+                                    .background(Color.orange)
+                                    .cornerRadius(12)
+                            }
+                        
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
+                }
+            }
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+            .padding(.horizontal)
+        
+        .padding(.bottom,50)
+        .sheet(isPresented: $showingAllDeals) {
+            ProviderSelectionSheet(
+                providers: providers,
+                onProviderSelected: { deeplink in
+                    webViewURL = deeplink
+                    showingWebView = true
+                }
+            )
+        }
+        .sheet(isPresented: $showingWebView) {
+            if !webViewURL.isEmpty {
+                WebViewSheet(url: webViewURL)
+            }
+        }
+    }
+}
+
+// MARK: - Provider Selection Sheet
+struct ProviderSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let providers: [FlightProvider]
+    let onProviderSelected: (String) -> Void
+    
+    private var sortedProviders: [SplitProvider] {
+        let allProviders = providers.flatMap { $0.splitProviders }
+        return allProviders.sorted { $0.price < $1.price }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("\(sortedProviders.count) providers - Price in INR")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                
+                // Read Before Booking expandable section
+                DisclosureGroup("Read Before Booking") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("• Prices may change before booking")
+                        Text("• Check baggage policies with your provider")
+                        Text("• Review cancellation and change policies")
+                        Text("• Verify travel document requirements")
+                    }
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+                
+                // Provider list
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(Array(sortedProviders.enumerated()), id: \.element.deeplink) { index, provider in
+                            ProviderRow(
+                                provider: provider,
+                                onSelected: {
+                                    onProviderSelected(provider.deeplink)
+                                    dismiss()
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .background(Color("scroll"))
+            .navigationTitle("Choose Provider")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.primary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Provider Row
+struct ProviderRow: View {
+    let provider: SplitProvider
+    let onSelected: () -> Void
+    
+    private var supportFeatures: [String] {
+        var features: [String] = []
+        
+        // Add features based on provider rating and other criteria
+        if let rating = provider.rating, rating >= 4.5 {
+            features.append("24/7 Customer support")
+        }
+        if provider.name.lowercased().contains("cleartrip") ||
+           provider.name.lowercased().contains("makemytrip") {
+            features.append("Email Notifications")
+            features.append("Chat Support")
+        } else if provider.name.lowercased().contains("goibibo") {
+            features.append("Telephone Support")
+        } else {
+            features.append("Phone & Email Support")
+        }
+        
+        return features
+    }
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Provider logo
+            AsyncImage(url: URL(string: provider.imageURL)) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 40, height: 40)
+                case .failure(_), .empty:
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Text(String(provider.name.prefix(2)))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                        )
+                @unknown default:
+                    EmptyView()
+                }
+            }
+            
+            // Provider info
+            VStack(alignment: .leading, spacing: 4) {
+                VStack(spacing:2){
+                    Text(provider.name)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.primary)
+                    
+                    if let rating = provider.rating,
+                       let ratingCount = provider.ratingCount {
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 10))
+                            
+                            Text("\(String(format: "%.1f", rating))")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            
+                            Text("•")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            
+                            Text("\(ratingCount)")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                // Support features
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(supportFeatures, id: \.self) { feature in
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.green)
+                                .font(.system(size: 10))
+                            
+                            Text(feature)
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Price and button
+            VStack(alignment: .trailing, spacing: 8) {
+                Text("₹\(String(format: "%.2f", provider.price))")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Button(action: onSelected) {
+                    Text("View Deal")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.orange)
+                        .cornerRadius(6)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - WebView Sheet
+struct WebViewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let url: String
+    
+    var body: some View {
+        NavigationView {
+            WebView(url: url)
+                .navigationTitle("Book Flight")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Done") {
+                            dismiss()
+                        }
+                    }
+                }
+        }
+    }
+}
+
+// MARK: - WebView
+struct WebView: UIViewControllerRepresentable {
+    let url: String
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let safariVC = SFSafariViewController(url: URL(string: url)!)
+        safariVC.preferredControlTintColor = UIColor.systemOrange
+        return safariVC
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+        // No updates needed
+    }
+}
+
+// MARK: - Updated Price Section (Replace existing PriceSection)
+struct EnhancedPriceSection: View {
+    let selectedFlight: FlightDetailResult
+    let viewModel: ExploreViewModel
+    
+    private var cheapestProvider: FlightProvider? {
+        return selectedFlight.providers.min(by: { $0.price < $1.price })
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Good to Know Section
+            GoodToKnowSection(
+                originCode: viewModel.selectedOriginCode,
+                destinationCode: viewModel.selectedDestinationCode,
+                isRoundTrip: viewModel.isRoundTrip
+            )
+            
+            // Deals Section
+            DealsSection(
+                providers: selectedFlight.providers,
+                cheapestProvider: cheapestProvider
+            )
+        }
+    }
+}
