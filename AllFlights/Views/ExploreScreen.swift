@@ -2101,14 +2101,56 @@ class ExploreViewModel: ObservableObject {
             detailedFlightResults = []
             flightResults = []
             
+            // When switching to round trip, make sure we have a return date
+            if isRoundTrip && (selectedReturnDatee.isEmpty || dates.count < 2) {
+                // Add a return date if we don't have one (default to departure + 1 day)
+                if !dates.isEmpty && dates.count == 1 {
+                    let departureDate = dates[0]
+                    if let returnDate = Calendar.current.date(byAdding: .day, value: 7, to: departureDate) {
+                        // Add the return date and update the formatted date strings
+                        dates.append(returnDate)
+                        
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyy-MM-dd"
+                        
+                        selectedDepartureDatee = formatter.string(from: dates[0])
+                        selectedReturnDatee = formatter.string(from: returnDate)
+                        
+                        print("Added return date for round trip: \(selectedReturnDatee)")
+                    }
+                } else if dates.isEmpty && !selectedDepartureDatee.isEmpty {
+                    // We have a string date but no Date objects
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    
+                    if let departureDate = formatter.date(from: selectedDepartureDatee) {
+                        dates = [departureDate]
+                        
+                        // Add a return date (departure + 7 days)
+                        if let returnDate = Calendar.current.date(byAdding: .day, value: 7, to: departureDate) {
+                            dates.append(returnDate)
+                            selectedReturnDatee = formatter.string(from: returnDate)
+                            
+                            print("Created return date for round trip: \(selectedReturnDatee)")
+                        }
+                    }
+                }
+            }
+            
             // If we were on the detailed flight list, re-run that search
             if showingDetailedFlightList {
-                searchFlightsForDates(
-                    origin: selectedOriginCode,
-                    destination: selectedDestinationCode,
-                    returnDate: isRoundTrip ? selectedReturnDatee : "",
-                    departureDate: selectedDepartureDatee
-                )
+                // Ensure we have valid search parameters
+                if !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
+                    // For round trip, ensure we have a return date
+                    let returnDate = isRoundTrip ? selectedReturnDatee : ""
+                    
+                    searchFlightsForDates(
+                        origin: selectedOriginCode,
+                        destination: selectedDestinationCode,
+                        returnDate: returnDate,
+                        departureDate: selectedDepartureDatee
+                    )
+                }
             }
             // If we had a selected city in the main view
             else if let city = selectedCity {
@@ -2116,6 +2158,7 @@ class ExploreViewModel: ObservableObject {
             }
         }
     }
+
     
     // Method to format selected dates for display in UI
     func formatDateForDisplay(date: Date) -> String {
@@ -2162,12 +2205,36 @@ class ExploreViewModel: ObservableObject {
                 let sortedDates = dates.sorted()
                 departureDate = formatter.string(from: sortedDates[0])
                 returnDate = formatter.string(from: sortedDates[1])
-            } else if dates.count == 1 || !isRoundTrip {
+            } else if dates.count == 1 {
                 departureDate = formatter.string(from: dates[0])
-                returnDate = isRoundTrip ? formatter.string(from: Calendar.current.date(byAdding: .day, value: 1, to: dates[0])!) : ""
+                
+                // For round trip with only one date, create a return date
+                if isRoundTrip {
+                    if let nextWeek = Calendar.current.date(byAdding: .day, value: 7, to: dates[0]) {
+                        returnDate = formatter.string(from: nextWeek)
+                        // Also add the return date to the dates array
+                        if !dates.contains(nextWeek) {
+                            dates.append(nextWeek)
+                        }
+                    } else {
+                        returnDate = ""
+                    }
+                } else {
+                    returnDate = ""
+                }
             } else {
-                departureDate = "2025-12-29"
-                returnDate = isRoundTrip ? "2025-12-30" : ""
+                // Default fallback dates if somehow we have no dates
+                let today = Date()
+                if let nextWeek = Calendar.current.date(byAdding: .day, value: 7, to: today) {
+                    departureDate = formatter.string(from: today)
+                    returnDate = isRoundTrip ? formatter.string(from: nextWeek) : ""
+                    
+                    // Also update the dates array
+                    dates = isRoundTrip ? [today, nextWeek] : [today]
+                } else {
+                    departureDate = "2025-12-29"
+                    returnDate = isRoundTrip ? "2025-12-30" : ""
+                }
             }
             
             // Update the stored dates
@@ -3429,6 +3496,30 @@ struct SearchCard: View {
             .onChange(of: isRoundTrip) { newValue in
                 // Update viewModel when isRoundTrip changes
                 viewModel.isRoundTrip = newValue
+                
+                // Handle date changes when switching trip types
+                if newValue { // Switching TO round trip
+                    // Make sure we have both departure and return dates for round trip
+                    if viewModel.dates.count == 1 {
+                        // We only have a departure date, add a return date (departure + 7 days)
+                        if let returnDate = Calendar.current.date(byAdding: .day, value: 7, to: viewModel.dates[0]) {
+                            viewModel.dates.append(returnDate)
+                            
+                            // Update the formatted date strings
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "yyyy-MM-dd"
+                            viewModel.selectedReturnDatee = formatter.string(from: returnDate)
+                        }
+                    }
+                } else { // Switching TO one-way
+                    // Keep only the first date for one-way if we have multiple dates
+                    if viewModel.dates.count > 1 {
+                        viewModel.dates = Array(viewModel.dates.prefix(1))
+                        // Clear the return date string
+                        viewModel.selectedReturnDatee = ""
+                    }
+                }
+                
                 // If we have origin/destination and dates already set, trigger a new search
                 if !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty && !viewModel.dates.isEmpty {
                     viewModel.updateDatesAndRunSearch()
@@ -3899,13 +3990,33 @@ struct TripTypeTabView: View {
                             let newIsRoundTrip = (index == 0)
                             
                             if isRoundTrip != newIsRoundTrip {
+                                // Update the trip type
                                 isRoundTrip = newIsRoundTrip
                                 viewModel.isRoundTrip = newIsRoundTrip
                                 
-                                // Clear dates if switching from round trip to one way and we have 2+ dates
-                                if !newIsRoundTrip && viewModel.dates.count > 1 {
+                                if newIsRoundTrip { // Switching TO round trip
+                                    // If we only have one date, add a return date
+                                    if viewModel.dates.count == 1 {
+                                        let departureDate = viewModel.dates[0]
+                                        if let returnDate = Calendar.current.date(byAdding: .day, value: 7, to: departureDate) {
+                                            // Add the return date
+                                            viewModel.dates.append(returnDate)
+                                            
+                                            // Update the formatted date strings
+                                            let formatter = DateFormatter()
+                                            formatter.dateFormat = "yyyy-MM-dd"
+                                            viewModel.selectedReturnDatee = formatter.string(from: returnDate)
+                                            
+                                            print("Added return date for round trip tab change: \(viewModel.selectedReturnDatee)")
+                                        }
+                                    }
+                                } else { // Switching TO one-way
                                     // Keep only the first date for one-way
-                                    viewModel.dates = Array(viewModel.dates.prefix(1))
+                                    if viewModel.dates.count > 1 {
+                                        viewModel.dates = Array(viewModel.dates.prefix(1))
+                                        // Clear the return date string
+                                        viewModel.selectedReturnDatee = ""
+                                    }
                                 }
                                 
                                 // Your existing search re-triggering logic
