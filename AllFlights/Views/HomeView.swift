@@ -133,6 +133,7 @@ struct HomeView: View {
     @State private var navigateToAccount = false
     @Namespace private var animation
     @GestureState private var dragOffset: CGFloat = 0
+    @State private var scrollOffset: CGFloat = 0
     
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
@@ -174,39 +175,41 @@ struct HomeView: View {
                     LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
                         .ignoresSafeArea(edges: .top)
                 )
-                // Scrollable content below the header + search
+                
+                // IMPROVED: ScrollView with better offset tracking
                 ScrollView {
-                    VStack(spacing: 0) {
+                    VStack(spacing: 16) {
+                        // Improved GeometryReader for scroll tracking
                         GeometryReader { geo in
                             Color.clear
                                 .preference(
                                     key: ScrollOffsetPreferenceKeyy.self,
-                                    value: geo.frame(in: .named("scroll")).minY
+                                    value: geo.frame(in: .named("scrollView")).minY
                                 )
+                                .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
+                                    scrollOffset = value
+                                    updateSearchExpandedState()
+                                }
                         }
                         .frame(height: 0)
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            // UPDATED: Conditionally show recent search section
-                            conditionalRecentSearchSection
-                            
-                            // Updated dynamic cheap flights section
-                            dynamicCheapFlightsSection
-                            
-                            FeatureCards()
-                            LoginNotifier()
-                            ratingPrompt
-                            BottomSignature()
-                        }
+                        // UPDATED: Conditionally show recent search section
+                        conditionalRecentSearchSection
+                        
+                        // Updated dynamic cheap flights section
+                        dynamicCheapFlightsSection
+                        
+                        FeatureCards()
+                        LoginNotifier()
+                        ratingPrompt
+                        BottomSignature()
+                        
+                        // Add extra padding at the bottom for better scrolling
+                        Spacer().frame(height: 20)
                     }
+                    .padding(.top, 16)
                 }
-                .coordinateSpace(name: "scroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
-                    let threshold: CGFloat = -40
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                        isSearchExpanded = value > threshold
-                    }
-                }
+                .coordinateSpace(name: "scrollView")
             }
             .navigationDestination(isPresented: $navigateToAccount) {
                 AccountView()
@@ -217,6 +220,20 @@ struct HomeView: View {
             }
         }
         .scrollIndicators(.hidden)
+    }
+    
+    // IMPROVED: Function to update search expanded state based on scroll
+    private func updateSearchExpandedState() {
+        let threshold: CGFloat = -20  // Adjust this value to make it more or less sensitive
+        
+        // Only collapse when scrolling down, expand when at the top
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+            if scrollOffset < threshold && isSearchExpanded {
+                isSearchExpanded = false
+            } else if scrollOffset > 0 && !isSearchExpanded {
+                isSearchExpanded = true
+            }
+        }
     }
 
     // MARK: - UPDATED: Conditional Recent Search Section
@@ -363,6 +380,7 @@ struct HomeView: View {
             }
             .padding()
         }
+        .padding(.horizontal)
     }
 }
 
