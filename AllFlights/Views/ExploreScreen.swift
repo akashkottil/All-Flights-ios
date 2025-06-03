@@ -2511,8 +2511,7 @@ struct ExploreScreen: View {
                     content: {
                         VStack(alignment: .center, spacing: 16) {
                             // Add some top padding to account for the search card
-                            Spacer()
-                                .frame(height: 20)
+
                             
                             // Main content based on current state
                             if viewModel.showingDetailedFlightList {
@@ -2912,6 +2911,7 @@ struct ExpandedSearchCard: View {
                     }
                 }
             )
+            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             .padding()
             .gesture(dragGesture)  // MOVED: Apply drag gesture to entire search card area
         }
@@ -3024,6 +3024,7 @@ struct CollapsedSearchCard: View {
                 .padding(.vertical, 12)
                 .padding(.top, 5)
             }
+            
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.systemBackground))
@@ -3033,6 +3034,7 @@ struct CollapsedSearchCard: View {
                             .stroke(Color.orange, lineWidth: 1)
                     )
             )
+            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             .padding()
         }
         .buttonStyle(PlainButtonStyle())
