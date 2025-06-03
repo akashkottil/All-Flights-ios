@@ -6257,13 +6257,14 @@ struct ModifiedDetailedFlightListView: View {
     @State private var showingFilterSheet = false
     @State private var hasAppliedInitialDirectFilter = false
     
+    // Add state to control the full-screen flight details view
+    @State private var showingFlightDetails = false
+    
     // UPDATED: Better state management for auto-filter application
     @State private var hasTriedAutoFilter = false
     @State private var shouldShowSkeleton = true
     @State private var autoFilterAttempts = 0
     @State private var isRetryingInBackground = false
-
-    // ... your existing computed properties (formattedDates, isMultiCity, etc.) remain the same ...
 
     private var formattedDates: String {
         if viewModel.dates.count >= 2 {
@@ -6335,7 +6336,7 @@ struct ModifiedDetailedFlightListView: View {
             .background(Color("scroll"))
             
             // UPDATED: Flight count display to always show the total count from API
-            if !filteredResults.isEmpty && viewModel.selectedFlightId == nil {
+            if !filteredResults.isEmpty {
                 HStack {
                     // Always show the total count from the API response, not the number of loaded results
                     Text("\(viewModel.totalFlightCount) flights found")
@@ -6368,84 +6369,34 @@ struct ModifiedDetailedFlightListView: View {
                     }
                 }
             } else {
-                VStack(spacing: 0) {
-                    // If we have a selected flight, show the FlightDetailCard for it
-                    if let selectedId = viewModel.selectedFlightId,
-                       let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
-                        
-                        ScrollView {
-                            VStack(spacing: 0) {
-                                // Your existing flight details display code remains the same
-                                if isMultiCity {
-                                    ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
-                                        let leg = selectedFlight.legs[legIndex]
-                                        
-                                        HStack {
-                                            Text("Flight \(legIndex + 1): \(leg.originCode) → \(leg.destinationCode)")
-                                                .font(.headline)
-                                                .padding(.bottom, 4)
-                                            Spacer()
-                                        }
-                                        .padding(.horizontal)
-                                        .padding(.top, legIndex > 0 ? 16 : 0)
-                                        
-                                        if leg.stopCount == 0 && !leg.segments.isEmpty {
-                                            let segment = leg.segments.first!
-                                            displayDirectFlight(leg: leg, segment: segment)
-                                        } else if leg.stopCount > 0 && leg.segments.count > 1 {
-                                            displayConnectingFlight(leg: leg)
-                                        }
-                                        
-                                        if legIndex < selectedFlight.legs.count - 1 {
-                                            Divider()
-                                                .padding(.horizontal)
-                                                .padding(.vertical, 8)
-                                        }
-                                    }
-                                } else {
-                                    // Regular flights display code remains the same
-                                    if let outboundLeg = selectedFlight.legs.first {
-                                        if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
-                                            let segment = outboundLeg.segments.first!
-                                            displayDirectFlight(leg: outboundLeg, segment: segment)
-                                        } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
-                                            displayConnectingFlight(leg: outboundLeg)
-                                        }
-                                        
-                                        if selectedFlight.legs.count > 1,
-                                           let returnLeg = selectedFlight.legs.last,
-                                           returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
-                                            
-                                            if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
-                                                let segment = returnLeg.segments.first!
-                                                displayDirectFlight(leg: returnLeg, segment: segment)
-                                            } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
-                                                displayConnectingFlight(leg: returnLeg)
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // Enhanced Price section with deals
-                                EnhancedPriceSection(selectedFlight: selectedFlight, viewModel: viewModel)
-                                    .padding(.top)
-                            }
-                        }
-                        .background(Color("scroll"))
+                // MODIFIED: Always show the flight list, full-screen details shown in a separate view
+                PaginatedFlightList(
+                    viewModel: viewModel,
+                    filteredResults: filteredResults,
+                    isMultiCity: isMultiCity,
+                    onFlightSelected: { flight in
+                        viewModel.selectedFlightId = flight.id
+                        showingFlightDetails = true
                     }
-                    else {
-                        // Use the PaginatedFlightList component
-                        PaginatedFlightList(
-                            viewModel: viewModel,
-                            filteredResults: filteredResults,
-                            isMultiCity: isMultiCity
-                        )
-                    }
-                }
+                )
             }
         }
         .sheet(isPresented: $showingFilterSheet) {
             FlightFilterSheet(viewModel: viewModel)
+        }
+        // ADDED: FullScreenCover for the flight details
+        .fullScreenCover(isPresented: $showingFlightDetails) {
+            if let selectedId = viewModel.selectedFlightId,
+               let selectedFlight = viewModel.detailedFlightResults.first(where: { $0.id == selectedId }) {
+                FlightDetailsView(
+                    selectedFlight: selectedFlight,
+                    viewModel: viewModel
+                )
+            }
+        }
+        // ADDED: Update the showingFlightDetails state when selectedFlightId changes
+        .onChange(of: viewModel.selectedFlightId) { newValue in
+            showingFlightDetails = newValue != nil
         }
         .onAppear {
             print("ModifiedDetailedFlightListView onAppear - detailedFlightResults count: \(viewModel.detailedFlightResults.count)")
@@ -6585,105 +6536,6 @@ struct ModifiedDetailedFlightListView: View {
         }
         
         print("Local filtering complete. Filtered results count: \(filteredResults.count)")
-    }
-
-    // Your existing helper methods remain the same
-    @ViewBuilder
-    private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
-        FlightDetailCard(
-            destination: leg.destination,
-            isDirectFlight: true,
-            flightDuration: formatDuration(minutes: leg.duration),
-            flightClass: segment.cabinClass ?? "Economy",
-            departureDate: formatDate(from: segment.departureTimeAirport),
-            departureTime: formatTime(from: segment.departureTimeAirport),
-            departureAirportCode: segment.originCode,
-            departureAirportName: segment.origin,
-            departureTerminal: "1",
-            airline: segment.airlineName,
-            flightNumber: segment.flightNumber,
-            airlineLogo: segment.airlineLogo,
-            arrivalDate: formatDate(from: segment.arriveTimeAirport),
-            arrivalTime: formatTime(from: segment.arriveTimeAirport),
-            arrivalAirportCode: segment.destinationCode,
-            arrivalAirportName: segment.destination,
-            arrivalTerminal: "2",
-            arrivalNextDay: segment.arrivalDayDifference > 0
-        )
-        .padding(.horizontal)
-        .padding(.bottom, 16)
-    }
-
-    @ViewBuilder
-    private func displayConnectingFlight(leg: FlightLegDetail) -> some View {
-        let connectionSegments = createConnectionSegments(from: leg)
-        
-        FlightDetailCard(
-            destination: leg.destination,
-            flightDuration: formatDuration(minutes: leg.duration),
-            flightClass: leg.segments.first?.cabinClass ?? "Economy",
-            connectionSegments: connectionSegments
-        )
-        .padding(.horizontal)
-        .padding(.bottom, 16)
-    }
-
-    private func createConnectionSegments(from leg: FlightLegDetail) -> [ConnectionSegment] {
-        var segments: [ConnectionSegment] = []
-        
-        for (index, segment) in leg.segments.enumerated() {
-            var connectionDuration: String? = nil
-            if index < leg.segments.count - 1 {
-                let nextSegment = leg.segments[index + 1]
-                let connectionMinutes = (nextSegment.departureTimeAirport - segment.arriveTimeAirport) / 60
-                let hours = connectionMinutes / 60
-                let mins = connectionMinutes % 60
-                connectionDuration = "\(hours)h \(mins)m connection Airport"
-            }
-            
-            segments.append(
-                ConnectionSegment(
-                    departureDate: formatDate(from: segment.departureTimeAirport),
-                    departureTime: formatTime(from: segment.departureTimeAirport),
-                    departureAirportCode: segment.originCode,
-                    departureAirportName: segment.origin,
-                    departureTerminal: "1",
-                    arrivalDate: formatDate(from: segment.arriveTimeAirport),
-                    arrivalTime: formatTime(from: segment.arriveTimeAirport),
-                    arrivalAirportCode: segment.destinationCode,
-                    arrivalAirportName: segment.destination,
-                    arrivalTerminal: "2",
-                    arrivalNextDay: segment.arrivalDayDifference > 0,
-                    airline: segment.airlineName,
-                    flightNumber: segment.flightNumber,
-                    airlineLogo: segment.airlineLogo,
-                    connectionDuration: connectionDuration
-                )
-            )
-        }
-        
-        return segments
-    }
-
-    // Helper functions for formatting
-    private func formatDate(from timestamp: Int) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, d MMM"
-        return formatter.string(from: date)
-    }
-
-    private func formatTime(from timestamp: Int) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
-    }
-
-    private func formatDuration(minutes: Int) -> String {
-        let hours = minutes / 60
-        let mins = minutes % 60
-        return "\(hours)h \(mins)m"
     }
 }
 
@@ -8051,6 +7903,8 @@ struct PaginatedFlightList: View {
     @ObservedObject var viewModel: ExploreViewModel
     let filteredResults: [FlightDetailResult]
     let isMultiCity: Bool
+    // Add the callback function to handle flight selection
+    let onFlightSelected: (FlightDetailResult) -> Void
     
     var body: some View {
         ScrollView {
@@ -8062,7 +7916,8 @@ struct PaginatedFlightList: View {
                             result: result,
                             viewModel: viewModel,
                             onTap: {
-                                viewModel.selectedFlightId = result.id
+                                // Use the callback instead of directly setting selectedFlightId
+                                onFlightSelected(result)
                             }
                         )
                         .padding(.horizontal)
@@ -8071,7 +7926,8 @@ struct PaginatedFlightList: View {
                             result: result,
                             viewModel: viewModel,
                             onTap: {
-                                viewModel.selectedFlightId = result.id
+                                // Use the callback instead of directly setting selectedFlightId
+                                onFlightSelected(result)
                             }
                         )
                         .padding(.horizontal)
@@ -8472,7 +8328,7 @@ struct DealsSection: View {
             .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
             .padding(.horizontal)
         
-        .padding(.bottom,50)
+        .padding(.bottom,20)
         .sheet(isPresented: $showingAllDeals) {
             ProviderSelectionSheet(
                 providers: providers,
@@ -8799,5 +8655,226 @@ struct EnhancedPriceSection: View {
                 cheapestProvider: cheapestProvider
             )
         }
+    }
+}
+
+
+struct FlightDetailsView: View {
+    @Environment(\.presentationMode) var presentationMode
+    let selectedFlight: FlightDetailResult
+    let viewModel: ExploreViewModel
+    @State private var showingShareSheet = false
+    
+    init(selectedFlight: FlightDetailResult, viewModel: ExploreViewModel) {
+            self.selectedFlight = selectedFlight
+            self.viewModel = viewModel
+
+            let appearance = UINavigationBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor(named: "homeGrad") // Use your asset color here
+            appearance.titleTextAttributes = [.foregroundColor: UIColor.white] // Title text color
+            appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+
+            UINavigationBar.appearance().standardAppearance = appearance
+            UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Flight details content
+                    if viewModel.multiCityTrips.count >= 2 {
+                        // Multi-city flight details display
+                        ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
+                            let leg = selectedFlight.legs[legIndex]
+                            
+                            HStack {
+                                Text("Flight \(legIndex + 1): \(leg.originCode) → \(leg.destinationCode)")
+                                    .font(.headline)
+                                    .padding(.bottom, 4)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, legIndex > 0 ? 16 : 0)
+                            
+                            if leg.stopCount == 0 && !leg.segments.isEmpty {
+                                let segment = leg.segments.first!
+                                displayDirectFlight(leg: leg, segment: segment)
+                            } else if leg.stopCount > 0 && leg.segments.count > 1 {
+                                displayConnectingFlight(leg: leg)
+                            }
+                            
+                            if legIndex < selectedFlight.legs.count - 1 {
+                                Divider()
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                    } else {
+                        // Regular flights display
+                        if let outboundLeg = selectedFlight.legs.first {
+                            if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
+                                let segment = outboundLeg.segments.first!
+                                displayDirectFlight(leg: outboundLeg, segment: segment)
+                            } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
+                                displayConnectingFlight(leg: outboundLeg)
+                            }
+                            
+                            if selectedFlight.legs.count > 1,
+                               let returnLeg = selectedFlight.legs.last,
+                               returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+                                
+                                if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                    let segment = returnLeg.segments.first!
+                                    displayDirectFlight(leg: returnLeg, segment: segment)
+                                } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                    displayConnectingFlight(leg: returnLeg)
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Enhanced Price section with deals
+                    EnhancedPriceSection(selectedFlight: selectedFlight, viewModel: viewModel)
+                        .padding(.top)
+                }
+            }
+            .navigationBarTitle("Flight Details", displayMode: .inline)
+            .navigationBarItems(
+                leading: Button(action: {
+                    // This is equivalent to dismissing the view
+                    viewModel.selectedFlightId = nil
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.white)
+                },
+                trailing: Button(action: {
+                    showingShareSheet = true
+                }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundColor(.white)
+                }
+            )
+            .sheet(isPresented: $showingShareSheet) {
+                // Share sheet implementation
+                ShareSheet(items: ["Check out this flight I found!"])
+            }
+            .background(Color("scroll"))
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
+    }
+    
+    // Helper methods for displaying flight details
+    @ViewBuilder
+    private func displayDirectFlight(leg: FlightLegDetail, segment: FlightSegment) -> some View {
+        FlightDetailCard(
+            destination: leg.destination,
+            isDirectFlight: true,
+            flightDuration: formatDuration(minutes: leg.duration),
+            flightClass: segment.cabinClass ?? "Economy",
+            departureDate: formatDate(from: segment.departureTimeAirport),
+            departureTime: formatTime(from: segment.departureTimeAirport),
+            departureAirportCode: segment.originCode,
+            departureAirportName: segment.origin,
+            departureTerminal: "1",
+            airline: segment.airlineName,
+            flightNumber: segment.flightNumber,
+            airlineLogo: segment.airlineLogo,
+            arrivalDate: formatDate(from: segment.arriveTimeAirport),
+            arrivalTime: formatTime(from: segment.arriveTimeAirport),
+            arrivalAirportCode: segment.destinationCode,
+            arrivalAirportName: segment.destination,
+            arrivalTerminal: "2",
+            arrivalNextDay: segment.arrivalDayDifference > 0
+        )
+        .padding(.horizontal)
+        .padding(.bottom, 16)
+    }
+    
+    @ViewBuilder
+    private func displayConnectingFlight(leg: FlightLegDetail) -> some View {
+        let connectionSegments = createConnectionSegments(from: leg)
+        
+        FlightDetailCard(
+            destination: leg.destination,
+            flightDuration: formatDuration(minutes: leg.duration),
+            flightClass: leg.segments.first?.cabinClass ?? "Economy",
+            connectionSegments: connectionSegments
+        )
+        .padding(.horizontal)
+        .padding(.bottom, 16)
+    }
+    
+    private func createConnectionSegments(from leg: FlightLegDetail) -> [ConnectionSegment] {
+        var segments: [ConnectionSegment] = []
+        
+        for (index, segment) in leg.segments.enumerated() {
+            var connectionDuration: String? = nil
+            if index < leg.segments.count - 1 {
+                let nextSegment = leg.segments[index + 1]
+                let connectionMinutes = (nextSegment.departureTimeAirport - segment.arriveTimeAirport) / 60
+                let hours = connectionMinutes / 60
+                let mins = connectionMinutes % 60
+                connectionDuration = "\(hours)h \(mins)m connection Airport"
+            }
+            
+            segments.append(
+                ConnectionSegment(
+                    departureDate: formatDate(from: segment.departureTimeAirport),
+                    departureTime: formatTime(from: segment.departureTimeAirport),
+                    departureAirportCode: segment.originCode,
+                    departureAirportName: segment.origin,
+                    departureTerminal: "1",
+                    arrivalDate: formatDate(from: segment.arriveTimeAirport),
+                    arrivalTime: formatTime(from: segment.arriveTimeAirport),
+                    arrivalAirportCode: segment.destinationCode,
+                    arrivalAirportName: segment.destination,
+                    arrivalTerminal: "2",
+                    arrivalNextDay: segment.arrivalDayDifference > 0,
+                    airline: segment.airlineName,
+                    flightNumber: segment.flightNumber,
+                    airlineLogo: segment.airlineLogo,
+                    connectionDuration: connectionDuration
+                )
+            )
+        }
+        
+        return segments
+    }
+    
+    // Helper functions for formatting
+    private func formatDate(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM"
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
+}
+
+// Simple share sheet implementation for iOS
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        return UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // No updates needed
     }
 }
