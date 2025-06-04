@@ -8607,9 +8607,10 @@ struct SelfTransferInfoSheet: View {
 struct DealsSection: View {
     let providers: [FlightProvider]
     let cheapestProvider: FlightProvider?
+    
+    // Combined state to track both URL and whether to show the sheet
+    @State private var dealToShow: String? = nil
     @State private var showingAllDeals = false
-    @State private var showingWebView = false
-    @State private var webViewURL: String = ""
     
     private var additionalDealsCount: Int {
         return max(0, providers.count - 1)
@@ -8617,105 +8618,131 @@ struct DealsSection: View {
     
     var body: some View {
         VStack(spacing: 12) {
-           
-                // More deals available button
-                if additionalDealsCount > 0 {
-                    Button(action: {
-                        showingAllDeals = true
-                    }) {
-                        HStack {
-                            Text("\(additionalDealsCount) more deals available")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.blue)
-                            
-                            Image(systemName: "chevron.up")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 14))
-                        }
-
+            // More deals available button
+            if additionalDealsCount > 0 {
+                Button(action: {
+                    showingAllDeals = true
+                }) {
+                    HStack {
+                        Text("\(additionalDealsCount) more deals available")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.blue)
+                        
+                        Image(systemName: "chevron.up")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 14))
                     }
-                    .padding(.horizontal)
-                    .padding(.top,20)
                 }
+                .padding(.horizontal)
+                .padding(.top, 20)
+            }
             
             if additionalDealsCount > 0 {
                 Divider()
             }
+            
+            // Cheapest deal section
+            if let cheapest = cheapestProvider,
+               let splitProvider = cheapest.splitProviders.first {
                 
-                // Cheapest deal section
-                if let cheapest = cheapestProvider,
-                   let splitProvider = cheapest.splitProviders.first {
-                    
-                    HStack {
-                        Text("Cheap Deal for you")
-                            .font(.system(size: 16,))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top,12)
-                    
-                    HStack {
-                        
-                        
-                        
-                        Text(splitProvider.name)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.primary)
-                        
-                        
-                        
-                        Spacer()
-                        
-                        // Price and View Deal button
-                      
-                            
-                            Button(action: {
-                                webViewURL = splitProvider.deeplink
-                                showingWebView = true
-                            }) {
-                                Text("View Deal")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .padding( 16)
-                                  
-                                    .background(Color.orange)
-                                    .cornerRadius(12)
-                            }
-                        
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 16)
+                HStack {
+                    Text("Cheap Deal for you")
+                        .font(.system(size: 16,))
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
+                .padding(.horizontal)
+                .padding(.top, 12)
+                
+                HStack {
+                    Text(splitProvider.name)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    // View Deal button
+                    Button(action: {
+                        // Store the URL first, then show the sheet
+                        if !splitProvider.deeplink.isEmpty {
+                            print("Setting URL and showing sheet: \(splitProvider.deeplink)")
+                            dealToShow = splitProvider.deeplink
+                        } else {
+                            print("Empty URL, using fallback")
+                            dealToShow = "https://google.com" // Fallback URL
+                        }
+                    }) {
+                        Text("View Deal")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(16)
+                            .background(Color.orange)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(BorderlessButtonStyle()) // This helps with button responsiveness
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
             }
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-            .padding(.horizontal)
+        }
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        .padding(.horizontal)
+        .padding(.bottom, 20)
         
-        .padding(.bottom,20)
-        .sheet(isPresented: $showingAllDeals, onDismiss: {
-            if !webViewURL.isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    showingWebView = true
-                }
-            }
-        })  {
+        // Sheet for showing all deals
+        .sheet(isPresented: $showingAllDeals) {
             ProviderSelectionSheet(
                 providers: providers,
                 onProviderSelected: { deeplink in
-                    webViewURL = deeplink
-                    showingWebView = true
+                    // Store the URL to show after dismissing this sheet
+                    if !deeplink.isEmpty {
+                        dealToShow = deeplink
+                    }
+                    showingAllDeals = false
                 }
             )
         }
-        .sheet(isPresented: $showingWebView, onDismiss: {
-            webViewURL = ""
-        }) {
-            if !webViewURL.isEmpty {
-                WebViewSheet(url: webViewURL)
-            }
+        
+        // Use this technique to show the web view with a URL
+        .fullScreenCover(item: Binding(
+            get: { dealToShow.map { WebViewURL(url: $0) } },
+            set: { newValue in dealToShow = newValue?.url }
+        )) { webViewURL in
+            SafariView(url: webViewURL.url)
+                .edgesIgnoringSafeArea(.all)
         }
+    }
+}
+
+// Helper struct to make the URL identifiable for fullScreenCover
+struct WebViewURL: Identifiable {
+    let id = UUID()
+    let url: String
+}
+
+// Clean SafariView that directly uses SFSafariViewController
+struct SafariView: UIViewControllerRepresentable {
+    let url: String
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let finalURL: URL
+        
+        if let validURL = URL(string: url) {
+            finalURL = validURL
+        } else {
+            print("⚠️ Invalid URL: \(url). Using fallback.")
+            finalURL = URL(string: "https://google.com")!
+        }
+        
+        let controller = SFSafariViewController(url: finalURL)
+        controller.preferredControlTintColor = UIColor.systemOrange
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+        // Nothing to update
     }
 }
 
@@ -8959,7 +8986,10 @@ struct ProviderRow: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.primary)
                 
-                Button(action: onSelected) {
+                Button(action: {
+                    print("View Deal button tapped for: \(provider.name)")
+                    onSelected()
+                }) {
                     Text("View Deal")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white)
@@ -8968,6 +8998,7 @@ struct ProviderRow: View {
                         .background(Color.orange)
                         .cornerRadius(6)
                 }
+                .buttonStyle(BorderlessButtonStyle()) // Helps with responsiveness
             }
         }
         .padding(16)
@@ -8984,7 +9015,46 @@ struct WebViewSheet: View {
     
     var body: some View {
         NavigationView {
-            WebView(url: url)
+            // Check if URL is valid before trying to load it
+            Group {
+                if url.isEmpty {
+                    VStack(spacing: 20) {
+                        Text("Error: No URL provided")
+                            .font(.headline)
+                            .foregroundColor(.red)
+                        
+                        Button("Close") {
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else if URL(string: url) == nil {
+                    VStack(spacing: 20) {
+                        Text("Error: Invalid URL format")
+                            .font(.headline)
+                            .foregroundColor(.red)
+                        
+                        Text(url)
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .padding()
+                        
+                        Button("Close") {
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    WebView(url: url)
+                        .edgesIgnoringSafeArea(.all)
+                        .onAppear {
+                            print("WebView loaded with URL: \(url)")
+                        }
+                }
+            }
+            .navigationBarItems(trailing: Button("Done") {
+                dismiss()
+            })
         }
     }
 }
@@ -8994,7 +9064,20 @@ struct WebView: UIViewControllerRepresentable {
     let url: String
     
     func makeUIViewController(context: Context) -> SFSafariViewController {
-        let safariVC = SFSafariViewController(url: URL(string: url)!)
+        // Debug the URL before creating the view controller
+        print("Creating SafariViewController with URL: \(url)")
+        
+        // Use a default URL if the provided one is invalid
+        guard let validURL = URL(string: url), !url.isEmpty else {
+            print("⚠️ Invalid URL: \(url) - using fallback")
+            let fallbackURL = URL(string: "https://google.com")!
+            let safariVC = SFSafariViewController(url: fallbackURL)
+            safariVC.preferredControlTintColor = UIColor.systemOrange
+            return safariVC
+        }
+        
+        // Use the valid URL
+        let safariVC = SFSafariViewController(url: validURL)
         safariVC.preferredControlTintColor = UIColor.systemOrange
         return safariVC
     }
