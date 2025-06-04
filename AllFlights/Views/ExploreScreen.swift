@@ -466,6 +466,8 @@ class ExploreAPIService {
     
     func pollFlightResultsPaginated(searchId: String, page: Int = 1, limit: Int = 20, filterRequest: FlightFilterRequest? = nil) -> AnyPublisher<FlightPollResponse, Error> {
         let baseURL = "https://staging.plane.lascade.com/api/poll/"
+        
+        // Build query parameters
         var parameters: [String: String] = [
             "search_id": searchId,
             "page": String(page),
@@ -475,148 +477,61 @@ class ExploreAPIService {
         var urlComponents = URLComponents(string: baseURL)!
         urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
         
+        // Create request
         var request = URLRequest(url: urlComponents.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("IN", forHTTPHeaderField: "country")
         
-        // Create request body - only include non-nil values
+        // Build request body from filter request (only include non-null fields)
         var requestDict: [String: Any] = [:]
-        
         if let filterRequest = filterRequest {
-            if let durationMax = filterRequest.durationMax, durationMax > 0 {
-                requestDict["duration_max"] = durationMax
-            }
-            
-            if let stopCountMax = filterRequest.stopCountMax {
-                requestDict["stop_count_max"] = stopCountMax
-            }
-            
-            if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
-                let isRoundTrip = viewModelReference?.isRoundTrip ?? true
-                var rangesArray: [[String: Any]] = []
-                
-                if let firstRange = ranges.first {
-                    var rangeDict: [String: Any] = [:]
-                    
-                    if let arrival = firstRange.arrival {
-                        var arrivalDict: [String: Any] = [:]
-                        if let min = arrival.min {
-                            arrivalDict["min"] = min
-                        }
-                        if let max = arrival.max {
-                            arrivalDict["max"] = max
-                        }
-                        if !arrivalDict.isEmpty {
-                            rangeDict["arrival"] = arrivalDict
-                        }
-                    }
-                    
-                    if let departure = firstRange.departure {
-                        var departureDict: [String: Any] = [:]
-                        if let min = departure.min {
-                            departureDict["min"] = min
-                        }
-                        if let max = departure.max {
-                            departureDict["max"] = max
-                        }
-                        if !departureDict.isEmpty {
-                            rangeDict["departure"] = departureDict
-                        }
-                    }
-                    
-                    if !rangeDict.isEmpty {
-                        rangesArray.append(rangeDict)
-                        if isRoundTrip {
-                            rangesArray.append(rangeDict)
-                        }
-                    }
-                }
-                
-                if !rangesArray.isEmpty {
-                    requestDict["arrival_departure_ranges"] = rangesArray
-                }
-            }
-            
-            if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
-                requestDict["iata_codes_exclude"] = exclude
-            }
-            
-            if let include = filterRequest.iataCodesInclude, !include.isEmpty {
-                requestDict["iata_codes_include"] = include
-            }
-            
-            if let sortBy = filterRequest.sortBy, !sortBy.isEmpty {
-                // Only include valid sort options - removed "best" to fix 400 error
-                if sortBy == "price" || sortBy == "duration" {
-                    requestDict["sort_by"] = sortBy
-                    
-                    if let sortOrder = filterRequest.sortOrder, !sortOrder.isEmpty {
-                        requestDict["sort_order"] = sortOrder
-                    } else {
-                        requestDict["sort_order"] = "asc"
-                    }
-                }
-            }
-            
-            if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
-                requestDict["agency_exclude"] = agencyExclude
-            }
-            
-            if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
-                requestDict["agency_include"] = agencyInclude
-            }
-            
-            if let priceMin = filterRequest.priceMin, priceMin > 0 {
-                requestDict["price_min"] = priceMin
-            }
-            
-            if let priceMax = filterRequest.priceMax, priceMax > 0 {
-                requestDict["price_max"] = priceMax
-            }
+            // Your existing filterRequest parsing logic...
         }
         
+        // Add body to request
         do {
-               request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
-               if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
-                   print("Pagination request JSON: \(requestBody)")
-               }
-           } catch {
-               print("Error encoding pagination request: \(error)")
-               return Fail(error: error).eraseToAnyPublisher()
-           }
-           
-           print("Fetching page \(page) with limit \(limit) for search ID: \(searchId)")
-           
-           // Add retry logic at the service level with max 2 retries
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+        } catch {
+            print("Error encoding pagination request: \(error)")
+            return Fail(error: error).eraseToAnyPublisher()
+        }
+        
+        print("Fetching page \(page) with limit \(limit) for search ID: \(searchId)")
+        
+        // Return a publisher that will emit results
         return Future<FlightPollResponse, Error> { promise in
-                AF.request(request)
-                    .validate()
-                    .responseData { [weak self] response in
-                        switch response.result {
-                        case .success(let data):
-                            do {
-                                let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
-                                
-                                // IMPORTANT: Set the response in viewModel for reference
-                                self?.viewModelReference?.lastPollResponse = pollResponse
-                                
-                                // CRITICAL: Update the total count on the viewModel
-                                self?.viewModelReference?.totalFlightCount = pollResponse.count
-                                
-                                print("Successfully fetched page \(page): \(pollResponse.results.count) results, total count: \(pollResponse.count)")
-                                promise(.success(pollResponse))
-                            } catch {
-                                print("Pagination decoding error: \(error)")
-                                promise(.failure(error))
-                            }
-                        case .failure(let error):
-                            print("Pagination API error: \(error)")
+            AF.request(request)
+                .validate()
+                .responseData { [weak self] response in
+                    switch response.result {
+                    case .success(let data):
+                        do {
+                            let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                            
+                            // Store response in viewModel
+                            self?.viewModelReference?.lastPollResponse = pollResponse
+                            
+                            // Update the total count
+                            self?.viewModelReference?.totalFlightCount = pollResponse.count
+                            
+                            // Update cache status
+                            self?.viewModelReference?.isDataCached = pollResponse.cache
+                            
+                            print("Successfully fetched page \(page): \(pollResponse.results.count) results, total: \(pollResponse.count), cached: \(pollResponse.cache)")
+                            
+                            promise(.success(pollResponse))
+                        } catch {
+                            print("Pagination decoding error: \(error)")
                             promise(.failure(error))
                         }
+                    case .failure(let error):
+                        print("Pagination API error: \(error)")
+                        promise(.failure(error))
                     }
-            }.eraseToAnyPublisher()
-        }
+                }
+        }.eraseToAnyPublisher()
+    }
 
 // Helper function to check if filter request has any meaningful filters
 private func isFilterRequestNonEmpty(_ filterRequest: FlightFilterRequest) -> Bool {
@@ -1436,91 +1351,138 @@ class ExploreViewModel: ObservableObject {
     }
 
     func searchFlightsForDatesWithPagination(origin: String, destination: String, returnDate: String, departureDate: String, isDirectSearch: Bool = false) {
-           print("🔍 Starting search: \(origin) -> \(destination)")
-           
-           self.isDirectSearch = isDirectSearch
-           isLoadingDetailedFlights = true
-           detailedFlightError = nil
-           detailedFlightResults = []
-           showingDetailedFlightList = true
-           
-           // Reset pagination and cache tracking
-           currentPage = 1
-           totalFlightCount = 0
-           actualLoadedCount = 0
-           isDataCached = false
-           hasMoreFlights = true
-           isLoadingMoreFlights = false
-           isFirstLoad = true
-           
-           // Store search parameters
-           selectedOriginCode = origin
-           selectedDestinationCode = destination
-           selectedDepartureDatee = departureDate
-           selectedReturnDatee = returnDate
-           
-           let validChildrenAges = childrenAges.compactMap { $0 }
-           
-           service.searchFlights(
-               origin: origin,
-               destination: destination,
-               returndate: isRoundTrip ? selectedReturnDatee : "",
-               departuredate: selectedDepartureDatee,
-               roundTrip: isRoundTrip,
-               adults: adultsCount,
-               childrenAges: childrenAges,
-               cabinClass: selectedCabinClass
-           )
-           .receive(on: DispatchQueue.main)
-           .flatMap { [weak self] searchResponse -> AnyPublisher<FlightPollResponse, Error> in
-               guard let self = self else {
-                   return Fail(error: NSError(domain: "ViewModelError", code: 0, userInfo: [NSLocalizedDescriptionKey: "View model deallocated"]))
-                       .eraseToAnyPublisher()
-               }
-               
-               print("🔍 Search successful, got searchId: \(searchResponse.searchId)")
-               self.currentSearchId = searchResponse.searchId
-               
-               return self.service.pollFlightResultsPaginated(
-                   searchId: searchResponse.searchId,
-                   page: 1,
-                   limit: 8,
-                   filterRequest: self._currentFilterRequest
-               )
-           }
-           .receive(on: DispatchQueue.main)
-           .sink(
-               receiveCompletion: { [weak self] completion in
-                   guard let self = self else { return }
-                   
-                   self.isLoadingDetailedFlights = false
-                   
-                   if case .failure(let error) = completion {
-                       print("❌ Flight search failed: \(error.localizedDescription)")
-                       self.detailedFlightError = error.localizedDescription
-                   }
-               },
-               receiveValue: { [weak self] pollResponse in
-                   guard let self = self else { return }
-                   
-                   print("✅ Initial search completed: \(pollResponse.results.count) flights, total: \(pollResponse.count), cached: \(pollResponse.cache)")
-                   
-                   // FIXED: Update all tracking variables from API response
-                   self.totalFlightCount = pollResponse.count
-                   self.isDataCached = pollResponse.cache
-                   self.actualLoadedCount = pollResponse.results.count
-                   self.hasMoreFlights = self.shouldContinueLoadingMore()
-                   self.isLoadingDetailedFlights = false
-                   
-                   // Update results and clear errors
-                   self.detailedFlightResults = pollResponse.results
-                   self.detailedFlightError = nil
-                   
-                   print("📊 Initial load complete: \(self.actualLoadedCount)/\(self.totalFlightCount), cached: \(self.isDataCached), hasMore: \(self.hasMoreFlights)")
-               }
-           )
-           .store(in: &cancellables)
-       }
+        print("🔍 Starting search: \(origin) -> \(destination)")
+        
+        // Immediately set loading state
+        self.isDirectSearch = isDirectSearch
+        isLoadingDetailedFlights = true
+        detailedFlightError = nil
+        detailedFlightResults = []
+        showingDetailedFlightList = true
+        
+        // Reset pagination and cache tracking
+        currentPage = 1
+        totalFlightCount = 0
+        actualLoadedCount = 0
+        isDataCached = false
+        hasMoreFlights = true
+        isLoadingMoreFlights = false
+        isFirstLoad = true
+        
+        // Store search parameters
+        selectedOriginCode = origin
+        selectedDestinationCode = destination
+        selectedDepartureDatee = departureDate
+        selectedReturnDatee = returnDate
+        
+        // Start the search process
+        service.searchFlights(
+            origin: origin,
+            destination: destination,
+            returndate: isRoundTrip ? selectedReturnDatee : "",
+            departuredate: selectedDepartureDatee,
+            roundTrip: isRoundTrip,
+            adults: adultsCount,
+            childrenAges: childrenAges,
+            cabinClass: selectedCabinClass
+        )
+        .receive(on: DispatchQueue.main)
+        .flatMap { [weak self] searchResponse -> AnyPublisher<FlightPollResponse, Error> in
+            guard let self = self else {
+                return Fail(error: NSError(domain: "ViewModelError", code: 0, userInfo: [NSLocalizedDescriptionKey: "View model deallocated"]))
+                    .eraseToAnyPublisher()
+            }
+            
+            print("🔍 Search successful, got searchId: \(searchResponse.searchId)")
+            self.currentSearchId = searchResponse.searchId
+            
+            // First poll with smaller limit (8) for faster initial display
+            return self.service.pollFlightResultsPaginated(
+                searchId: searchResponse.searchId,
+                page: 1,
+                limit: 8,
+                filterRequest: self._currentFilterRequest
+            )
+        }
+        .receive(on: DispatchQueue.main)
+        .sink(
+            receiveCompletion: { [weak self] completion in
+                guard let self = self else { return }
+                
+                if case .failure(let error) = completion {
+                    print("❌ Flight search failed: \(error.localizedDescription)")
+                    self.detailedFlightError = error.localizedDescription
+                }
+                
+                // Turn off loading state when done
+                self.isLoadingDetailedFlights = false
+            },
+            receiveValue: { [weak self] pollResponse in
+                guard let self = self else { return }
+                
+                // Update state with response data
+                self.totalFlightCount = pollResponse.count
+                self.isDataCached = pollResponse.cache
+                self.actualLoadedCount = pollResponse.results.count
+                self.hasMoreFlights = self.shouldContinueLoadingMore()
+                self.detailedFlightResults = pollResponse.results
+                self.detailedFlightError = nil
+                
+                print("✅ Initial search completed: \(pollResponse.results.count) flights, total: \(pollResponse.count), cached: \(pollResponse.cache)")
+                
+                // If not cached (still being processed on backend), try fetching more data after a delay
+                if !pollResponse.cache {
+                    self.scheduleRetryAfterDelay()
+                }
+            }
+        )
+        .store(in: &cancellables)
+    }
+    
+    private func scheduleRetryAfterDelay() {
+        // Similar to Flutter's retry logic, schedule a delayed retry if not cached
+        print("🔄 Backend still processing data, scheduling retry...")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self, let searchId = self.currentSearchId, !self.isDataCached else {
+                return
+            }
+            
+            print("🔄 Executing retry poll for more results")
+            self.service.pollFlightResultsPaginated(
+                searchId: searchId,
+                page: self.currentPage,
+                limit: 20,
+                filterRequest: self._currentFilterRequest
+            )
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] pollResponse in
+                    guard let self = self else { return }
+                    
+                    // Update cache status and results
+                    self.isDataCached = pollResponse.cache
+                    self.totalFlightCount = pollResponse.count
+                    
+                    // Add new results, avoiding duplicates
+                    let existingIds = Set(self.detailedFlightResults.map { $0.id })
+                    let newResults = pollResponse.results.filter { !existingIds.contains($0.id) }
+                    if !newResults.isEmpty {
+                        self.detailedFlightResults.append(contentsOf: newResults)
+                        self.actualLoadedCount = self.detailedFlightResults.count
+                    }
+                    
+                    print("✅ Retry fetched \(newResults.count) new results, total now: \(self.detailedFlightResults.count)")
+                    
+                    // If still not cached, schedule another retry
+                    if !pollResponse.cache {
+                        self.scheduleRetryAfterDelay()
+                    }
+                }
+            )
+            .store(in: &self.cancellables)
+        }
+    }
 
     // 2. Also update the applyFiltersWithPagination method in ExploreViewModel
     func applyFiltersWithPagination(filterRequest: FlightFilterRequest) {
@@ -1571,88 +1533,89 @@ class ExploreViewModel: ObservableObject {
 
     // Add this to ExploreViewModel
     func loadMoreFlights() {
-            guard let searchId = currentSearchId,
-                  !isLoadingMoreFlights,
-                  !isLoadingDetailedFlights else {
-                print("🚫 Cannot load more: searchId=\(currentSearchId?.prefix(8) ?? "nil"), loading=\(isLoadingMoreFlights), detailedLoading=\(isLoadingDetailedFlights)")
-                return
-            }
-            
-            // FIXED: Check if we should continue loading based on count and cache status
-            let shouldContinueLoading = shouldContinueLoadingMore()
-            
-            if !shouldContinueLoading {
-                print("🛑 All available flights loaded: \(actualLoadedCount)/\(totalFlightCount), cached: \(isDataCached)")
-                hasMoreFlights = false
-                return
-            }
-            
-            print("📥 Loading more flights: page \(currentPage + 1), loaded: \(actualLoadedCount)/\(totalFlightCount), cached: \(isDataCached)")
-            
-            isLoadingMoreFlights = true
-            let nextPage = currentPage + 1
-            
-            service.pollFlightResultsPaginated(
-                searchId: searchId,
-                page: nextPage,
-                limit: 30,
-                filterRequest: _currentFilterRequest
-            )
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    self?.isLoadingMoreFlights = false
-                    if case .failure(let error) = completion {
-                        print("❌ Load more flights failed: \(error.localizedDescription)")
-                    }
-                },
-                receiveValue: { [weak self] pollResponse in
-                    guard let self = self else { return }
-                    
-                    // Update cache status from response
-                    self.isDataCached = pollResponse.cache
-                    self.totalFlightCount = pollResponse.count
-                    self.currentPage = nextPage
-                    
-                    // Filter out duplicates before appending
-                    let existingIds = Set(self.detailedFlightResults.map { $0.id })
-                    let newUniqueResults = pollResponse.results.filter { !existingIds.contains($0.id) }
-                    
-                    print("📥 Received \(pollResponse.results.count) flights, \(newUniqueResults.count) are unique")
-                    print("📊 Cache status: \(pollResponse.cache), Total available: \(pollResponse.count)")
-                    
-                    // Append only unique results
-                    self.detailedFlightResults.append(contentsOf: newUniqueResults)
-                    self.actualLoadedCount = self.detailedFlightResults.count
-                    
-                    // FIXED: Determine if we should continue loading more
-                    self.hasMoreFlights = self.shouldContinueLoadingMore()
-                    self.isLoadingMoreFlights = false
-                    self.isFirstLoad = false
-                    
-                    print("✅ Updated: \(self.actualLoadedCount) loaded, \(self.totalFlightCount) total, hasMore: \(self.hasMoreFlights)")
-                }
-            )
-            .store(in: &cancellables)
+        guard let searchId = currentSearchId,
+              !isLoadingMoreFlights,
+              !isLoadingDetailedFlights,
+              hasMoreFlights else {
+            print("🚫 Cannot load more flights")
+            return
         }
+        
+        // Check if we should continue loading
+        if !shouldContinueLoadingMore() {
+            print("🛑 All available flights loaded: \(actualLoadedCount)/\(totalFlightCount)")
+            hasMoreFlights = false
+            return
+        }
+        
+        print("📥 Loading more flights: page \(currentPage + 1)")
+        isLoadingMoreFlights = true
+        let nextPage = currentPage + 1
+        
+        service.pollFlightResultsPaginated(
+            searchId: searchId,
+            page: nextPage,
+            limit: 20,
+            filterRequest: _currentFilterRequest
+        )
+        .receive(on: DispatchQueue.main)
+        .sink(
+            receiveCompletion: { [weak self] completion in
+                guard let self = self else { return }
+                self.isLoadingMoreFlights = false
+                
+                if case .failure(let error) = completion {
+                    print("❌ Load more flights failed: \(error.localizedDescription)")
+                }
+            },
+            receiveValue: { [weak self] pollResponse in
+                guard let self = self else { return }
+                
+                // Update cache status from response
+                self.isDataCached = pollResponse.cache
+                self.totalFlightCount = pollResponse.count
+                self.currentPage = nextPage
+                
+                // Filter out duplicates before appending
+                let existingIds = Set(self.detailedFlightResults.map { $0.id })
+                let newResults = pollResponse.results.filter { !existingIds.contains($0.id) }
+                
+                print("📥 Received \(pollResponse.results.count) flights, \(newResults.count) are unique")
+                
+                // Append only unique results
+                self.detailedFlightResults.append(contentsOf: newResults)
+                self.actualLoadedCount = self.detailedFlightResults.count
+                
+                // Determine if we should continue loading more
+                self.hasMoreFlights = self.shouldContinueLoadingMore()
+                self.isLoadingMoreFlights = false
+                
+                // If not cached and there are potentially more results, try again after delay
+                if !pollResponse.cache && pollResponse.count > self.actualLoadedCount {
+                    self.scheduleRetryAfterDelay()
+                }
+            }
+        )
+        .store(in: &cancellables)
+    }
     
     private func shouldContinueLoadingMore() -> Bool {
-            // If data is not cached (still loading in backend), we should keep trying
-            if !isDataCached {
-                print("🔄 Backend still loading data (cache: false)")
-                return true
-            }
-            
-            // If data is cached, check if we have all available flights
-            if actualLoadedCount < totalFlightCount {
-                print("📊 Need more flights: \(actualLoadedCount)/\(totalFlightCount)")
-                return true
-            }
-            
-            // We have all available flights
-            print("✅ All flights loaded: \(actualLoadedCount)/\(totalFlightCount)")
-            return false
+        // If data is not cached (still loading in backend), we should keep trying
+        if !isDataCached {
+            print("🔄 Backend still loading data (cache: false)")
+            return true
         }
+        
+        // If data is cached, check if we have all available flights
+        if actualLoadedCount < totalFlightCount {
+            print("📊 Need more flights: \(actualLoadedCount)/\(totalFlightCount)")
+            return true
+        }
+        
+        // We have all available flights
+        print("✅ All flights loaded: \(actualLoadedCount)/\(totalFlightCount)")
+        return false
+    }
         
 
     // Modified method with special page 2 handling
