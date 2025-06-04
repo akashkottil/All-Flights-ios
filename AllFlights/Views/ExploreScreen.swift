@@ -6580,6 +6580,10 @@ struct ModifiedDetailedFlightListView: View {
     @State private var hasAppliedInitialDirectFilter = false
     @State private var showingFlightDetails = false
     
+    @State private var showingLoadingSkeletons = true
+    
+    @State private var hasReceivedEmptyResults = false
+    
     // Auto-retry mechanism
     @State private var retryCount = 0
     @State private var retryTimer: Timer? = nil
@@ -6633,7 +6637,7 @@ struct ModifiedDetailedFlightListView: View {
                 HStack {
                     if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
                         // When we have a count but no visible results after filtering
-                        Text("0 of \(viewModel.totalFlightCount) flights match filters")
+                        Text("\(viewModel.totalFlightCount) flights found")
                             .font(.subheadline)
                             .foregroundColor(.primary)
                     } else {
@@ -6678,7 +6682,8 @@ struct ModifiedDetailedFlightListView: View {
                         .cornerRadius(8)
                         Spacer()
                     }
-                } else if case .empty = viewState {
+                } else if hasReceivedEmptyResults {
+                    // ONLY show this when we've received a confirmed empty result
                     VStack {
                         Spacer()
                         Text("No flights found")
@@ -6699,6 +6704,7 @@ struct ModifiedDetailedFlightListView: View {
                     .onAppear {
                         // Data is visible, cancel any pending retries
                         cancelRetryTimer()
+                        hasReceivedEmptyResults = false
                     }
                 } else {
                     // Show skeleton loading while waiting for retries
@@ -6743,41 +6749,42 @@ struct ModifiedDetailedFlightListView: View {
         .onReceive(viewModel.$detailedFlightResults) { newResults in
                     print("📱 UI received \(newResults.count) results from viewModel")
                     
-                    // DEBUG: Check for duplicates when UI receives new results
                     if !newResults.isEmpty {
+                        // We have results
+                        hasReceivedEmptyResults = false
                         viewModel.debugDuplicateFlightIDs()
-                    }
-                    
-                    updateResults(newResults)
-                    
-                    if !newResults.isEmpty {
+                        updateResults(newResults)
                         cancelRetryTimer()
+                    } else if !viewModel.isLoadingDetailedFlights && viewModel.isDataCached {
+                        // We've finished loading, data is cached, and results are empty
+                        // This means it's a confirmed empty result
+                        hasReceivedEmptyResults = true
                     }
                 }
             
         
         .onReceive(viewModel.$isLoadingDetailedFlights) { isLoading in
-            print("Loading state changed: \(isLoading)")
-            
-            if !isLoading {
-                if !viewModel.detailedFlightResults.isEmpty {
-                    viewState = .loaded
-                    updateResults(viewModel.detailedFlightResults)
-                    cancelRetryTimer() // Success, cancel retries
-                } else if let error = viewModel.detailedFlightError, !error.isEmpty {
-                    viewState = .error(error)
-                    startRetryTimer() // Error occurred, start retry timer
-                } else if viewModel.detailedFlightResults.isEmpty {
-                    // No data loaded, but API call finished
-                    if viewModel.totalFlightCount > 0 {
-                        // API reported flights but none were loaded
+                    print("Loading state changed: \(isLoading)")
+                    
+                    if isLoading {
+                        viewState = .loading
+                        return
+                    }
+                    
+                    // Loading finished
+                    if !viewModel.detailedFlightResults.isEmpty {
+                        hasReceivedEmptyResults = false
+                        viewState = .loaded
+                        updateResults(viewModel.detailedFlightResults)
+                        cancelRetryTimer()
+                    } else if let error = viewModel.detailedFlightError, !error.isEmpty {
+                        viewState = .error(error)
                         startRetryTimer()
-                    } else {
-                        viewState = .empty
+                    } else if viewModel.detailedFlightResults.isEmpty && viewModel.isDataCached {
+                        // Only show empty state when we're certain the API returned empty results
+                        hasReceivedEmptyResults = true
                     }
                 }
-            }
-        }
         .onReceive(viewModel.$selectedFlightId) { newValue in
             showingFlightDetails = newValue != nil
         }
