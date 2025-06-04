@@ -8694,7 +8694,13 @@ struct DealsSection: View {
             .padding(.horizontal)
         
         .padding(.bottom,20)
-        .sheet(isPresented: $showingAllDeals) {
+        .sheet(isPresented: $showingAllDeals, onDismiss: {
+            if !webViewURL.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showingWebView = true
+                }
+            }
+        })  {
             ProviderSelectionSheet(
                 providers: providers,
                 onProviderSelected: { deeplink in
@@ -8703,7 +8709,9 @@ struct DealsSection: View {
                 }
             )
         }
-        .sheet(isPresented: $showingWebView) {
+        .sheet(isPresented: $showingWebView, onDismiss: {
+            webViewURL = ""
+        }) {
             if !webViewURL.isEmpty {
                 WebViewSheet(url: webViewURL)
             }
