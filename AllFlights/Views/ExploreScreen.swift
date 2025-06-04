@@ -1312,6 +1312,9 @@ class ExploreViewModel: ObservableObject {
     
     @Published var isFirstLoad: Bool = true
     
+    @Published var isDataCached = false
+    @Published var actualLoadedCount = 0
+    
     func debugDuplicateFlightIDs() {
             let allIds = detailedFlightResults.map { $0.id }
             let uniqueIds = Set(allIds)
@@ -1433,87 +1436,91 @@ class ExploreViewModel: ObservableObject {
     }
 
     func searchFlightsForDatesWithPagination(origin: String, destination: String, returnDate: String, departureDate: String, isDirectSearch: Bool = false) {
-        self.isDirectSearch = isDirectSearch
-        isLoadingDetailedFlights = true
-        detailedFlightError = nil
-        detailedFlightResults = []
-        showingDetailedFlightList = true
-        
-        // Reset pagination
-        currentPage = 1
-        totalFlightCount = 0
-        hasMoreFlights = true
-        isLoadingMoreFlights = false
-        isFirstLoad = true // Reset first load flag
-        
-        // Store selected flight details
-        selectedOriginCode = origin
-        selectedDestinationCode = destination
-        selectedDepartureDatee = departureDate
-        selectedReturnDatee = returnDate
-        
-        print("Searching flights with pagination: \(origin) to \(destination)")
-        
-        let validChildrenAges = childrenAges.compactMap { $0 }
-        
-        // First, get the search ID
-        service.searchFlights(
-            origin: origin,
-            destination: destination,
-            returndate: isRoundTrip ? selectedReturnDatee : "",
-            departuredate: selectedDepartureDatee,
-            roundTrip: isRoundTrip,
-            adults: adultsCount,
-            childrenAges: childrenAges,
-            cabinClass: selectedCabinClass
-        )
-        .receive(on: DispatchQueue.main)
-        .flatMap { [weak self] searchResponse -> AnyPublisher<FlightPollResponse, Error> in
-            guard let self = self else {
-                return Fail(error: NSError(domain: "ViewModelError", code: 0, userInfo: [NSLocalizedDescriptionKey: "View model deallocated"]))
-                    .eraseToAnyPublisher()
-            }
-            
-            print("Search successful, got searchId: \(searchResponse.searchId)")
-            self.currentSearchId = searchResponse.searchId
-            
-            // Load first page with only 8 results for faster initial load
-            return self.service.pollFlightResultsPaginated(
-                searchId: searchResponse.searchId,
-                page: 1,
-                limit: 8, // Only load 8 results initially for faster response
-                filterRequest: self._currentFilterRequest
-            )
-        }
-        .receive(on: DispatchQueue.main)
-        .sink(
-            receiveCompletion: { [weak self] completion in
-                self?.isLoadingDetailedFlights = false
-                if case .failure(let error) = completion {
-                    print("Flight search failed: \(error.localizedDescription)")
-                    self?.detailedFlightError = error.localizedDescription
-                }
-            },
-            receiveValue: { [weak self] pollResponse in
-                guard let self = self else { return }
-                
-                // IMPORTANT: Set the total flight count from the response first thing
-                self.totalFlightCount = pollResponse.count
-                
-                // Set flight results
-                self.detailedFlightResults = pollResponse.results
-                
-                // Check if we have more pages
-                self.hasMoreFlights = pollResponse.next != nil
-                
-                // Update loading state
-                self.isLoadingDetailedFlights = false
-                
-                print("First page loaded: \(pollResponse.results.count) flights, total available: \(pollResponse.count)")
-            }
-        )
-        .store(in: &cancellables)
-    }
+           print("🔍 Starting search: \(origin) -> \(destination)")
+           
+           self.isDirectSearch = isDirectSearch
+           isLoadingDetailedFlights = true
+           detailedFlightError = nil
+           detailedFlightResults = []
+           showingDetailedFlightList = true
+           
+           // Reset pagination and cache tracking
+           currentPage = 1
+           totalFlightCount = 0
+           actualLoadedCount = 0
+           isDataCached = false
+           hasMoreFlights = true
+           isLoadingMoreFlights = false
+           isFirstLoad = true
+           
+           // Store search parameters
+           selectedOriginCode = origin
+           selectedDestinationCode = destination
+           selectedDepartureDatee = departureDate
+           selectedReturnDatee = returnDate
+           
+           let validChildrenAges = childrenAges.compactMap { $0 }
+           
+           service.searchFlights(
+               origin: origin,
+               destination: destination,
+               returndate: isRoundTrip ? selectedReturnDatee : "",
+               departuredate: selectedDepartureDatee,
+               roundTrip: isRoundTrip,
+               adults: adultsCount,
+               childrenAges: childrenAges,
+               cabinClass: selectedCabinClass
+           )
+           .receive(on: DispatchQueue.main)
+           .flatMap { [weak self] searchResponse -> AnyPublisher<FlightPollResponse, Error> in
+               guard let self = self else {
+                   return Fail(error: NSError(domain: "ViewModelError", code: 0, userInfo: [NSLocalizedDescriptionKey: "View model deallocated"]))
+                       .eraseToAnyPublisher()
+               }
+               
+               print("🔍 Search successful, got searchId: \(searchResponse.searchId)")
+               self.currentSearchId = searchResponse.searchId
+               
+               return self.service.pollFlightResultsPaginated(
+                   searchId: searchResponse.searchId,
+                   page: 1,
+                   limit: 8,
+                   filterRequest: self._currentFilterRequest
+               )
+           }
+           .receive(on: DispatchQueue.main)
+           .sink(
+               receiveCompletion: { [weak self] completion in
+                   guard let self = self else { return }
+                   
+                   self.isLoadingDetailedFlights = false
+                   
+                   if case .failure(let error) = completion {
+                       print("❌ Flight search failed: \(error.localizedDescription)")
+                       self.detailedFlightError = error.localizedDescription
+                   }
+               },
+               receiveValue: { [weak self] pollResponse in
+                   guard let self = self else { return }
+                   
+                   print("✅ Initial search completed: \(pollResponse.results.count) flights, total: \(pollResponse.count), cached: \(pollResponse.cache)")
+                   
+                   // FIXED: Update all tracking variables from API response
+                   self.totalFlightCount = pollResponse.count
+                   self.isDataCached = pollResponse.cache
+                   self.actualLoadedCount = pollResponse.results.count
+                   self.hasMoreFlights = self.shouldContinueLoadingMore()
+                   self.isLoadingDetailedFlights = false
+                   
+                   // Update results and clear errors
+                   self.detailedFlightResults = pollResponse.results
+                   self.detailedFlightError = nil
+                   
+                   print("📊 Initial load complete: \(self.actualLoadedCount)/\(self.totalFlightCount), cached: \(self.isDataCached), hasMore: \(self.hasMoreFlights)")
+               }
+           )
+           .store(in: &cancellables)
+       }
 
     // 2. Also update the applyFiltersWithPagination method in ExploreViewModel
     func applyFiltersWithPagination(filterRequest: FlightFilterRequest) {
@@ -1565,15 +1572,22 @@ class ExploreViewModel: ObservableObject {
     // Add this to ExploreViewModel
     func loadMoreFlights() {
             guard let searchId = currentSearchId,
-                  hasMoreFlights,
                   !isLoadingMoreFlights,
                   !isLoadingDetailedFlights else {
+                print("🚫 Cannot load more: searchId=\(currentSearchId?.prefix(8) ?? "nil"), loading=\(isLoadingMoreFlights), detailedLoading=\(isLoadingDetailedFlights)")
                 return
             }
             
-            // DEBUG: Check for duplicates before loading more
-            print("🔍 BEFORE loading page \(currentPage + 1):")
-            debugDuplicateFlightIDs()
+            // FIXED: Check if we should continue loading based on count and cache status
+            let shouldContinueLoading = shouldContinueLoadingMore()
+            
+            if !shouldContinueLoading {
+                print("🛑 All available flights loaded: \(actualLoadedCount)/\(totalFlightCount), cached: \(isDataCached)")
+                hasMoreFlights = false
+                return
+            }
+            
+            print("📥 Loading more flights: page \(currentPage + 1), loaded: \(actualLoadedCount)/\(totalFlightCount), cached: \(isDataCached)")
             
             isLoadingMoreFlights = true
             let nextPage = currentPage + 1
@@ -1589,12 +1603,14 @@ class ExploreViewModel: ObservableObject {
                 receiveCompletion: { [weak self] completion in
                     self?.isLoadingMoreFlights = false
                     if case .failure(let error) = completion {
-                        print("Load more flights failed: \(error.localizedDescription)")
+                        print("❌ Load more flights failed: \(error.localizedDescription)")
                     }
                 },
                 receiveValue: { [weak self] pollResponse in
                     guard let self = self else { return }
                     
+                    // Update cache status from response
+                    self.isDataCached = pollResponse.cache
                     self.totalFlightCount = pollResponse.count
                     self.currentPage = nextPage
                     
@@ -1603,21 +1619,41 @@ class ExploreViewModel: ObservableObject {
                     let newUniqueResults = pollResponse.results.filter { !existingIds.contains($0.id) }
                     
                     print("📥 Received \(pollResponse.results.count) flights, \(newUniqueResults.count) are unique")
+                    print("📊 Cache status: \(pollResponse.cache), Total available: \(pollResponse.count)")
                     
                     // Append only unique results
                     self.detailedFlightResults.append(contentsOf: newUniqueResults)
+                    self.actualLoadedCount = self.detailedFlightResults.count
                     
-                    // DEBUG: Check for duplicates after adding new results
-                    print("🔍 AFTER loading page \(nextPage):")
-                    self.debugDuplicateFlightIDs()
-                    
-                    self.hasMoreFlights = pollResponse.next != nil
+                    // FIXED: Determine if we should continue loading more
+                    self.hasMoreFlights = self.shouldContinueLoadingMore()
                     self.isLoadingMoreFlights = false
                     self.isFirstLoad = false
+                    
+                    print("✅ Updated: \(self.actualLoadedCount) loaded, \(self.totalFlightCount) total, hasMore: \(self.hasMoreFlights)")
                 }
             )
             .store(in: &cancellables)
         }
+    
+    private func shouldContinueLoadingMore() -> Bool {
+            // If data is not cached (still loading in backend), we should keep trying
+            if !isDataCached {
+                print("🔄 Backend still loading data (cache: false)")
+                return true
+            }
+            
+            // If data is cached, check if we have all available flights
+            if actualLoadedCount < totalFlightCount {
+                print("📊 Need more flights: \(actualLoadedCount)/\(totalFlightCount)")
+                return true
+            }
+            
+            // We have all available flights
+            print("✅ All flights loaded: \(actualLoadedCount)/\(totalFlightCount)")
+            return false
+        }
+        
 
     // Modified method with special page 2 handling
     private func fetchPageWithRetry(searchId: String, page: Int, limit: Int, retryCount: Int, isPage2: Bool = false) {
@@ -1991,58 +2027,66 @@ class ExploreViewModel: ObservableObject {
     }
     
     func applyPollFilters(filterRequest: FlightFilterRequest) {
-        // Store the filter request
-        self._currentFilterRequest = filterRequest
-        
-        // Reset pagination and reload from first page
-        guard let searchId = currentSearchId else {
-            print("⚠️ No search ID available, can't apply filters")
-            isLoadingDetailedFlights = false
-            return
-        }
-        
-        print("🔍 Applying filters via API - searchId: \(searchId)")
-        isLoadingDetailedFlights = true
-        // Important: Don't clear results immediately to avoid flickering
-        currentPage = 1
-        hasMoreFlights = true
-        isLoadingMoreFlights = false
-        isFirstLoad = true
-        
-        service.pollFlightResultsPaginated(
-            searchId: searchId,
-            page: 1,
-            limit: 8,
-            filterRequest: filterRequest
-        )
-        .receive(on: DispatchQueue.main)
-        .sink(
-            receiveCompletion: { [weak self] completion in
-                guard let self = self else { return }
-                
-               
-                self.isLoadingDetailedFlights = false
-                if case .failure(let error) = completion {
-                    print("❌ Filter application failed: \(error.localizedDescription)")
-                    self.detailedFlightError = error.localizedDescription
-                }
-            },
-            receiveValue: { [weak self] response in
-                        guard let self = self else { return }
-                        
-                        // IMPORTANT: Set total count from the API response immediately
-                        self.totalFlightCount = response.count
-                        
-                        // Now it's safe to update the results
-                        self.detailedFlightResults = response.results
-                        self.hasMoreFlights = response.next != nil
-                        self.isLoadingDetailedFlights = false
-                        
-                        print("Filters applied: \(response.results.count) flights loaded, total available: \(response.count)")
-                    }
-                )
-                .store(in: &cancellables)
+            guard let searchId = currentSearchId else {
+                print("⚠️ No search ID available for filter application")
+                return
             }
+            
+            print("🔍 Applying filters via API - searchId: \(searchId)")
+            
+            // Store the filter request
+            self._currentFilterRequest = filterRequest
+            
+            // Reset pagination and cache tracking for filtered results
+            isLoadingDetailedFlights = true
+            detailedFlightError = nil
+            currentPage = 1
+            actualLoadedCount = 0
+            isDataCached = false
+            hasMoreFlights = true
+            isLoadingMoreFlights = false
+            isFirstLoad = true
+            
+            service.pollFlightResultsPaginated(
+                searchId: searchId,
+                page: 1,
+                limit: 8,
+                filterRequest: filterRequest
+            )
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    guard let self = self else { return }
+                    
+                    self.isLoadingDetailedFlights = false
+                    
+                    if case .failure(let error) = completion {
+                        print("❌ Filter application failed: \(error.localizedDescription)")
+                        self.detailedFlightError = error.localizedDescription
+                    }
+                },
+                receiveValue: { [weak self] response in
+                    guard let self = self else { return }
+                    
+                    print("✅ Filters applied: \(response.results.count) flights, total: \(response.count), cached: \(response.cache)")
+                    
+                    // FIXED: Update all tracking variables from API response
+                    self.totalFlightCount = response.count
+                    self.isDataCached = response.cache
+                    self.actualLoadedCount = response.results.count
+                    self.hasMoreFlights = self.shouldContinueLoadingMore()
+                    self.isLoadingDetailedFlights = false
+                    self.detailedFlightError = nil
+                    
+                    // Update results
+                    self.detailedFlightResults = response.results
+                    
+                    print("📊 Filter complete: \(self.actualLoadedCount)/\(self.totalFlightCount), cached: \(self.isDataCached), hasMore: \(self.hasMoreFlights)")
+                }
+            )
+            .store(in: &cancellables)
+        }
+    
     
     func updateChildrenAgesArray(for newCount: Int) {
         if newCount > childrenAges.count {
@@ -8348,14 +8392,11 @@ struct PaginatedFlightList: View {
                     }
                 }
                 
-                // Infinite scrolling footer
+                // FIXED: Updated footer with proper logic
                 ScrollViewFooter(
-                    shouldLoadMore: viewModel.hasMoreFlights,
-                    isLoading: viewModel.isLoadingMoreFlights,
+                    viewModel: viewModel,
                     loadMore: {
-                        if viewModel.hasMoreFlights && !viewModel.isLoadingMoreFlights {
-                            viewModel.loadMoreFlights()
-                        }
+                        viewModel.loadMoreFlights()
                     }
                 )
                 
@@ -9242,25 +9283,45 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 
 struct ScrollViewFooter: View {
-    var shouldLoadMore: Bool
-    var isLoading: Bool
+    let viewModel: ExploreViewModel
     var loadMore: () -> Void
+    
+    // Computed properties for better logic
+    private var shouldLoadMore: Bool {
+        return viewModel.hasMoreFlights && !viewModel.isLoadingMoreFlights && !viewModel.isLoadingDetailedFlights
+    }
+    
+    private var isLoading: Bool {
+        return viewModel.isLoadingMoreFlights
+    }
+    
+    private var hasAllFlights: Bool {
+        // FIXED: Only show "all flights loaded" when we truly have all flights
+        return viewModel.isDataCached &&
+               viewModel.actualLoadedCount >= viewModel.totalFlightCount &&
+               viewModel.totalFlightCount > 0
+    }
+    
+    private var isWaitingForBackend: Bool {
+        // Backend is still processing data
+        return !viewModel.isDataCached && viewModel.totalFlightCount > 0
+    }
     
     var body: some View {
         GeometryReader { geometry in
-            // When this view becomes visible (within ~100px of appearing), trigger loading
-            if shouldLoadMore && !isLoading {
+            if shouldLoadMore {
+                // Trigger loading when this view becomes visible
                 Color.clear
                     .preference(key: InViewKey.self, value: geometry.frame(in: .global).minY)
                     .onPreferenceChange(InViewKey.self) { value in
-                        // If this view is close to the screen, load more content
                         let screenHeight = UIScreen.main.bounds.height
                         if value < screenHeight + 100 {
+                            print("📱 Footer in view - triggering load more")
                             loadMore()
                         }
                     }
             } else if isLoading {
-                // Show loading indicator at the bottom
+                // Show loading indicator
                 HStack {
                     Spacer()
                     VStack(spacing: 8) {
@@ -9273,11 +9334,52 @@ struct ScrollViewFooter: View {
                     Spacer()
                 }
                 .frame(height: 60)
-            } else {
-                // Show end of results message
+            } else if isWaitingForBackend {
+                // FIXED: Show waiting message when backend is still processing
                 HStack {
                     Spacer()
-                    Text("All flights loaded")
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Searching for more flights...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text("(\(viewModel.actualLoadedCount) of \(viewModel.totalFlightCount)+ flights)")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                }
+                .frame(height: 80)
+                .onAppear {
+                    // Automatically try to load more after a delay when waiting for backend
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        if self.isWaitingForBackend {
+                            print("🔄 Auto-retry for backend data")
+                            loadMore()
+                        }
+                    }
+                }
+            } else if hasAllFlights {
+                // FIXED: Only show this when we genuinely have all flights
+                HStack {
+                    Spacer()
+                    VStack(spacing: 4) {
+                        Text("All flights loaded")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text("(\(viewModel.actualLoadedCount) flights)")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                }
+                .frame(height: 60)
+            } else {
+                // FIXED: Show appropriate message for other states
+                HStack {
+                    Spacer()
+                    Text("No more flights available")
                         .font(.caption)
                         .foregroundColor(.gray)
                     Spacer()
@@ -9285,7 +9387,7 @@ struct ScrollViewFooter: View {
                 .frame(height: 60)
             }
         }
-        .frame(height: 60)
+        .frame(height: 80)
     }
 }
 
