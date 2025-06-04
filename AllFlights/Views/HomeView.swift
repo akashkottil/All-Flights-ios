@@ -448,14 +448,29 @@ struct EnhancedSearchInput: View {
 
     private func getDateDisplayText() -> String {
         if searchViewModel.selectedDates.isEmpty {
-            return "Select dates"
+            // Set a default departure date (e.g., today's date)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "E, d MMM"
+            
+            if searchViewModel.isRoundTrip {
+                // For round trip, return two default dates (departure and return)
+                let returnDate = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date() // Default return date (7 days later)
+                return "\(formatter.string(from: Date())) - \(formatter.string(from: returnDate))"
+            } else {
+                // For one-way, return only the departure date
+                return formatter.string(from: Date()) // Default to today's date
+            }
         } else if searchViewModel.selectedDates.count == 1 {
+            // One-way trip: Show the selected departure date
             return formatDateForDisplay(searchViewModel.selectedDates[0])
         } else {
+            // Round trip: Show both selected dates
             let sortedDates = searchViewModel.selectedDates.sorted()
             return "\(formatDateForDisplay(sortedDates[0])) - \(formatDateForDisplay(sortedDates[1]))"
         }
     }
+
+
 
     private func getDateTextColor() -> Color {
         if searchViewModel.selectedDates.isEmpty {
