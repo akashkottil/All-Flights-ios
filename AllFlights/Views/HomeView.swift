@@ -135,6 +135,9 @@ struct HomeView: View {
     @GestureState private var dragOffset: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
     
+    
+
+    
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
     
@@ -404,6 +407,14 @@ struct EnhancedSearchInput: View {
     // Animation namespace for matched geometry effects
        @Namespace private var tripAnimation
     
+    var canAddTrip: Bool {
+        // Check if the last trip's "From" and "To" fields are filled
+        if let lastTrip = searchViewModel.multiCityTrips.last {
+            return !lastTrip.fromLocation.isEmpty && !lastTrip.toLocation.isEmpty
+        }
+        return false
+    }
+    
     private func getFromLocationDisplayText() -> String {
         if searchViewModel.fromIataCode.isEmpty {
             return ""
@@ -664,7 +675,7 @@ struct EnhancedSearchInput: View {
                VStack(spacing: 12) {
                    ForEach(searchViewModel.multiCityTrips.indices, id: \.self) { index in
                        HomeMultiCitySegmentView(
-                           trip: searchViewModel.multiCityTrips[index],
+                        searchViewModel: searchViewModel, trip: searchViewModel.multiCityTrips[index],
                            index: index,
                            canRemove: searchViewModel.multiCityTrips.count > 2,
                            isLastRow: false,
@@ -734,32 +745,35 @@ struct EnhancedSearchInput: View {
 
                            Spacer()
 
-                           Button(action: addTrip) {
-                               HStack(spacing: 8) {
-                                   Image(systemName: "plus")
-                                       .foregroundColor(.blue)
-                                       .font(.system(size: 16, weight: .semibold))
-                                       .scaleEffect(searchViewModel.multiCityTrips.count >= 4 ? 0.9 : 1.0)
-                                   
-                                   Text("Add flight")
-                                       .font(.system(size: 16, weight: .semibold))
-                                       .foregroundColor(.blue)
+                           if canAddTrip {
+                               Button(action: addTrip) {
+                                   HStack(spacing: 8) {
+                                       Image(systemName: "plus")
+                                           .foregroundColor(.blue)
+                                           .font(.system(size: 16, weight: .semibold))
+
+                                       Text("Add flight")
+                                           .font(.system(size: 16, weight: .semibold))
+                                           .foregroundColor(.blue)
+                                   }
+                                   .padding(.vertical, 16)
+                                   .padding(.trailing, 12)
+                                   .background(
+                                       RoundedRectangle(cornerRadius: 8)
+                                           .fill(Color.blue.opacity(0.1))
+                                           .opacity(0)
+                                   )
                                }
-                               .padding(.vertical, 16)
-                               .padding(.trailing, 12)
-                               .background(
-                                   RoundedRectangle(cornerRadius: 8)
-                                       .fill(Color.blue.opacity(0.1))
-                                       .opacity(0)
-                               )
+                               .frame(maxHeight: .infinity)
+                               .scaleEffect(searchViewModel.multiCityTrips.count >= 4 ? 0.95 : 1.0)
+                               .transition(.asymmetric(
+                                   insertion: .move(edge: .trailing).combined(with: .opacity),
+                                   removal: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.1))
+                               ))
+
                            }
-                           .frame(maxHeight: .infinity)
-                           .scaleEffect(searchViewModel.multiCityTrips.count >= 4 ? 0.95 : 1.0)
-                           .transition(.asymmetric(
-                               insertion: .move(edge: .trailing).combined(with: .opacity),
-                               removal: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.1))
-                           ))
-                       }
+                           
+                                                  }
                    }
                    .background(Color.white)
                    .frame(minHeight: 64)
@@ -1126,6 +1140,8 @@ struct EnhancedSearchInput: View {
 
 // MARK: - Home Multi-City Segment View
 struct HomeMultiCitySegmentView: View {
+    
+    @ObservedObject var searchViewModel: SharedFlightSearchViewModel
     let trip: MultiCityTrip
     let index: Int
     let canRemove: Bool
@@ -1176,10 +1192,10 @@ struct HomeMultiCitySegmentView: View {
                 // From Location Column
                 Button(action: onFromTap) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(trip.fromIataCode.isEmpty ? "FROM" : trip.fromIataCode)
+                        Text(trip.fromIataCode.isEmpty ? "" : trip.fromIataCode)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(getFromLocationTextColor())
-                        Text(trip.fromLocation.isEmpty ? "City" : trip.fromLocation)
+                        Text(trip.fromLocation.isEmpty ? "" : trip.fromLocation)
                             .font(.system(size: 14, weight: .medium))
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -1197,7 +1213,7 @@ struct HomeMultiCitySegmentView: View {
                 // To Location Column
                 Button(action: onToTap) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(trip.toIataCode.isEmpty ? "TO" : trip.toIataCode)
+                        Text(trip.toIataCode.isEmpty ? "" : trip.toIataCode)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(getToLocationTextColor())
                         Text(trip.toLocation.isEmpty ? "City" : trip.toLocation)
@@ -1208,6 +1224,15 @@ struct HomeMultiCitySegmentView: View {
                     }
                     .padding(.horizontal, 8)
                 }
+                .onChange(of: trip.toLocation) { newToLocation in
+                    // When user types a value in "To" field, set the "From" of the next trip
+                    if let nextTripIndex = searchViewModel.multiCityTrips.firstIndex(where: { $0.id == trip.id }) {
+                        if nextTripIndex + 1 < searchViewModel.multiCityTrips.count {
+                            searchViewModel.multiCityTrips[nextTripIndex + 1].fromLocation = newToLocation
+                        }
+                    }
+                }
+
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Divider()
@@ -1223,6 +1248,7 @@ struct HomeMultiCitySegmentView: View {
                         .padding(.horizontal, 8)
                         .frame(maxWidth: 100, alignment: .leading)
                 }
+                
                 
                 Divider()
                     .frame(width: 1, height: 76)
@@ -1242,7 +1268,9 @@ struct HomeMultiCitySegmentView: View {
                 }
             }
             .frame(height: 48)
+            
         }
+        
     }
 }
 
