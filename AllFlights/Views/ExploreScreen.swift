@@ -2493,7 +2493,7 @@ class ExploreViewModel: ObservableObject {
     func selectMonth(at index: Int) {
         if index >= 0 && index < availableMonths.count {
             // Exit anytime mode when selecting a specific month
-                    isAnytimeMode = false
+            isAnytimeMode = false
             selectedMonthIndex = index
             
             // If we have origin, destination and dates set, perform a search with the new month
@@ -2521,11 +2521,24 @@ class ExploreViewModel: ObservableObject {
                         }
                     }
                     
-                    // Update dates and trigger search
+                    // Update dates array
                     if !newDates.isEmpty {
                         dates = newDates
-                        updateDatesAndRunSearch()
-                        return
+                        
+                        // CHANGED: Check if we're already in flight results view
+                        if hasSearchedFlights && !showingDetailedFlightList {
+                            // If we're already in flight results view, use fetchFlightDetails instead of full search
+                            if let city = selectedCity {
+                                fetchFlightDetails(destination: city.location.iata)
+                            } else if !selectedDestinationCode.isEmpty {
+                                fetchFlightDetails(destination: selectedDestinationCode)
+                            }
+                            return
+                        } else {
+                            // Otherwise proceed with full search
+                            updateDatesAndRunSearch()
+                            return
+                        }
                     }
                 }
                 
@@ -2541,13 +2554,23 @@ class ExploreViewModel: ObservableObject {
                 selectedDepartureDatee = formatter.string(from: firstDay)
                 selectedReturnDatee = formatter.string(from: lastDay)
                 
-                // Trigger search with the new month dates
-                searchFlightsForDates(
-                    origin: fromIataCode,
-                    destination: toIataCode,
-                    returnDate: selectedReturnDatee,
-                    departureDate: selectedDepartureDatee
-                )
+                // CHANGED: Check if we're already in flight results view
+                if hasSearchedFlights && !showingDetailedFlightList {
+                    // If we're already in flight results view, use fetchFlightDetails
+                    if let city = selectedCity {
+                        fetchFlightDetails(destination: city.location.iata)
+                    } else if !selectedDestinationCode.isEmpty {
+                        fetchFlightDetails(destination: selectedDestinationCode)
+                    }
+                } else {
+                    // Otherwise trigger search with the new month dates
+                    searchFlightsForDates(
+                        origin: fromIataCode,
+                        destination: toIataCode,
+                        returnDate: selectedReturnDatee,
+                        departureDate: selectedDepartureDatee
+                    )
+                }
                 
                 // Also update the dates array to keep UI in sync
                 dates = [firstDay, lastDay]
@@ -2735,8 +2758,14 @@ struct ExploreScreen: View {
                 // If a flight is selected, deselect it first
                 print("Action: Deselecting flight in direct search")
                 viewModel.selectedFlightId = nil
+            } else if viewModel.showingDetailedFlightList && viewModel.hasSearchedFlights {
+                // CHANGED: If we have flight results and we're coming from search dates button
+                // Just go back to flight results instead of clearing the form
+                print("Action: Going back to flight results from search dates view")
+                viewModel.showingDetailedFlightList = false
+                // Don't clear search form here
             } else if viewModel.showingDetailedFlightList {
-                // If on flight list, go back and clear form
+                // If on flight list from direct search (not from View these dates), go back and clear form
                 print("Action: Going back from direct search flight list - clearing form")
                 isCountryNavigationActive = false // Reset the flag
                 viewModel.clearSearchFormAndReturnToExplore()
@@ -2750,6 +2779,7 @@ struct ExploreScreen: View {
             return
         }
         
+        // Rest of the existing code remains unchanged
         // Special handling for "Anywhere" destination in explore flow
         if viewModel.toLocation == "Anywhere" {
             print("Action: Handling Anywhere destination - going back to countries")
