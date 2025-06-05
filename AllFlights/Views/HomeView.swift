@@ -751,7 +751,7 @@ struct EnhancedSearchInput: View {
                        .frame(maxHeight: .infinity)
 
                        // Vertical Divider and Add Flight Button with Animation
-                       if searchViewModel.multiCityTrips.count < 5 {
+                       if searchViewModel.multiCityTrips.count < 4 {
                            Rectangle()
                                .frame(width: 1)
                                .foregroundColor(Color.gray.opacity(0.3))
@@ -1239,14 +1239,7 @@ struct HomeMultiCitySegmentView: View {
                     }
                     .padding(.horizontal, 8)
                 }
-                .onChange(of: trip.toLocation) { newToLocation in
-                    // When user types a value in "To" field, set the "From" of the next trip
-                    if let nextTripIndex = searchViewModel.multiCityTrips.firstIndex(where: { $0.id == trip.id }) {
-                        if nextTripIndex + 1 < searchViewModel.multiCityTrips.count {
-                            searchViewModel.multiCityTrips[nextTripIndex + 1].fromLocation = newToLocation
-                        }
-                    }
-                }
+                
 
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
