@@ -62,16 +62,17 @@ class SharedFlightSearchViewModel: ObservableObject {
     }
    
     // Initialize multi-city trips
+    // Initialize multi-city trips - UPDATED: Start with empty trips instead of pre-populated data
     func initializeMultiCityTrips() {
         let calendar = Calendar.current
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
         let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
         
         multiCityTrips = [
-            MultiCityTrip(fromLocation: fromLocation, fromIataCode: fromIataCode,
-                         toLocation: toLocation, toIataCode: toIataCode, date: tomorrow),
-            MultiCityTrip(fromLocation: toLocation, fromIataCode: toIataCode,
-                         toLocation: "", toIataCode: "", date: dayAfterTomorrow)
+            MultiCityTrip(fromLocation: "Departure?", fromIataCode: "",
+                         toLocation: "Destination?", toIataCode: "", date: tomorrow),
+            MultiCityTrip(fromLocation: "Departure?", fromIataCode: "",
+                         toLocation: "Destination?", toIataCode: "", date: dayAfterTomorrow)
         ]
     }
 
@@ -408,9 +409,11 @@ struct EnhancedSearchInput: View {
        @Namespace private var tripAnimation
     
     var canAddTrip: Bool {
-        // Check if the last trip's "From" and "To" fields are filled
+        // Check if the last trip's "To" field is filled (destination selected)
         if let lastTrip = searchViewModel.multiCityTrips.last {
-            return !lastTrip.fromLocation.isEmpty && !lastTrip.toLocation.isEmpty
+            return !lastTrip.toLocation.isEmpty &&
+                   !lastTrip.toIataCode.isEmpty &&
+                   lastTrip.toLocation != "Destination?"
         }
         return false
     }
@@ -1205,12 +1208,13 @@ struct HomeMultiCitySegmentView: View {
             
             HStack(spacing: 0) {
                 // From Location Column
+                // From Location Column
                 Button(action: onFromTap) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(trip.fromIataCode.isEmpty ? "" : trip.fromIataCode)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(getFromLocationTextColor())
-                        Text(trip.fromLocation.isEmpty ? "" : trip.fromLocation)
+                        Text(trip.fromLocation.isEmpty || trip.fromLocation == "Departure?" ? "Departure?" : trip.fromLocation)
                             .font(.system(size: 14, weight: .medium))
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -1218,6 +1222,7 @@ struct HomeMultiCitySegmentView: View {
                     }
                     .padding(.horizontal, 8)
                 }
+              
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Divider()
@@ -1226,12 +1231,13 @@ struct HomeMultiCitySegmentView: View {
                     .padding(.top,10)
                 
                 // To Location Column
+                // To Location Column
                 Button(action: onToTap) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(trip.toIataCode.isEmpty ? "" : trip.toIataCode)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(getToLocationTextColor())
-                        Text(trip.toLocation.isEmpty ? "City" : trip.toLocation)
+                        Text(trip.toLocation.isEmpty || trip.toLocation == "Destination?" ? "Destination?" : trip.toLocation)
                             .font(.system(size: 14, weight: .medium))
                             .lineLimit(1)
                             .truncationMode(.tail)
