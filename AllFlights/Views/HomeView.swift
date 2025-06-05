@@ -535,7 +535,22 @@ struct EnhancedSearchInput: View {
        }
        
     private func performSearch() {
-        // Validation for required fields
+        // Check if dates are not selected and set default dates
+        if searchViewModel.selectedDates.isEmpty {
+            let today = Date()
+            let calendar = Calendar.current
+            
+            if searchViewModel.isRoundTrip {
+                // For round trip: Use today as departure and today + 7 days as return
+                let returnDate = calendar.date(byAdding: .day, value: 7, to: today) ?? today
+                searchViewModel.selectedDates = [today, returnDate]
+            } else {
+                // For one-way: Use today as departure
+                searchViewModel.selectedDates = [today]
+            }
+        }
+        
+        // Updated validation for required fields
         let valid: Bool
         if searchViewModel.selectedTab == 2 {
             valid = searchViewModel.multiCityTrips.allSatisfy { trip in
@@ -543,8 +558,8 @@ struct EnhancedSearchInput: View {
             }
         } else {
             valid = !searchViewModel.fromIataCode.isEmpty &&
-                    !searchViewModel.toIataCode.isEmpty &&
-                    !searchViewModel.selectedDates.isEmpty
+                    !searchViewModel.toIataCode.isEmpty
+                    // Removed the selectedDates.isEmpty check since we now set default dates
         }
 
         if valid {

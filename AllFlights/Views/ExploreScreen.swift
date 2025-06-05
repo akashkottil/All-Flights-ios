@@ -5719,7 +5719,7 @@ struct FlightRowView: View {
                     Text(duration)
                         .font(.system(size: 11)) // Reduced from 12 to 11
                         .foregroundColor(.gray)
-                        .padding(.horizontal, 8) // Reduced from 8 to 6
+                        .padding(.horizontal, 10) // Reduced from 8 to 6
                         .padding(.vertical, 1) // Reduced from 2 to 1
                         .background(
                             Capsule()
