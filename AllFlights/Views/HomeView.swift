@@ -1,7 +1,8 @@
 import SwiftUI
 import Combine
 
-// MARK: - Updated SharedFlightSearchViewModel for HomeView
+
+// MARK: - Updated SharedFlightSearchViewModel for HomeView with Enhanced Recent Search
 class SharedFlightSearchViewModel: ObservableObject {
     @Published var fromLocation = "Departure?"
     @Published var toLocation = "Destination?"
@@ -33,10 +34,10 @@ class SharedFlightSearchViewModel: ObservableObject {
             return
         }
         
-        // Save to recent searches before executing the search
+        // ENHANCED: Save to recent searches with complete data before executing
         saveToRecentSearches()
         
-        // UPDATED: Pass direct flights preference
+        // Pass direct flights preference
         SharedSearchDataStore.shared.executeSearchFromHome(
             fromLocation: fromLocation,
             toLocation: toLocation,
@@ -61,7 +62,6 @@ class SharedFlightSearchViewModel: ObservableObject {
         return RecentSearchManager.shared
     }
    
-    // Initialize multi-city trips
     // Initialize multi-city trips - UPDATED: Start with empty trips instead of pre-populated data
     func initializeMultiCityTrips() {
         let calendar = Calendar.current
@@ -85,12 +85,12 @@ class SharedFlightSearchViewModel: ObservableObject {
         }
     }
     
-    // UPDATED: executeSearch to use shared data store
+    // UPDATED: executeSearch to use enhanced recent search saving
     func executeSearch() {
-        // Save to recent searches before executing the search
+        // ENHANCED: Save to recent searches with complete data before executing
         saveToRecentSearches()
         
-        // UPDATED: Pass direct flights preference
+        // Pass direct flights preference
         SharedSearchDataStore.shared.executeSearchFromHome(
             fromLocation: fromLocation,
             toLocation: toLocation,
@@ -108,8 +108,30 @@ class SharedFlightSearchViewModel: ObservableObject {
         )
     }
     
-    // Save current search to recent searches
+  
+    // ENHANCED: Save current search to recent searches with complete information
     private func saveToRecentSearches() {
+        // Only save if we have valid from/to locations
+        guard !fromIataCode.isEmpty && !toIataCode.isEmpty,
+              fromLocation != "Departure?" && toLocation != "Destination?" else {
+            print("⚠️ Skipping recent search save - incomplete location data")
+            return
+        }
+        
+        // Determine departure and return dates
+        var departureDate: Date? = nil
+        var returnDate: Date? = nil
+        
+        if !selectedDates.isEmpty {
+            let sortedDates = selectedDates.sorted()
+            departureDate = sortedDates.first
+            
+            if isRoundTrip && sortedDates.count >= 2 {
+                returnDate = sortedDates.last
+            }
+        }
+        
+        // ENHANCED: Save with complete data using the new enhanced method
         recentSearchManager.addRecentSearch(
             fromLocation: fromLocation,
             toLocation: toLocation,
@@ -117,8 +139,19 @@ class SharedFlightSearchViewModel: ObservableObject {
             toIataCode: toIataCode,
             adultsCount: adultsCount,
             childrenCount: childrenCount,
-            cabinClass: selectedCabinClass
+            childrenAges: childrenAges,
+            cabinClass: selectedCabinClass,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            departureDate: departureDate,
+            returnDate: returnDate
         )
+        
+        print("✅ Enhanced recent search saved:")
+        print("🔍 Route: \(fromIataCode) → \(toIataCode)")
+        print("👥 Passengers: \(adultsCount) adults, \(childrenCount) children")
+        print("✈️ Trip Type: \(isRoundTrip ? "Round Trip" : "One Way")")
+        print("🏷️ Class: \(selectedCabinClass)")
     }
     
     // Keep the old method for backward compatibility (but it now does the same thing)

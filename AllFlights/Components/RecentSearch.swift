@@ -1,26 +1,52 @@
+import Foundation
 import SwiftUI
+import UIKit
+import SwiftUICore
+import Combine
 
-// MARK: - Recent Search Data Model
+// MARK: - Enhanced Recent Search Data Model
 struct RecentSearchItem: Identifiable, Codable {
     let id = UUID()
     let fromLocation: String
     let toLocation: String
     let fromIataCode: String
     let toIataCode: String
-    let passengerCount: Int
+    
+    // ENHANCED: Store detailed passenger information
+    let adultsCount: Int
+    let childrenCount: Int
+    let childrenAges: [Int?] // Store children ages
+    
     let cabinClass: String
     let searchDate: Date
+    
+    // ENHANCED: Store trip type information
+    let isRoundTrip: Bool
+    let selectedTab: Int // 0: Return, 1: One way, 2: Multi city
+    
+    // ENHANCED: Store date information if available
+    let departureDate: Date?
+    let returnDate: Date?
     
     var displayRoute: String {
         return "\(fromIataCode) - \(toIataCode)"
     }
     
     var passengerInfo: String {
-        return "\(passengerCount) \(passengerCount == 1 ? "Person" : "People")"
+        let totalPassengers = adultsCount + childrenCount
+        return "\(totalPassengers) \(totalPassengers == 1 ? "Person" : "People")"
+    }
+    
+    var detailedPassengerInfo: String {
+        if childrenCount > 0 {
+            return "\(adultsCount) Adult\(adultsCount > 1 ? "s" : ""), \(childrenCount) Child\(childrenCount > 1 ? "ren" : "")"
+        } else {
+            return "\(adultsCount) Adult\(adultsCount > 1 ? "s" : "")"
+        }
     }
 }
 
-// MARK: - Recent Search Manager
+// MARK: - Enhanced Recent Search Manager
 class RecentSearchManager: ObservableObject {
     @Published var recentSearches: [RecentSearchItem] = []
     private let maxRecentSearches = 5
@@ -33,7 +59,7 @@ class RecentSearchManager: ObservableObject {
         loadRecentSearches()
     }
     
-    // Add a new search to recent searches (allows duplicates)
+    // ENHANCED: Add a new search to recent searches with complete information
     func addRecentSearch(
         fromLocation: String,
         toLocation: String,
@@ -41,7 +67,12 @@ class RecentSearchManager: ObservableObject {
         toIataCode: String,
         adultsCount: Int,
         childrenCount: Int,
-        cabinClass: String
+        childrenAges: [Int?] = [],
+        cabinClass: String,
+        isRoundTrip: Bool = true,
+        selectedTab: Int = 0,
+        departureDate: Date? = nil,
+        returnDate: Date? = nil
     ) {
         // Don't add if either location is empty or placeholder
         guard !fromIataCode.isEmpty && !toIataCode.isEmpty &&
@@ -50,18 +81,29 @@ class RecentSearchManager: ObservableObject {
             return
         }
         
-        let totalPassengers = adultsCount + childrenCount
         let newSearch = RecentSearchItem(
             fromLocation: fromLocation,
             toLocation: toLocation,
             fromIataCode: fromIataCode,
             toIataCode: toIataCode,
-            passengerCount: totalPassengers,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
             cabinClass: cabinClass,
-            searchDate: Date()
+            searchDate: Date(),
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            departureDate: departureDate,
+            returnDate: returnDate
         )
         
-        // Add new search at the beginning (allowing duplicates)
+        // Remove existing search with same route to avoid duplicates
+        recentSearches.removeAll { existing in
+            existing.fromIataCode == newSearch.fromIataCode &&
+            existing.toIataCode == newSearch.toIataCode
+        }
+        
+        // Add new search at the beginning
         recentSearches.insert(newSearch, at: 0)
         
         // Keep only the most recent searches
@@ -72,79 +114,150 @@ class RecentSearchManager: ObservableObject {
         saveRecentSearches()
     }
     
+    // LEGACY: Keep the old method for backward compatibility
+    func addRecentSearch(
+        fromLocation: String,
+        toLocation: String,
+        fromIataCode: String,
+        toIataCode: String,
+        adultsCount: Int,
+        childrenCount: Int,
+        cabinClass: String
+    ) {
+        // Call the enhanced method with default values
+        addRecentSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: Array(repeating: nil, count: childrenCount),
+            cabinClass: cabinClass,
+            isRoundTrip: true,
+            selectedTab: 0,
+            departureDate: nil,
+            returnDate: nil
+        )
+    }
+    
     // Clear all recent searches
     func clearAllRecentSearches() {
         recentSearches.removeAll()
         saveRecentSearches()
     }
     
-    // UPDATED: Apply a recent search and automatically trigger the search
+    // ENHANCED: Apply a recent search with complete data reconstruction
     func applyRecentSearch(_ search: RecentSearchItem, to viewModel: SharedFlightSearchViewModel) {
-        // Apply search parameters
+        // Apply basic search parameters
         viewModel.fromLocation = search.fromLocation
         viewModel.toLocation = search.toLocation
         viewModel.fromIataCode = search.fromIataCode
         viewModel.toIataCode = search.toIataCode
         viewModel.selectedCabinClass = search.cabinClass
         
-        // Calculate adults and children from total count
-        // For simplicity, assume all are adults if total <= 4, otherwise distribute
-        if search.passengerCount <= 4 {
-            viewModel.adultsCount = search.passengerCount
-            viewModel.childrenCount = 0
+        // ENHANCED: Apply detailed passenger information
+        viewModel.adultsCount = search.adultsCount
+        viewModel.childrenCount = search.childrenCount
+        
+        // Handle children ages properly
+        if search.childrenCount > 0 {
+            if search.childrenAges.count == search.childrenCount {
+                viewModel.childrenAges = search.childrenAges
+            } else {
+                // Fallback: create array with nil ages
+                viewModel.childrenAges = Array(repeating: nil, count: search.childrenCount)
+            }
         } else {
-            viewModel.adultsCount = 4
-            viewModel.childrenCount = search.passengerCount - 4
+            viewModel.childrenAges = []
         }
         
-        viewModel.updateChildrenAgesArray(for: viewModel.childrenCount)
+        // ENHANCED: Apply trip type information
+        viewModel.isRoundTrip = search.isRoundTrip
+        viewModel.selectedTab = search.selectedTab
         
-        // Set trip type to round trip by default for recent searches
-        viewModel.isRoundTrip = true
-        viewModel.selectedTab = 0 // Set to "Return" tab
-        
-        // ADDED: Set default dates for the search
-        setDefaultDatesAndExecuteSearch(for: viewModel)
+        // ENHANCED: Set appropriate dates
+        setIntelligentDatesAndExecuteSearch(for: viewModel, basedOn: search)
     }
     
-    // ADDED: Helper method to set default dates and execute search
-    private func setDefaultDatesAndExecuteSearch(for viewModel: SharedFlightSearchViewModel) {
+    // ENHANCED: Helper method to set intelligent dates and execute search
+    private func setIntelligentDatesAndExecuteSearch(for viewModel: SharedFlightSearchViewModel, basedOn search: RecentSearchItem) {
         let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        let returnDate = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date() // 1 week later
+        let today = Date()
         
-        // Set dates in the view model (SharedFlightSearchViewModel uses selectedDates array)
-        viewModel.selectedDates = [tomorrow, returnDate]
+        var departureDate: Date
+        var returnDate: Date?
         
-        // ADDED: Automatically execute the search
+        // Use stored dates if available and still valid (in the future)
+        if let storedDeparture = search.departureDate, storedDeparture > today {
+            departureDate = storedDeparture
+            
+            if search.isRoundTrip, let storedReturn = search.returnDate, storedReturn > storedDeparture {
+                returnDate = storedReturn
+            } else if search.isRoundTrip {
+                // Create return date based on departure
+                returnDate = calendar.date(byAdding: .day, value: 7, to: departureDate)
+            }
+        } else {
+            // Create new appropriate dates
+            departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+            
+            if search.isRoundTrip {
+                returnDate = calendar.date(byAdding: .day, value: 7, to: departureDate) ?? departureDate
+            }
+        }
+        
+        // Update the view model dates
+        if search.isRoundTrip && returnDate != nil {
+            viewModel.selectedDates = [departureDate, returnDate!]
+        } else {
+            viewModel.selectedDates = [departureDate]
+        }
+        
+        // ENHANCED: Execute search automatically with proper delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             viewModel.executeSearch()
         }
         
-        print("✅ Recent search applied and search executed automatically")
+        print("✅ Enhanced recent search applied and search executed automatically")
         print("🔍 Route: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+        print("👥 Passengers: \(viewModel.adultsCount) adults, \(viewModel.childrenCount) children")
+        print("✈️ Trip Type: \(search.isRoundTrip ? "Round Trip" : "One Way")")
+        print("🏷️ Class: \(search.cabinClass)")
         
         // Format dates for logging
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        print("📅 Dates: \(formatter.string(from: tomorrow)) - \(formatter.string(from: returnDate))")
-        print("👥 Passengers: \(viewModel.adultsCount) adults, \(viewModel.childrenCount) children")
+        let departureDateString = formatter.string(from: departureDate)
+        let returnDateString = returnDate != nil ? formatter.string(from: returnDate!) : "N/A"
+        print("📅 Dates: \(departureDateString) - \(returnDateString)")
     }
     
     // Save to UserDefaults
     private func saveRecentSearches() {
-        if let encoded = try? JSONEncoder().encode(recentSearches) {
+        do {
+            let encoded = try JSONEncoder().encode(recentSearches)
             UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        } catch {
+            print("Failed to save recent searches: \(error)")
         }
     }
     
-    // Load from UserDefaults
+    // Load from UserDefaults with migration support
     private func loadRecentSearches() {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-              let decoded = try? JSONDecoder().decode([RecentSearchItem].self, from: data) else {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
             return
         }
-        recentSearches = decoded
+        
+        do {
+            // Try to decode with new format first
+            recentSearches = try JSONDecoder().decode([RecentSearchItem].self, from: data)
+        } catch {
+            print("Failed to load recent searches (possibly old format): \(error)")
+            // Clear the old data if it can't be decoded
+            UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            recentSearches = []
+        }
     }
 }
 
@@ -203,7 +316,9 @@ struct RecentSearch: View {
     }
 }
 
-// MARK: - UPDATED Recent Search Card with visual feedback
+
+
+// MARK: - UPDATED Recent Search Card with enhanced functionality (Original UI Design)
 struct RecentSearchCard: View {
     let search: RecentSearchItem
     let onTap: () -> Void
@@ -219,11 +334,13 @@ struct RecentSearchCard: View {
             onTap()
         }) {
             VStack(alignment: .leading, spacing: 8) {
+                // ORIGINAL: Route display
                 Text(search.displayRoute)
                     .font(.system(size: 16))
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
+                // ORIGINAL: Class and passenger info layout
                 HStack(spacing: 8) {
                     Text(search.cabinClass)
                         .font(.system(size: 14))
@@ -234,13 +351,11 @@ struct RecentSearchCard: View {
                         .frame(width: 6, height: 6)
                         .foregroundColor(.gray.opacity(0.6))
                     
-                    Text(search.passengerInfo)
+                    Text(search.passengerInfo) // This uses the original passengerInfo property
                         .font(.system(size: 14))
                         .fontWeight(.medium)
                         .foregroundColor(.gray.opacity(0.8))
                 }
-                
-
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
