@@ -1290,7 +1290,9 @@ struct HomeMultiCitySegmentView: View {
 
 
 
-// MARK: - Home Multi-City Location Sheet (renamed to avoid conflicts)
+
+// MARK: - Updated Home Multi-City Location Sheet with Recent Searches
+
 struct HomeMultiCityLocationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1303,6 +1305,10 @@ struct HomeMultiCityLocationSheet: View {
     @State private var searchError: String? = nil
     @FocusState private var isTextFieldFocused: Bool
     @State private var cancellables = Set<AnyCancellable>()
+    @State private var showRecentSearches = true
+    
+    // Add recent search manager
+    @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
     
     private let searchDebouncer = SearchDebouncer(delay: 0.3)
 
@@ -1351,6 +1357,7 @@ struct HomeMultiCityLocationSheet: View {
                     Button(action: {
                         searchText = ""
                         results = []
+                        showRecentSearches = true
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
@@ -1362,7 +1369,7 @@ struct HomeMultiCityLocationSheet: View {
             Divider()
                 .padding(.top)
             
-            // Results
+            // Results section with recent searches
             if isSearching {
                 VStack {
                     ProgressView()
@@ -1380,12 +1387,8 @@ struct HomeMultiCityLocationSheet: View {
                     .cornerRadius(8)
                     .padding()
                 Spacer()
-            } else if shouldShowNoResults() {
-                Text("No results found")
-                    .foregroundColor(.gray)
-                    .padding()
-                Spacer()
-            } else {
+            } else if !results.isEmpty {
+                // Show search results
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(results) { result in
@@ -1396,6 +1399,28 @@ struct HomeMultiCityLocationSheet: View {
                         }
                     }
                 }
+            } else if showRecentSearches && searchText.isEmpty {
+                // Show recent searches when no active search
+                RecentLocationSearchView(
+                    onLocationSelected: { result in
+                        selectLocation(result: result)
+                    },
+                    showAnywhereOption: false
+                )
+                Spacer()
+            } else if shouldShowNoResults() {
+                Text("No results found")
+                    .foregroundColor(.gray)
+                    .padding()
+                Spacer()
+            } else {
+                RecentLocationSearchView(
+                    onLocationSelected: { result in
+                        selectLocation(result: result)
+                    },
+                    showAnywhereOption: false
+                )
+                Spacer()
             }
         }
         .background(Color.white)
@@ -1405,6 +1430,8 @@ struct HomeMultiCityLocationSheet: View {
     }
     
     private func handleTextChange() {
+        showRecentSearches = searchText.isEmpty
+        
         if !searchText.isEmpty {
             searchDebouncer.debounce {
                 searchLocations(query: searchText)
@@ -1415,10 +1442,13 @@ struct HomeMultiCityLocationSheet: View {
     }
     
     private func shouldShowNoResults() -> Bool {
-        return results.isEmpty && !searchText.isEmpty
+        return results.isEmpty && !searchText.isEmpty && !showRecentSearches
     }
     
     private func selectLocation(result: AutocompleteResult) {
+        // IMPORTANT: Add to recent searches before processing
+        recentSearchManager.addRecentSearch(result)
+        
         if isFromLocation {
             searchViewModel.multiCityTrips[tripIndex].fromLocation = result.cityName
             searchViewModel.multiCityTrips[tripIndex].fromIataCode = result.iataCode
@@ -1562,7 +1592,9 @@ struct HomeCollapsibleSearchInput: View {
 
 
 
-// MARK: - Home Location Search Sheets (renamed to avoid conflicts)
+
+// MARK: - Updated Home Location Search Sheets with Recent Searches
+
 struct HomeFromLocationSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1572,6 +1604,10 @@ struct HomeFromLocationSearchSheet: View {
     @State private var searchError: String? = nil
     @FocusState private var isTextFieldFocused: Bool
     @State private var cancellables = Set<AnyCancellable>()
+    @State private var showRecentSearches = true
+    
+    // Add recent search manager
+    @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
     
     private let searchDebouncer = SearchDebouncer(delay: 0.3)
 
@@ -1620,6 +1656,7 @@ struct HomeFromLocationSearchSheet: View {
                     Button(action: {
                         searchText = ""
                         results = []
+                        showRecentSearches = true
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
@@ -1647,7 +1684,7 @@ struct HomeFromLocationSearchSheet: View {
             
             Divider()
             
-            // Results
+            // Results section with recent searches
             if isSearching {
                 VStack {
                     ProgressView()
@@ -1665,12 +1702,8 @@ struct HomeFromLocationSearchSheet: View {
                     .cornerRadius(8)
                     .padding()
                 Spacer()
-            } else if shouldShowNoResults() {
-                Text("No results found")
-                    .foregroundColor(.gray)
-                    .padding()
-                Spacer()
-            } else {
+            } else if !results.isEmpty {
+                // Show search results
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(results) { result in
@@ -1681,6 +1714,28 @@ struct HomeFromLocationSearchSheet: View {
                         }
                     }
                 }
+            } else if showRecentSearches && searchText.isEmpty {
+                // Show recent searches when no active search
+                RecentLocationSearchView(
+                    onLocationSelected: { result in
+                        selectLocation(result: result)
+                    },
+                    showAnywhereOption: false
+                )
+                Spacer()
+            } else if shouldShowNoResults() {
+                Text("No results found")
+                    .foregroundColor(.gray)
+                    .padding()
+                Spacer()
+            } else {
+                RecentLocationSearchView(
+                    onLocationSelected: { result in
+                        selectLocation(result: result)
+                    },
+                    showAnywhereOption: false
+                )
+                Spacer()
             }
         }
         .background(Color.white)
@@ -1690,6 +1745,8 @@ struct HomeFromLocationSearchSheet: View {
     }
     
     private func handleTextChange() {
+        showRecentSearches = searchText.isEmpty
+        
         if !searchText.isEmpty {
             searchDebouncer.debounce {
                 searchLocations(query: searchText)
@@ -1700,7 +1757,7 @@ struct HomeFromLocationSearchSheet: View {
     }
     
     private func shouldShowNoResults() -> Bool {
-        return results.isEmpty && !searchText.isEmpty
+        return results.isEmpty && !searchText.isEmpty && !showRecentSearches
     }
     
     private func useCurrentLocation() {
@@ -1711,6 +1768,9 @@ struct HomeFromLocationSearchSheet: View {
     }
     
     private func selectLocation(result: AutocompleteResult) {
+        // IMPORTANT: Add to recent searches before processing
+        recentSearchManager.addRecentSearch(result)
+        
         // Check if this would match the current destination
         if !searchViewModel.toIataCode.isEmpty && result.iataCode == searchViewModel.toIataCode {
             searchError = "Origin and destination cannot be the same"
@@ -1755,6 +1815,10 @@ struct HomeToLocationSearchSheet: View {
     @State private var searchError: String? = nil
     @FocusState private var isTextFieldFocused: Bool
     @State private var cancellables = Set<AnyCancellable>()
+    @State private var showRecentSearches = true
+    
+    // Add recent search manager
+    @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
     
     private let searchDebouncer = SearchDebouncer(delay: 0.3)
 
@@ -1803,6 +1867,7 @@ struct HomeToLocationSearchSheet: View {
                     Button(action: {
                         searchText = ""
                         results = []
+                        showRecentSearches = true
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
@@ -1814,7 +1879,7 @@ struct HomeToLocationSearchSheet: View {
             Divider()
                 .padding(.top)
             
-            // Results
+            // Results section with recent searches
             if isSearching {
                 VStack {
                     ProgressView()
@@ -1832,14 +1897,21 @@ struct HomeToLocationSearchSheet: View {
                     .cornerRadius(8)
                     .padding()
                 Spacer()
-            } else if shouldShowNoResults() {
-                Text("No results found")
-                    .foregroundColor(.gray)
-                    .padding()
-                Spacer()
-            } else {
+            } else if !results.isEmpty {
+                // Show search results (with Anywhere option at top)
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        // Show "Anywhere" option at the top for destination search
+                        AnywhereOptionRow()
+                            .onTapGesture {
+                                handleAnywhereSelection()
+                            }
+                        
+                        if !results.isEmpty {
+                            Divider()
+                                .padding(.horizontal)
+                        }
+                        
                         ForEach(results) { result in
                             LocationResultRow(result: result)
                                 .onTapGesture {
@@ -1848,6 +1920,34 @@ struct HomeToLocationSearchSheet: View {
                         }
                     }
                 }
+            } else if showRecentSearches && searchText.isEmpty {
+                // Show recent searches when no active search (with Anywhere option)
+                RecentLocationSearchView(
+                    onLocationSelected: { result in
+                        selectLocation(result: result)
+                    },
+                    showAnywhereOption: true,
+                    onAnywhereSelected: {
+                        handleAnywhereSelection()
+                    }
+                )
+                Spacer()
+            } else if shouldShowNoResults() {
+                Text("No results found")
+                    .foregroundColor(.gray)
+                    .padding()
+                Spacer()
+            } else {
+                RecentLocationSearchView(
+                    onLocationSelected: { result in
+                        selectLocation(result: result)
+                    },
+                    showAnywhereOption: true,
+                    onAnywhereSelected: {
+                        handleAnywhereSelection()
+                    }
+                )
+                Spacer()
             }
         }
         .background(Color.white)
@@ -1857,6 +1957,8 @@ struct HomeToLocationSearchSheet: View {
     }
     
     private func handleTextChange() {
+        showRecentSearches = searchText.isEmpty
+        
         if !searchText.isEmpty {
             searchDebouncer.debounce {
                 searchLocations(query: searchText)
@@ -1867,10 +1969,20 @@ struct HomeToLocationSearchSheet: View {
     }
     
     private func shouldShowNoResults() -> Bool {
-        return results.isEmpty && !searchText.isEmpty
+        return results.isEmpty && !searchText.isEmpty && !showRecentSearches
+    }
+    
+    private func handleAnywhereSelection() {
+        searchViewModel.toLocation = "Anywhere"
+        searchViewModel.toIataCode = ""
+        searchText = "Anywhere"
+        dismiss()
     }
     
     private func selectLocation(result: AutocompleteResult) {
+        // IMPORTANT: Add to recent searches before processing
+        recentSearchManager.addRecentSearch(result)
+        
         // Check if this would match the current origin
         if !searchViewModel.fromIataCode.isEmpty && result.iataCode == searchViewModel.fromIataCode {
             searchError = "Origin and destination cannot be the same"
@@ -1905,7 +2017,6 @@ struct HomeToLocationSearchSheet: View {
             .store(in: &cancellables)
     }
 }
-
 // MARK: - Home Calendar Sheet
 struct HomeCalendarSheet: View {
     @Environment(\.dismiss) private var dismiss
