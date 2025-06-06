@@ -78,8 +78,9 @@ class RecentSearchManager: ObservableObject {
         saveRecentSearches()
     }
     
-    // Apply a recent search to the search view model
+    // UPDATED: Apply a recent search and automatically trigger the search
     func applyRecentSearch(_ search: RecentSearchItem, to viewModel: SharedFlightSearchViewModel) {
+        // Apply search parameters
         viewModel.fromLocation = search.fromLocation
         viewModel.toLocation = search.toLocation
         viewModel.fromIataCode = search.fromIataCode
@@ -97,6 +98,37 @@ class RecentSearchManager: ObservableObject {
         }
         
         viewModel.updateChildrenAgesArray(for: viewModel.childrenCount)
+        
+        // Set trip type to round trip by default for recent searches
+        viewModel.isRoundTrip = true
+        viewModel.selectedTab = 0 // Set to "Return" tab
+        
+        // ADDED: Set default dates for the search
+        setDefaultDatesAndExecuteSearch(for: viewModel)
+    }
+    
+    // ADDED: Helper method to set default dates and execute search
+    private func setDefaultDatesAndExecuteSearch(for viewModel: SharedFlightSearchViewModel) {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let returnDate = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date() // 1 week later
+        
+        // Set dates in the view model (SharedFlightSearchViewModel uses selectedDates array)
+        viewModel.selectedDates = [tomorrow, returnDate]
+        
+        // ADDED: Automatically execute the search
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            viewModel.executeSearch()
+        }
+        
+        print("✅ Recent search applied and search executed automatically")
+        print("🔍 Route: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+        
+        // Format dates for logging
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        print("📅 Dates: \(formatter.string(from: tomorrow)) - \(formatter.string(from: returnDate))")
+        print("👥 Passengers: \(viewModel.adultsCount) adults, \(viewModel.childrenCount) children")
     }
     
     // Save to UserDefaults
@@ -133,6 +165,7 @@ struct RecentSearch: View {
                         RecentSearchCard(
                             search: search,
                             onTap: {
+                                // UPDATED: This now automatically triggers the search
                                 recentSearchManager.applyRecentSearch(search, to: searchViewModel)
                             }
                         )
@@ -170,13 +203,21 @@ struct RecentSearch: View {
     }
 }
 
-// MARK: - Recent Search Card
+// MARK: - UPDATED Recent Search Card with visual feedback
 struct RecentSearchCard: View {
     let search: RecentSearchItem
     let onTap: () -> Void
     
+    @State private var isPressed = false
+    
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            // Add haptic feedback for better user experience
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            
+            onTap()
+        }) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(search.displayRoute)
                     .font(.system(size: 16))
@@ -199,19 +240,24 @@ struct RecentSearchCard: View {
                         .foregroundColor(.gray.opacity(0.8))
                 }
                 
-                Spacer()
+
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.gray.opacity(0.5), lineWidth: 2)
+                    .stroke(isPressed ? Color.blue : Color.gray.opacity(0.5), lineWidth: 2)
             )
             .cornerRadius(10)
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: isPressed)
         }
         .buttonStyle(PlainButtonStyle())
+        .onLongPressGesture(minimumDuration: 0) { pressing in
+            isPressed = pressing
+        } perform: {
+            // This will be handled by the main onTap
+        }
     }
 }
-
-// MARK: - Removed EmptyRecentSearchView since it's no longer needed
