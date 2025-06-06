@@ -1595,6 +1595,8 @@ struct HomeCollapsibleSearchInput: View {
 
 // MARK: - Updated Home Location Search Sheets with Recent Searches
 
+// MARK: - Updated Home Location Search Sheets with Recent Searches
+
 struct HomeFromLocationSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1879,7 +1881,7 @@ struct HomeToLocationSearchSheet: View {
             Divider()
                 .padding(.top)
             
-            // Results section with recent searches
+            // Results section with recent searches (NO ANYWHERE OPTION)
             if isSearching {
                 VStack {
                     ProgressView()
@@ -1898,20 +1900,9 @@ struct HomeToLocationSearchSheet: View {
                     .padding()
                 Spacer()
             } else if !results.isEmpty {
-                // Show search results (with Anywhere option at top)
+                // Show search results (NO ANYWHERE OPTION for HomeView)
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        // Show "Anywhere" option at the top for destination search
-                        AnywhereOptionRow()
-                            .onTapGesture {
-                                handleAnywhereSelection()
-                            }
-                        
-                        if !results.isEmpty {
-                            Divider()
-                                .padding(.horizontal)
-                        }
-                        
                         ForEach(results) { result in
                             LocationResultRow(result: result)
                                 .onTapGesture {
@@ -1921,15 +1912,12 @@ struct HomeToLocationSearchSheet: View {
                     }
                 }
             } else if showRecentSearches && searchText.isEmpty {
-                // Show recent searches when no active search (with Anywhere option)
+                // Show recent searches when no active search (NO ANYWHERE OPTION)
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: true,
-                    onAnywhereSelected: {
-                        handleAnywhereSelection()
-                    }
+                    showAnywhereOption: false
                 )
                 Spacer()
             } else if shouldShowNoResults() {
@@ -1942,10 +1930,7 @@ struct HomeToLocationSearchSheet: View {
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: true,
-                    onAnywhereSelected: {
-                        handleAnywhereSelection()
-                    }
+                    showAnywhereOption: false
                 )
                 Spacer()
             }
@@ -1970,13 +1955,6 @@ struct HomeToLocationSearchSheet: View {
     
     private func shouldShowNoResults() -> Bool {
         return results.isEmpty && !searchText.isEmpty && !showRecentSearches
-    }
-    
-    private func handleAnywhereSelection() {
-        searchViewModel.toLocation = "Anywhere"
-        searchViewModel.toIataCode = ""
-        searchText = "Anywhere"
-        dismiss()
     }
     
     private func selectLocation(result: AutocompleteResult) {
