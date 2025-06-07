@@ -6116,23 +6116,23 @@ struct DirectFlightView: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            // Timeline positioned to align with airport codes
+            // Timeline positioned to align with airport codes - UPDATED alignment
             VStack(spacing: 0) {
-                // Space to align with departure airport code
+                // UPDATED: Slightly moved down for perfect alignment
                 Spacer()
-                    .frame(height: 50) // Aligns with departure date/time + some spacing
+                    .frame(height: 42) // Increased from 35 to 42 to move timeline down
                 
                 // Departure circle
                 Circle()
                     .stroke(Color.primary, lineWidth: 1)
                     .frame(width: 8, height: 8)
                 
-                // Connecting line
+                // Connecting line - UPDATED: Reduced straight line height
                 Rectangle()
                     .fill(Color.primary)
-                    .frame(width: 1, height: 140)
-                    .padding(.top,6)
-                    .padding(.bottom,6)// Height spans between the two sections
+                    .frame(width: 1, height: 130) // Reduced from 155 to 130
+                    .padding(.top, 4) // Reduced from 6 to 4
+                    .padding(.bottom, 4) // Reduced from 6 to 4
                 
                 // Arrival circle
                 Circle()
@@ -6311,11 +6311,11 @@ struct ConnectingFlightView: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            // Timeline positioned to align with airport codes - similar to DirectFlightView
+            // Timeline positioned to align with airport codes - UPDATED alignment
             VStack(spacing: 0) {
-                // Space to align with first departure airport code
+                // UPDATED: Slightly moved down for perfect alignment
                 Spacer()
-                    .frame(height: 50)
+                    .frame(height: 42) // Increased from 35 to 42 to move timeline down
                 
                 // First departure circle
                 Circle()
@@ -6324,12 +6324,12 @@ struct ConnectingFlightView: View {
                 
                 // For each segment, create connecting elements
                 ForEach(0..<segments.count, id: \.self) { index in
-                    // Solid line for flight segment - INCREASED HEIGHT
+                    // Solid line for flight segment - UPDATED: Reduced straight line height
                     Rectangle()
                         .fill(Color.primary)
-                        .frame(width: 1, height: 180) // Changed from 140 to 180
-                        .padding(.top, 6)
-                        .padding(.bottom, 6)
+                        .frame(width: 1, height: 150) // Reduced from 190 to 150
+                        .padding(.top, 4) // Reduced from 6 to 4
+                        .padding(.bottom, 4) // Reduced from 6 to 4
                     
                     // Connection point (if not the last segment)
                     if index < segments.count - 1 {
@@ -6337,19 +6337,19 @@ struct ConnectingFlightView: View {
                             .stroke(Color.primary, lineWidth: 1)
                             .frame(width: 8, height: 8)
                         
-                        // Dotted line for layover/connection - INCREASED HEIGHT
+                        // Dotted line for layover/connection - KEPT same height
                         Rectangle()
                             .fill(Color.clear)
-                            .frame(width: 1, height: 120) // Changed from 80 to 120
+                            .frame(width: 1, height: 130) // Kept at 130 (dotted line unchanged)
                             .overlay(
                                 Path { path in
                                     path.move(to: CGPoint(x: 0.5, y: 0))
-                                    path.addLine(to: CGPoint(x: 0.5, y: 120)) // Update path height too
+                                    path.addLine(to: CGPoint(x: 0.5, y: 130)) // Kept path height at 130
                                 }
                                 .stroke(Color.primary, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                             )
-                            .padding(.top, 6)
-                            .padding(.bottom, 6)
+                            .padding(.top, 4) // Reduced from 6 to 4
+                            .padding(.bottom, 4) // Reduced from 6 to 4
                         
                         Circle()
                             .stroke(Color.primary, lineWidth: 1)
@@ -6405,7 +6405,7 @@ struct ConnectingFlightView: View {
                         }
                     }
                     
-                    // AIRLINE SECTION - Updated to match DirectFlightView
+                    // AIRLINE SECTION
                     HStack(spacing: 12) {
                         AsyncImage(url: URL(string: segment.airlineLogo)) { phase in
                             switch phase {
