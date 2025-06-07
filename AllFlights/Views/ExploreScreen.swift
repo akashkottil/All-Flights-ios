@@ -2741,6 +2741,7 @@ struct ExploreScreen: View {
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
     
     // MODIFIED: Updated back navigation to handle "Anywhere" destination
+    // MODIFIED: Updated back navigation to handle search mode
     private func handleBackNavigation() {
         print("=== Back Navigation Debug ===")
         print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
@@ -2749,6 +2750,15 @@ struct ExploreScreen: View {
         print("showingCities: \(viewModel.showingCities)")
         print("toLocation: \(viewModel.toLocation)")
         print("isDirectSearch: \(viewModel.isDirectSearch)")
+        print("isInSearchMode: \(sharedSearchData.isInSearchMode)")
+        
+        // UPDATED: Special handling for search mode - return to home
+        if sharedSearchData.isInSearchMode {
+            print("Action: Search mode detected - returning to home")
+            sharedSearchData.returnToHomeFromSearch()
+            print("=== End Back Navigation Debug ===")
+            return
+        }
         
         // Special handling for direct searches from HomeView
         if viewModel.isDirectSearch {

@@ -5,35 +5,48 @@ struct RootTabView: View {
     @State private var selectedTab = 0
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView() // No need to pass binding
-                .tabItem {
-                    Label("Home", systemImage: "house")
-                }
-                .tag(0)
+        ZStack {
+            TabView(selection: $selectedTab) {
+                HomeView()
+                    .tabItem {
+                        Label("Home", systemImage: "house")
+                    }
+                    .tag(0)
 
-            AlertsView()
-                .tabItem {
-                    Label("Alert", systemImage: "bell.badge.fill")
-                }
-                .tag(1)
+                AlertsView()
+                    .tabItem {
+                        Label("Alert", systemImage: "bell.badge.fill")
+                    }
+                    .tag(1)
 
-            ExploreScreen()
-                .tabItem {
-                    Label("Explore", systemImage: "globe")
-                }
-                .tag(2)
+                ExploreScreen()
+                    .tabItem {
+                        Label("Explore", systemImage: "globe")
+                    }
+                    .tag(2)
 
-            FlightTrackerScreen()
-                .tabItem {
-                    Label("Track Flight", systemImage: "paperplane.circle.fill")
-                }
-                .tag(3)
+                FlightTrackerScreen()
+                    .tabItem {
+                        Label("Track Flight", systemImage: "paperplane.circle.fill")
+                    }
+                    .tag(3)
+            }
+            .opacity(sharedSearchData.isInSearchMode ? 0 : 1)
+            
+            // Overlay the explore screen when in search mode
+            if sharedSearchData.isInSearchMode {
+                ExploreScreen()
+                    .transition(.move(edge: .trailing))
+                    .zIndex(1)
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: sharedSearchData.isInSearchMode)
         .onReceive(sharedSearchData.$shouldNavigateToExplore) { shouldNavigate in
             if shouldNavigate {
-                // Switch to explore tab
-                selectedTab = 2
+                if !sharedSearchData.isInSearchMode {
+                    // Only switch tabs if not in search mode
+                    selectedTab = 2
+                }
                 
                 // Reset the navigation trigger after a delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -52,13 +65,14 @@ struct RootTabView: View {
                 }
             }
         }
-        // NEW: Listen for tab navigation requests
         .onReceive(sharedSearchData.$shouldNavigateToTab) { tabIndex in
             if let tabIndex = tabIndex {
-                selectedTab = tabIndex
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    selectedTab = tabIndex
+                }
                 
                 // Reset the navigation trigger after a delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     sharedSearchData.shouldNavigateToTab = nil
                 }
             }

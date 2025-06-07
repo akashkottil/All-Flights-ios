@@ -2,12 +2,16 @@ import SwiftUI
 import Combine
 
 // MARK: - Shared Search Data Store
+// MARK: - Shared Search Data Store
 class SharedSearchDataStore: ObservableObject {
     static let shared = SharedSearchDataStore()
     
     // Search execution trigger
     @Published var shouldExecuteSearch = false
     @Published var searchTimestamp = Date()
+    
+    // ADD: Tab bar visibility control
+    @Published var isInSearchMode = false
     
     // Search parameters
     @Published var fromLocation = ""
@@ -82,6 +86,9 @@ class SharedSearchDataStore: ObservableObject {
         self.selectedCountryId = ""
         self.selectedCountryName = ""
         
+        // UPDATED: Set search mode to hide tab bar
+        self.isInSearchMode = true
+        
         // Trigger navigation to explore tab
         shouldNavigateToExplore = true
         
@@ -104,6 +111,9 @@ class SharedSearchDataStore: ObservableObject {
         self.multiCityTrips = []
         self.directFlightsOnly = false
         
+        // UPDATED: This is explore mode, not search mode
+        self.isInSearchMode = false
+        
         // Set country navigation state
         self.selectedCountryId = countryId
         self.selectedCountryName = countryName
@@ -113,12 +123,23 @@ class SharedSearchDataStore: ObservableObject {
         shouldNavigateToExplore = true
     }
     
+    // UPDATED: Return to home and show tab bar
+    func returnToHomeFromSearch() {
+        isInSearchMode = false
+        shouldNavigateToTab = 0 // Navigate back to home tab
+        
+        // Reset search state
+        shouldExecuteSearch = false
+        shouldNavigateToExplore = false
+    }
+    
     func resetSearch() {
         shouldExecuteSearch = false
         shouldNavigateToExplore = false
         directFlightsOnly = false
         shouldNavigateToTab = nil
         
+        // Don't reset search mode here - let it be handled by specific actions
         // Don't reset country navigation data immediately
         // Let the explore screen handle it when appropriate
         // shouldNavigateToExploreCities = false
@@ -132,6 +153,7 @@ class SharedSearchDataStore: ObservableObject {
         shouldNavigateToExplore = false
         shouldNavigateToExploreCities = false
         directFlightsOnly = false
+        isInSearchMode = false // ADDED: Reset search mode
         selectedCountryId = ""
         selectedCountryName = ""
         fromLocation = ""
