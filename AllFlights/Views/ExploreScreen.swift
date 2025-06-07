@@ -1230,6 +1230,62 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
+    // Add this method inside the ExploreViewModel class
+
+    func resetToInitialState(preserveCountries: Bool = true) {
+        // Reset all search-related states
+        isDirectSearch = false
+        showingDetailedFlightList = false
+        hasSearchedFlights = false
+        flightResults = []
+        detailedFlightResults = []
+        flightSearchResponse = nil
+        selectedFlightId = nil
+        isAnytimeMode = false
+        directFlightsOnlyFromHome = false
+        
+        // Reset navigation states
+        showingCities = false
+        selectedCountryName = nil
+        selectedCity = nil
+        
+        // Reset location states to default
+        toLocation = "Anywhere"
+        toIataCode = ""
+        fromLocation = "Mumbai"
+        fromIataCode = "DEL"
+        
+        // Clear search context
+        selectedOriginCode = ""
+        selectedDestinationCode = ""
+        selectedDepartureDatee = ""
+        selectedReturnDatee = ""
+        dates = []
+        
+        // Reset error states
+        errorMessage = nil
+        detailedFlightError = nil
+        isLoadingDetailedFlights = false
+        isLoadingFlights = false
+        
+        // Reset pagination
+        currentPage = 1
+        totalFlightCount = 0
+        actualLoadedCount = 0
+        hasMoreFlights = true
+        isLoadingMoreFlights = false
+        isFirstLoad = true
+        isDataCached = false
+        
+        // Clear multi-city data
+        multiCityTrips = []
+        
+        // Only clear destinations if specifically requested
+        if !preserveCountries {
+            destinations = []
+        }
+    }
+    
     func debugDuplicateFlightIDs() {
             let allIds = detailedFlightResults.map { $0.id }
             let uniqueIds = Set(allIds)
@@ -3038,29 +3094,75 @@ struct ExploreScreen: View {
             print("🔍 showingCities: \(viewModel.showingCities)")
             print("🔍 shouldNavigateToExploreCities: \(sharedSearchData.shouldNavigateToExploreCities)")
             print("🔍 shouldExecuteSearch: \(sharedSearchData.shouldExecuteSearch)")
+            print("🔍 isInSearchMode: \(sharedSearchData.isInSearchMode)")
             print("🔍 isCountryNavigationActive: \(isCountryNavigationActive)")
             print("🔍 destinations count: \(viewModel.destinations.count)")
             
-            // Delay the country fetching to allow navigation handlers to process first
+            // NEW: Check if we're in a clean explore state with countries already loaded
+            let isInCleanExploreState = !viewModel.hasSearchedFlights &&
+                                       !viewModel.showingDetailedFlightList &&
+                                       !viewModel.showingCities &&
+                                       viewModel.toLocation == "Anywhere" &&
+                                       viewModel.selectedCountryName == nil &&
+                                       viewModel.selectedCity == nil &&
+                                       !viewModel.isDirectSearch
+            
+            let hasCountriesLoaded = !viewModel.destinations.isEmpty
+            
+            // If we're in clean state with countries loaded, don't do anything
+            if isInCleanExploreState && hasCountriesLoaded &&
+               !sharedSearchData.shouldExecuteSearch &&
+               !sharedSearchData.shouldNavigateToExploreCities {
+                print("🔍 Clean explore state with countries loaded - no action needed")
+                return
+            }
+            
+            // Handle incoming search from HomeView
+            if sharedSearchData.isInSearchMode && sharedSearchData.shouldExecuteSearch {
+                print("🔍 Handling incoming search from HomeView")
+                handleIncomingSearchFromHome()
+                return
+            }
+            
+            // Handle country-to-cities navigation from HomeView
+            if sharedSearchData.shouldNavigateToExploreCities && !sharedSearchData.selectedCountryId.isEmpty {
+                print("🔍 Handling country navigation from HomeView")
+                handleIncomingCountryNavigation()
+                return
+            }
+            
+            // Check if user manually navigated to explore (not from search mode) and needs reset
+            if !sharedSearchData.isInSearchMode &&
+               !sharedSearchData.shouldExecuteSearch &&
+               !sharedSearchData.shouldNavigateToExploreCities &&
+               !isInCleanExploreState {
+                
+                print("🔄 Manual navigation to explore detected with dirty state - resetting view model")
+                resetExploreViewModelToInitialState()
+                
+                // Fetch countries after reset
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    viewModel.fetchCountries()
+                }
+                return
+            }
+            
+            // Only fetch countries if we don't have them and we're not in any special navigation state
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                // UPDATED: Only fetch countries if we don't have them AND we're not in a specific navigation state
                 let shouldFetchCountries = viewModel.destinations.isEmpty &&
-                                         !viewModel.hasSearchedFlights &&
-                                         !viewModel.showingDetailedFlightList &&
-                                         !viewModel.showingCities &&
+                                         isInCleanExploreState &&
                                          !sharedSearchData.shouldNavigateToExploreCities &&
                                          !sharedSearchData.shouldExecuteSearch &&
                                          !isCountryNavigationActive
                 
                 if shouldFetchCountries {
-                    print("🔍 Fetching countries (destinations empty)...")
+                    print("🔍 Fetching countries (destinations empty and clean state)...")
                     viewModel.fetchCountries()
-                } else if viewModel.destinations.isEmpty {
-                    print("🔍 Skipping country fetch due to active navigation state")
                 } else {
-                    print("🔍 Countries already loaded (\(viewModel.destinations.count) destinations)")
+                    print("🔍 Skipping country fetch - countries loaded or navigation state active")
                 }
             }
+            
             viewModel.setupAvailableMonths()
         }
         .onChange(of: scrollOffset) { newOffset in
@@ -3139,6 +3241,12 @@ struct ExploreScreen: View {
         }
         
         print("🏙️ ExploreScreen: City navigation initiated successfully")
+    }
+    
+    private func resetExploreViewModelToInitialState() {
+        print("🔄 Resetting ExploreViewModel to initial state")
+        viewModel.resetToInitialState(preserveCountries: true) // Preserve countries by default
+        print("✅ ExploreViewModel reset completed")
     }
     
     // Existing handleIncomingSearchFromHome method remains the same...
