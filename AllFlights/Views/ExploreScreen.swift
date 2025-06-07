@@ -2841,6 +2841,16 @@ struct ExploreScreen: View {
         }
     }
     
+    // Add this computed property in ExploreScreen
+    private var shouldShowBackButton: Bool {
+        // Show back button only when NOT showing the main country list
+        return viewModel.showingCities ||
+               viewModel.hasSearchedFlights ||
+               viewModel.showingDetailedFlightList ||
+               sharedSearchData.isInSearchMode ||
+               viewModel.selectedCountryName != nil
+    }
+    
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
@@ -2854,7 +2864,8 @@ struct ExploreScreen: View {
                             isCollapsed = false
                         }
                     },
-                    handleBackNavigation: handleBackNavigation
+                    handleBackNavigation: handleBackNavigation,
+                    shouldShowBackButton: shouldShowBackButton
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
@@ -2864,6 +2875,7 @@ struct ExploreScreen: View {
                     isRoundTrip: $isRoundTrip,
                     searchCardNamespace: searchCardNamespace,
                     handleBackNavigation: handleBackNavigation,
+                    shouldShowBackButton: shouldShowBackButton,
                     onDragCollapse: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                             isCollapsed = true
@@ -3027,20 +3039,26 @@ struct ExploreScreen: View {
             print("🔍 shouldNavigateToExploreCities: \(sharedSearchData.shouldNavigateToExploreCities)")
             print("🔍 shouldExecuteSearch: \(sharedSearchData.shouldExecuteSearch)")
             print("🔍 isCountryNavigationActive: \(isCountryNavigationActive)")
+            print("🔍 destinations count: \(viewModel.destinations.count)")
             
             // Delay the country fetching to allow navigation handlers to process first
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                // Only fetch countries if we're not in a specific navigation state
-                if !viewModel.hasSearchedFlights &&
-                   !viewModel.showingDetailedFlightList &&
-                   !viewModel.showingCities &&
-                   !sharedSearchData.shouldNavigateToExploreCities &&
-                   !sharedSearchData.shouldExecuteSearch &&
-                   !isCountryNavigationActive {
-                    print("🔍 Fetching countries...")
+                // UPDATED: Only fetch countries if we don't have them AND we're not in a specific navigation state
+                let shouldFetchCountries = viewModel.destinations.isEmpty &&
+                                         !viewModel.hasSearchedFlights &&
+                                         !viewModel.showingDetailedFlightList &&
+                                         !viewModel.showingCities &&
+                                         !sharedSearchData.shouldNavigateToExploreCities &&
+                                         !sharedSearchData.shouldExecuteSearch &&
+                                         !isCountryNavigationActive
+                
+                if shouldFetchCountries {
+                    print("🔍 Fetching countries (destinations empty)...")
                     viewModel.fetchCountries()
-                } else {
+                } else if viewModel.destinations.isEmpty {
                     print("🔍 Skipping country fetch due to active navigation state")
+                } else {
+                    print("🔍 Countries already loaded (\(viewModel.destinations.count) destinations)")
                 }
             }
             viewModel.setupAvailableMonths()
@@ -3215,6 +3233,7 @@ struct ExpandedSearchCard: View {
     @Binding var isRoundTrip: Bool
     let searchCardNamespace: Namespace.ID
     let handleBackNavigation: () -> Void
+    let shouldShowBackButton: Bool
     let onDragCollapse: () -> Void  // ADD: Closure to handle drag collapse
     
     // ADD: Drag gesture state
@@ -3238,12 +3257,14 @@ struct ExpandedSearchCard: View {
             VStack(spacing: 0) {
                 HStack {
                     // Back button
-                    Button(action: handleBackNavigation) {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.primary)
-                            .font(.system(size: 18, weight: .semibold))
+                    if shouldShowBackButton{
+                        Button(action: handleBackNavigation) {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                     }
-                    .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                     
                     Spacer()
                     
@@ -3253,6 +3274,13 @@ struct ExpandedSearchCard: View {
                         .matchedGeometryEffect(id: "tripTabs", in: searchCardNamespace)
                     
                     Spacer()
+                    
+                    // ADD: Invisible spacer to balance layout when back button is hidden
+                    if !shouldShowBackButton {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.clear)
+                            .font(.system(size: 18, weight: .semibold))
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -3298,11 +3326,13 @@ struct ExpandedSearchCard: View {
 }
 
 // MARK: - Collapsed Search Card Component (with passenger count)
+
 struct CollapsedSearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     let searchCardNamespace: Namespace.ID
     let onTap: () -> Void
     let handleBackNavigation: () -> Void
+    let shouldShowBackButton: Bool
     
     // Helper method to format date for display
     private func formatDate(_ date: Date) -> String {
@@ -3347,12 +3377,14 @@ struct CollapsedSearchCard: View {
             VStack(spacing: 0) {
                 HStack {
                     // Back button
-                    Button(action: handleBackNavigation) {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.primary)
-                            .font(.system(size: 18, weight: .semibold))
+                    if shouldShowBackButton{
+                        Button(action: handleBackNavigation) {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                     }
-                    .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                     
                     Spacer()
                     
@@ -3387,6 +3419,13 @@ struct CollapsedSearchCard: View {
                     .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
                     
                     Spacer()
+                    
+                    // ADD: Invisible spacer to balance layout when back button is hidden
+                                        if !shouldShowBackButton {
+                                            Image(systemName: "chevron.left")
+                                                .foregroundColor(.clear)
+                                                .font(.system(size: 18, weight: .semibold))
+                                        }
                     
                 }
                 .padding(.horizontal)
