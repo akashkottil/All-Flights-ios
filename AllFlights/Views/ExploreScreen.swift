@@ -3655,12 +3655,16 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 }
 
 
-// MARK: - Search Card Component
+
+// MARK: - Search Card Component (Updated with Animated Swap)
 struct SearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     @State private var showingSearchSheet = false
     @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
     @State private var showingCalendar = false
+    
+    // ADD: State for swap animation
+    @State private var swapRotationDegrees: Double = 0
     
     @Binding var isRoundTrip: Bool
     
@@ -3689,15 +3693,23 @@ struct SearchCard: View {
                     
                     Spacer()
                     
-                    ZStack {
-                        Circle()
-                            .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                            .frame(width: 20, height: 20)
-                        Image(systemName: "arrow.left.arrow.right")
-                            .fontWeight(.bold)
-                            .foregroundColor(.blue)
-                            .font(.system(size: 8))
+                    // UPDATED: Animated swap button
+                    Button(action: {
+                        animatedSwapLocations()
+                    }) {
+                        ZStack {
+                            Circle()
+                                .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                                .frame(width: 20, height: 20)
+                            Image(systemName: "arrow.left.arrow.right")
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                                .font(.system(size: 8))
+                                .rotationEffect(.degrees(swapRotationDegrees))
+                                .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
+                        }
                     }
+                    .buttonStyle(PlainButtonStyle())
                     
                     Spacer()
                     
@@ -3811,10 +3823,51 @@ struct SearchCard: View {
             }
         }
     }
- 
-    // MARK: - Helper Methods for Dynamic Text Display
+    
+    // ADD: Animated swap function (similar to HomeView)
+    private func animatedSwapLocations() {
+        // Only allow swap if both locations are set and not "Anywhere"
+        guard !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty,
+              viewModel.toLocation != "Anywhere" else {
+            return
+        }
+        
+        // Animate 360 degrees rotation
+        withAnimation(.easeInOut(duration: 0.6)) {
+            swapRotationDegrees += 360
+        }
 
-    // MARK: - Helper Methods for Dynamic Text Display
+        // Delay swap logic to align with animation duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Perform swap halfway through animation for smoothness
+            let tempLocation = viewModel.fromLocation
+            let tempCode = viewModel.fromIataCode
+            
+            viewModel.fromLocation = viewModel.toLocation
+            viewModel.fromIataCode = viewModel.toIataCode
+            
+            viewModel.toLocation = tempLocation
+            viewModel.toIataCode = tempCode
+            
+            // If we have search results, trigger a new search with swapped locations
+            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
+                // Update the search context
+                viewModel.selectedOriginCode = viewModel.fromIataCode
+                viewModel.selectedDestinationCode = viewModel.toIataCode
+                
+                // Trigger search with swapped locations
+                viewModel.searchFlightsForDates(
+                    origin: viewModel.fromIataCode,
+                    destination: viewModel.toIataCode,
+                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                    departureDate: viewModel.selectedDepartureDatee,
+                    isDirectSearch: viewModel.isDirectSearch
+                )
+            }
+        }
+    }
+ 
+    // MARK: - Helper Methods for Dynamic Text Display (rest of the methods remain the same)
 
     private func getFromLocationDisplayText() -> String {
         if viewModel.fromIataCode.isEmpty {
@@ -3838,82 +3891,82 @@ struct SearchCard: View {
         return .primary  // Always primary
     }
         
-        private func getDateDisplayText() -> String {
-            // If we just cleared the form, show "Anytime"
-            if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
-                return "Anytime"
-            }
-            
-            // Display "Anytime" if using anytime results or if destination is "Anywhere"
-            if viewModel.toLocation == "Anywhere" {
-                return "Anytime"
-            } else if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
-                return "Anytime"
-            } else if viewModel.dates.isEmpty {
-                return "Anytime"
-            } else if viewModel.dates.count == 1 {
-                return formatDate(viewModel.dates[0])
-            } else if viewModel.dates.count >= 2 {
-                return "\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))"
-            }
-            
+    private func getDateDisplayText() -> String {
+        // If we just cleared the form, show "Anytime"
+        if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
             return "Anytime"
         }
         
-        private func getDateTextColor() -> Color {
-            if viewModel.dates.isEmpty || viewModel.toLocation == "Anywhere" {
-                return .gray
+        // Display "Anytime" if using anytime results or if destination is "Anywhere"
+        if viewModel.toLocation == "Anywhere" {
+            return "Anytime"
+        } else if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
+            return "Anytime"
+        } else if viewModel.dates.isEmpty {
+            return "Anytime"
+        } else if viewModel.dates.count == 1 {
+            return formatDate(viewModel.dates[0])
+        } else if viewModel.dates.count >= 2 {
+            return "\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))"
+        }
+        
+        return "Anytime"
+    }
+    
+    private func getDateTextColor() -> Color {
+        if viewModel.dates.isEmpty || viewModel.toLocation == "Anywhere" {
+            return .gray
+        }
+        return .primary
+    }
+    
+    // NEW: Handle when destination is "Anywhere"
+    private func handleAnywhereDestination() {
+        // Reset to explore mode
+        viewModel.goBackToCountries()
+        
+        // Clear the specific destination
+        viewModel.toLocation = "Anywhere"
+        viewModel.toIataCode = ""
+        
+        // Clear any search results
+        viewModel.hasSearchedFlights = false
+        viewModel.showingDetailedFlightList = false
+        viewModel.flightResults = []
+        viewModel.detailedFlightResults = []
+    }
+    
+    // Helper function to trigger search after passenger changes
+    private func triggerSearchAfterPassengerChange() {
+        // Only trigger if destination is not "Anywhere"
+        if viewModel.toLocation != "Anywhere" {
+            // Check if we have active search context
+            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
+                // Clear existing results
+                viewModel.detailedFlightResults = []
+                
+                // Restart search with new passenger data
+                viewModel.searchFlightsForDates(
+                    origin: viewModel.selectedOriginCode,
+                    destination: viewModel.selectedDestinationCode,
+                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                    departureDate: viewModel.selectedDepartureDatee
+                )
             }
-            return .primary
-        }
-        
-        // NEW: Handle when destination is "Anywhere"
-        private func handleAnywhereDestination() {
-            // Reset to explore mode
-            viewModel.goBackToCountries()
-            
-            // Clear the specific destination
-            viewModel.toLocation = "Anywhere"
-            viewModel.toIataCode = ""
-            
-            // Clear any search results
-            viewModel.hasSearchedFlights = false
-            viewModel.showingDetailedFlightList = false
-            viewModel.flightResults = []
-            viewModel.detailedFlightResults = []
-        }
-        
-        // Helper function to trigger search after passenger changes
-        private func triggerSearchAfterPassengerChange() {
-            // Only trigger if destination is not "Anywhere"
-            if viewModel.toLocation != "Anywhere" {
-                // Check if we have active search context
-                if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
-                    // Clear existing results
-                    viewModel.detailedFlightResults = []
-                    
-                    // Restart search with new passenger data
-                    viewModel.searchFlightsForDates(
-                        origin: viewModel.selectedOriginCode,
-                        destination: viewModel.selectedDestinationCode,
-                        returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                        departureDate: viewModel.selectedDepartureDatee
-                    )
-                }
-                // If we're in the explore flow with a selected city
-                else if let city = viewModel.selectedCity {
-                    viewModel.fetchFlightDetails(destination: city.location.iata)
-                }
+            // If we're in the explore flow with a selected city
+            else if let city = viewModel.selectedCity {
+                viewModel.fetchFlightDetails(destination: city.location.iata)
             }
-        }
-        
-        // Helper method to format date for display
-        private func formatDate(_ date: Date) -> String {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "d MMM"
-            return formatter.string(from: date)
         }
     }
+    
+    // Helper method to format date for display
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
+    }
+}
 
 
 
