@@ -1,6 +1,6 @@
 import SwiftUI
 import Combine
-
+import CoreLocation
 
 
 // MARK: - Updated SharedFlightSearchViewModel for HomeView with Last Search Persistence
@@ -239,6 +239,474 @@ class SharedFlightSearchViewModel: ObservableObject {
     func hasLastSearchData() -> Bool {
         return !fromIataCode.isEmpty && !toIataCode.isEmpty &&
                fromLocation != "Departure?" && toLocation != "Destination?"
+    }
+}
+
+
+class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    static let shared = CurrentLocationManager()
+    
+    @Published var locationState: LocationState = .idle
+    @Published var currentLocation: CLLocation?
+    @Published var locationName: String = ""
+    @Published var nearestAirportCode: String = ""
+    
+    private let locationManager = CLLocationManager()
+    private var completion: ((Result<LocationResult, LocationError>) -> Void)?
+    // FIX 1: Make cancellables mutable
+    private var cancellables = Set<AnyCancellable>()
+    
+    // FIX 2: Make LocationState conform to Equatable
+    enum LocationState: Equatable {
+        case idle
+        case requesting
+        case locating
+        case geocoding
+        case success
+        case error(LocationError)
+        
+        // Add Equatable conformance
+        static func == (lhs: LocationState, rhs: LocationState) -> Bool {
+            switch (lhs, rhs) {
+            case (.idle, .idle), (.requesting, .requesting), (.locating, .locating), (.geocoding, .geocoding), (.success, .success):
+                return true
+            case (.error(let lhsError), .error(let rhsError)):
+                return lhsError.localizedDescription == rhsError.localizedDescription
+            default:
+                return false
+            }
+        }
+    }
+    
+    enum LocationError: LocalizedError {
+        case permissionDenied
+        case locationUnavailable
+        case geocodingFailed
+        case airportNotFound
+        case timeout
+        
+        var errorDescription: String? {
+            switch self {
+            case .permissionDenied:
+                return "Location access denied. Please enable in Settings."
+            case .locationUnavailable:
+                return "Unable to get your location. Please try again."
+            case .geocodingFailed:
+                return "Unable to determine your location."
+            case .airportNotFound:
+                return "No nearby airports found."
+            case .timeout:
+                return "Location request timed out. Please try again."
+            }
+        }
+    }
+    
+    struct LocationResult {
+        let locationName: String
+        let airportCode: String
+        let coordinates: CLLocationCoordinate2D
+    }
+    
+    override init() {
+        super.init()
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = 100
+    }
+    
+    func getCurrentLocation(completion: @escaping (Result<LocationResult, LocationError>) -> Void) {
+        self.completion = completion
+        
+        switch locationManager.authorizationStatus {
+        case .notDetermined:
+            locationState = .requesting
+            locationManager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            locationState = .error(.permissionDenied)
+            completion(.failure(.permissionDenied))
+        case .authorizedWhenInUse, .authorizedAlways:
+            startLocationUpdate()
+        @unknown default:
+            locationState = .error(.locationUnavailable)
+            completion(.failure(.locationUnavailable))
+        }
+    }
+    
+    private func startLocationUpdate() {
+        guard CLLocationManager.locationServicesEnabled() else {
+            locationState = .error(.locationUnavailable)
+            completion?(.failure(.locationUnavailable))
+            return
+        }
+        
+        locationState = .locating
+        locationManager.requestLocation()
+        
+        // Set timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+            if case .locating = self.locationState {
+                self.locationState = .error(.timeout)
+                self.completion?(.failure(.timeout))
+            }
+        }
+    }
+    
+    // MARK: - CLLocationManagerDelegate
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.first else { return }
+        
+        currentLocation = location
+        locationState = .geocoding
+        
+        // Reverse geocode to get location name
+        let geocoder = CLGeocoder()
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                if let error = error {
+                    print("Geocoding error: \(error)")
+                    self.locationState = .error(.geocodingFailed)
+                    self.completion?(.failure(.geocodingFailed))
+                    return
+                }
+                
+                guard let placemark = placemarks?.first else {
+                    self.locationState = .error(.geocodingFailed)
+                    self.completion?(.failure(.geocodingFailed))
+                    return
+                }
+                
+                // Create location name
+                let locationName = self.createLocationName(from: placemark)
+                self.locationName = locationName
+                
+                // Find nearest airport
+                self.findNearestAirport(to: location.coordinate) { result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success(let airportCode):
+                            self.nearestAirportCode = airportCode
+                            self.locationState = .success
+                            
+                            let locationResult = LocationResult(
+                                locationName: locationName,
+                                airportCode: airportCode,
+                                coordinates: location.coordinate
+                            )
+                            self.completion?(.success(locationResult))
+                            
+                        case .failure(let error):
+                            self.locationState = .error(error)
+                            self.completion?(.failure(error))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.locationState = .error(.locationUnavailable)
+            self.completion?(.failure(.locationUnavailable))
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways:
+            if case .requesting = locationState {
+                startLocationUpdate()
+            }
+        case .denied, .restricted:
+            locationState = .error(.permissionDenied)
+            completion?(.failure(.permissionDenied))
+        default:
+            break
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func createLocationName(from placemark: CLPlacemark) -> String {
+        var components: [String] = []
+        
+        if let locality = placemark.locality {
+            components.append(locality)
+        } else if let subAdministrativeArea = placemark.subAdministrativeArea {
+            components.append(subAdministrativeArea)
+        }
+        
+        if let administrativeArea = placemark.administrativeArea {
+            components.append(administrativeArea)
+        }
+        
+        if let country = placemark.country {
+            components.append(country)
+        }
+        
+        return components.isEmpty ? "Current Location" : components.joined(separator: ", ")
+    }
+    
+    private func findNearestAirport(to coordinate: CLLocationCoordinate2D, completion: @escaping (Result<String, LocationError>) -> Void) {
+        // Use the existing autocomplete API to find airports near the location
+        let searchQuery = "\(locationName.components(separatedBy: ",").first ?? "airport")"
+        
+        ExploreAPIService.shared.fetchAutocomplete(query: searchQuery)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { result in
+                    if case .failure = result {
+                        completion(.failure(.airportNotFound))
+                    }
+                },
+                receiveValue: { airports in
+                    // Find the closest airport
+                    let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                    
+                    var closestAirport: AutocompleteResult?
+                    var closestDistance: Double = Double.infinity
+                    
+                    for airport in airports.filter({ $0.type == "airport" }) {
+                        if let lat = Double(airport.coordinates.latitude),
+                           let lon = Double(airport.coordinates.longitude) {
+                            let airportLocation = CLLocation(latitude: lat, longitude: lon)
+                            let distance = currentLocation.distance(from: airportLocation)
+                            
+                            if distance < closestDistance {
+                                closestDistance = distance
+                                closestAirport = airport
+                            }
+                        }
+                    }
+                    
+                    if let airport = closestAirport {
+                        completion(.success(airport.iataCode))
+                    } else {
+                        // Fallback to city search if no airports found
+                        if let cityAirport = airports.first(where: { $0.type == "city" }) {
+                            completion(.success(cityAirport.iataCode))
+                        } else {
+                            completion(.failure(.airportNotFound))
+                        }
+                    }
+                }
+            )
+            .store(in: &cancellables) // FIX 3: Now cancellables is mutable
+    }
+}
+
+// MARK: - Enhanced Current Location Button (Fixed)
+struct EnhancedCurrentLocationButton: View {
+    @StateObject private var locationManager = CurrentLocationManager.shared
+    @State private var isAnimating = false
+    @State private var buttonScale: CGFloat = 1.0
+    @State private var iconRotation: Double = 0
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    let onLocationSelected: (CurrentLocationManager.LocationResult) -> Void
+    
+    var body: some View {
+        Button(action: handleLocationRequest) {
+            HStack(spacing: 12) {
+                ZStack {
+                    if case .locating = locationManager.locationState {
+                        // Animated location icon
+                        Image(systemName: "location.fill")
+                            .foregroundColor(.blue)
+                            .scaleEffect(isAnimating ? 1.2 : 1.0)
+                            .opacity(isAnimating ? 0.7 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                                value: isAnimating
+                            )
+                    } else if case .geocoding = locationManager.locationState {
+                        // Spinning icon for geocoding
+                        Image(systemName: "location.magnifyingglass")
+                            .foregroundColor(.blue)
+                            .rotationEffect(.degrees(iconRotation))
+                            .animation(
+                                .linear(duration: 1.0).repeatForever(autoreverses: false),
+                                value: iconRotation
+                            )
+                    } else if case .requesting = locationManager.locationState {
+                        // Permission requesting state
+                        Image(systemName: "location.circle")
+                            .foregroundColor(.orange)
+                            .scaleEffect(isAnimating ? 1.1 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                                value: isAnimating
+                            )
+                    } else {
+                        // Default state
+                        Image(systemName: "location.fill")
+                            .foregroundColor(.blue)
+                    }
+                }
+                .frame(width: 24, height: 24)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(getLocationButtonText())
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                        
+                        // FIX 4: Simplified condition check
+                        if isLocationLoading {
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                        }
+                    }
+                    
+                    if case .geocoding = locationManager.locationState {
+                        Text("Finding nearest airport...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(getBackgroundColor().opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(getBackgroundColor().opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .scaleEffect(buttonScale)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: buttonScale)
+        }
+        .disabled(isLocationLoading)
+        .alert("Location Error", isPresented: $showError) {
+            Button("Settings") {
+                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsUrl)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
+        .onChange(of: locationManager.locationState) { _, newState in // FIX 5: Updated onChange syntax
+            handleLocationStateChange(newState)
+        }
+    }
+    
+    private var isLocationLoading: Bool {
+        switch locationManager.locationState {
+        case .requesting, .locating, .geocoding:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    private func getLocationButtonText() -> String {
+        switch locationManager.locationState {
+        case .idle:
+            return "Use Current Location"
+        case .requesting:
+            return "Requesting Permission..."
+        case .locating:
+            return "Getting Your Location..."
+        case .geocoding:
+            return "Processing Location..."
+        case .success:
+            return "Location Found!"
+        case .error:
+            return "Try Again"
+        }
+    }
+    
+    private func getBackgroundColor() -> Color {
+        switch locationManager.locationState {
+        case .requesting:
+            return .orange
+        case .locating, .geocoding:
+            return .blue
+        case .success:
+            return .green
+        case .error:
+            return .red
+        default:
+            return .blue
+        }
+    }
+    
+    private func handleLocationRequest() {
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        // Button press animation
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            buttonScale = 0.95
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                buttonScale = 1.0
+            }
+        }
+        
+        // Start location request
+        locationManager.getCurrentLocation { result in
+            switch result {
+            case .success(let locationResult):
+                // Success animation
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    buttonScale = 1.05
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        buttonScale = 1.0
+                    }
+                    onLocationSelected(locationResult)
+                }
+                
+            case .failure(let error):
+                // Error handling
+                errorMessage = error.localizedDescription
+                showError = true
+                
+                // Error animation
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    buttonScale = 0.95
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        buttonScale = 1.0
+                    }
+                }
+            }
+        }
+    }
+    
+    private func handleLocationStateChange(_ newState: CurrentLocationManager.LocationState) {
+        switch newState {
+        case .locating:
+            isAnimating = true
+        case .geocoding:
+            iconRotation = 360
+        case .requesting:
+            isAnimating = true
+        case .success, .error, .idle:
+            isAnimating = false
+            iconRotation = 0
+        }
     }
 }
 
@@ -1859,21 +2327,40 @@ struct HomeFromLocationSearchSheet: View {
             .padding(.horizontal)
             
             // Current location button
-            Button(action: {
-                useCurrentLocation()
-            }) {
-                HStack {
-                    Image(systemName: "location.fill")
-                        .foregroundColor(.blue)
-                    
-                    Text("Use Current Location")
-                        .foregroundColor(.blue)
-                        .fontWeight(.medium)
-                    
-                    Spacer()
+            // Enhanced Current Location Button
+            EnhancedCurrentLocationButton { locationResult in
+                // Handle successful location selection with animation
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    searchViewModel.fromLocation = locationResult.locationName
+                    searchViewModel.fromIataCode = locationResult.airportCode
+                    searchText = locationResult.locationName
                 }
-                .padding()
+                
+                // Add to recent searches
+                let autocompleteResult = AutocompleteResult(
+                    iataCode: locationResult.airportCode,
+                    airportName: "Current Location",
+                    type: "airport",
+                    displayName: locationResult.locationName,
+                    cityName: locationResult.locationName.components(separatedBy: ",").first ?? "",
+                    countryName: locationResult.locationName.components(separatedBy: ",").last ?? "",
+                    countryCode: "IN",
+                    imageUrl: "",
+                    coordinates: AutocompleteCoordinates(
+                        latitude: String(locationResult.coordinates.latitude),
+                        longitude: String(locationResult.coordinates.longitude)
+                    )
+                )
+                
+                recentSearchManager.addRecentSearch(autocompleteResult, searchType: .departure)
+                
+                // Dismiss with a slight delay for better UX
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    dismiss()
+                }
             }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
             
             Divider()
             
@@ -1956,12 +2443,7 @@ struct HomeFromLocationSearchSheet: View {
         return results.isEmpty && !searchText.isEmpty && !showRecentSearches
     }
     
-    private func useCurrentLocation() {
-        searchViewModel.fromLocation = "Current Location"
-        searchViewModel.fromIataCode = "DEL" // Using Delhi as default
-        searchText = "Current Location"
-        dismiss()
-    }
+
     
     private func selectLocation(result: AutocompleteResult) {
         // IMPORTANT: Add to recent searches before processing
