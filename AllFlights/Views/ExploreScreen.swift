@@ -4265,12 +4265,30 @@ struct FlightResultCard: View {
 
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
+    @State private var cardAppeared = false
+    @State private var cardScale: CGFloat = 0.95
+    @State private var isPressed = false
     let item: ExploreDestination
     let viewModel: ExploreViewModel
     let onTap: () -> Void
     
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            // Press feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                cardScale = 0.96
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    cardScale = 1.0
+                }
+                onTap()
+            }
+        }) {
             HStack(spacing: 12) {
                 // OPTIMIZED AsyncImage with better caching and immediate placeholders
                 AsyncImage(url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")) { phase in
@@ -4335,6 +4353,27 @@ struct APIDestinationCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .scaleEffect(cardScale)
+        .opacity(cardAppeared ? 1 : 0)
+        .offset(x: cardAppeared ? 0 : 20)
+        .shadow(color: Color.black.opacity(isPressed ? 0.15 : 0.05), radius: isPressed ? 8 : 4, x: 0, y: isPressed ? 4 : 2)
+        .animation(
+            .spring(response: 0.6, dampingFraction: 0.8)
+            .delay(Double.random(in: 0...0.2)), // Random stagger
+            value: cardAppeared
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
+        .onAppear {
+            withAnimation {
+                cardAppeared = true
+                cardScale = 1.0
+            }
+        }
+        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                isPressed = pressing
+            }
+        }, perform: {})
     }
 }
 
@@ -6920,6 +6959,7 @@ struct FilterButton: View {
 }
 
 struct FlightFilterTabView: View {
+    @State private var tabPressStates: [Bool] = Array(repeating: false, count: FilterOption.allCases.count)
     let selectedFilter: FilterOption
     let onSelectFilter: (FilterOption) -> Void
     
@@ -6934,8 +6974,23 @@ struct FlightFilterTabView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(FilterOption.allCases, id: \.self) { filter in
+                ForEach(Array(FilterOption.allCases.enumerated()), id: \.element) { index, filter in
                     Button(action: {
+                        // Haptic feedback
+                        let selectionFeedback = UISelectionFeedbackGenerator()
+                        selectionFeedback.selectionChanged()
+                        
+                        // Tab press animation
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            tabPressStates[index] = true
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                tabPressStates[index] = false
+                            }
+                        }
+                        
                         onSelectFilter(filter)
                     }) {
                         Text(filter.rawValue)
@@ -6951,6 +7006,7 @@ struct FlightFilterTabView: View {
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(selectedFilter == filter ? Color.blue : Color.black.opacity(0.3), lineWidth: selectedFilter == filter ? 1 : 0.5)
                             )
+                            .scaleEffect(tabPressStates[index] ? 0.95 : 1.0)
                     }
                 }
             }
@@ -6961,6 +7017,8 @@ struct FlightFilterTabView: View {
 
 
 struct ModifiedDetailedFlightListView: View {
+    @State private var skeletonOpacity: Double = 0
+    @State private var skeletonOffset: CGFloat = 20
     @ObservedObject var viewModel: ExploreViewModel
     @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
     @State private var filteredResults: [FlightDetailResult] = []
@@ -7049,13 +7107,26 @@ struct ModifiedDetailedFlightListView: View {
                 if case .loading = viewState {
                     VStack {
                         Spacer()
-                        ForEach(0..<4, id: \.self) { _ in
+                        ForEach(0..<4, id: \.self) { index in
                             DetailedFlightCardSkeleton()
                                 .padding(.bottom, 5)
+                                .opacity(skeletonOpacity)
+                                .offset(y: skeletonOffset)
+                                .animation(
+                                    .spring(response: 0.6, dampingFraction: 0.8)
+                                    .delay(Double(index) * 0.1), // Staggered appearance
+                                    value: skeletonOpacity
+                                )
                         }
                         Spacer()
                     }
-                } else if case .error(let message) = viewState {
+                    .onAppear {
+                        withAnimation {
+                            skeletonOpacity = 1.0
+                            skeletonOffset = 0
+                        }
+                    }
+                }else if case .error(let message) = viewState {
                     VStack {
                         Spacer()
                         Text(message)

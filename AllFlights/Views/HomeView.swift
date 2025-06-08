@@ -356,13 +356,20 @@ struct HomeView: View {
     
     // IMPROVED: Function to update search expanded state based on scroll
     private func updateSearchExpandedState() {
-        let threshold: CGFloat = -20  // Adjust this value to make it more or less sensitive
+        let threshold: CGFloat = -20
         
-        // Only collapse when scrolling down, expand when at the top
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-            if scrollOffset < threshold && isSearchExpanded {
+        // Enhanced spring animation with haptic feedback
+        if scrollOffset < threshold && isSearchExpanded {
+            // Collapsing - subtle haptic feedback
+            let selectionFeedback = UISelectionFeedbackGenerator()
+            selectionFeedback.selectionChanged()
+            
+            withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
                 isSearchExpanded = false
-            } else if scrollOffset > 0 && !isSearchExpanded {
+            }
+        } else if scrollOffset > 0 && !isSearchExpanded {
+            // Expanding
+            withAnimation(.interpolatingSpring(stiffness: 280, damping: 25)) {
                 isSearchExpanded = true
             }
         }
@@ -518,6 +525,8 @@ struct HomeView: View {
 
 // MARK: - Enhanced Search Input Component (exact UI match)
 struct EnhancedSearchInput: View {
+    @State private var swapButtonScale: CGFloat = 1.0
+    @State private var searchButtonScale: CGFloat = 1.0
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
     @State private var showingFromLocationSheet = false
     @State private var showingToLocationSheet = false
@@ -535,6 +544,9 @@ struct EnhancedSearchInput: View {
     
     // Animation namespace for matched geometry effects
        @Namespace private var tripAnimation
+    
+    @State private var searchInputScale: CGFloat = 1.0
+    @State private var searchInputOffset: CGFloat = 0
     
     var canAddTrip: Bool {
         // Check if the last trip's "To" field is filled (destination selected)
@@ -622,9 +634,18 @@ struct EnhancedSearchInput: View {
     }
     
     private func animatedSwapLocations() {
-        // Animate 360 degrees rotation
-        withAnimation(.easeInOut(duration: 0.6)) {
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        // Enhanced rotation with elastic bounce
+        withAnimation(.interpolatingSpring(stiffness: 200, damping: 15)) {
             swapRotationDegrees += 360
+        }
+        
+        // Add subtle scale effect during swap
+        withAnimation(.easeInOut(duration: 0.3)) {
+            swapButtonScale = 0.9
         }
 
         // Delay swap logic to align with animation duration
@@ -638,9 +659,13 @@ struct EnhancedSearchInput: View {
             
             searchViewModel.toLocation = tempLocation
             searchViewModel.toIataCode = tempCode
+            
+            // Return to normal scale
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                swapButtonScale = 1.0
+            }
         }
     }
-
 
     
     private var updatedSearchButton: some View {
@@ -653,6 +678,24 @@ struct EnhancedSearchInput: View {
                        .frame(height: 50)
                        .background(Color.orange)
                        .cornerRadius(8)
+               }
+               .onTapGesture {
+                   // Haptic feedback
+                   let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                   impactFeedback.impactOccurred()
+                   
+                   // Button press animation
+                   withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                       searchInputScale = 0.95
+                   }
+                   
+                   DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                       withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                           searchInputScale = 1.0
+                       }
+                   }
+                   
+                   performSearch()
                }
 
                if showErrorMessage {
@@ -1088,7 +1131,24 @@ struct EnhancedSearchInput: View {
     
     private var searchButton: some View {
         VStack(spacing: 4) {
-            Button(action: performSearch) {
+            Button(action: {
+                // Haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                impactFeedback.impactOccurred()
+                
+                // Button press animation
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    searchButtonScale = 0.96
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        searchButtonScale = 1.0
+                    }
+                }
+                
+                performSearch()
+            }) {
                 Text("Search Flights")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
@@ -1096,15 +1156,15 @@ struct EnhancedSearchInput: View {
                     .frame(height: 50)
                     .background(Color.orange)
                     .cornerRadius(8)
+                    .scaleEffect(searchButtonScale)
             }
-            // Always enabled, so no .disabled here
 
             if showErrorMessage {
                 Label("Select location to search flight",systemImage: "exclamationmark.triangle")
                     .foregroundColor(.red)
                     .font(.system(size: 14))
                     .padding(.top, 4)
-                    .transition(.opacity)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
