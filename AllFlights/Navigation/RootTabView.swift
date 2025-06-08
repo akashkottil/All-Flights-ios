@@ -1,63 +1,57 @@
+import SwiftUICore
 import SwiftUI
-
 struct RootTabView: View {
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     @State private var selectedTab = 0
     
     var body: some View {
-        ZStack {
-            TabView(selection: $selectedTab) {
-                HomeView()
-                    .tabItem {
-                        Label("Home", systemImage: "house")
+        VStack(spacing: 0) {
+            // Main content area
+            ZStack {
+                Group {
+                    switch selectedTab {
+                    case 0:
+                        HomeView()
+                    case 1:
+                        AlertsView()
+                    case 2:
+                        ExploreScreen()
+                    case 3:
+                        FlightTrackerScreen()
+                    default:
+                        HomeView()
                     }
-                    .tag(0)
-
-                AlertsView()
-                    .tabItem {
-                        Label("Alert", systemImage: "bell.badge.fill")
-                    }
-                    .tag(1)
-
-                ExploreScreen()
-                    .tabItem {
-                        Label("Explore", systemImage: "globe")
-                    }
-                    .tag(2)
-
-                FlightTrackerScreen()
-                    .tabItem {
-                        Label("Track Flight", systemImage: "paperplane.circle.fill")
-                    }
-                    .tag(3)
+                }
+                .opacity(sharedSearchData.isInSearchMode ? 0 : 1)
+                
+                // Overlay for search mode
+                if sharedSearchData.isInSearchMode {
+                    ExploreScreen()
+                        .transition(.move(edge: .trailing))
+                        .zIndex(1)
+                }
             }
-            .opacity(sharedSearchData.isInSearchMode ? 0 : 1)
             
-            // Overlay the explore screen when in search mode
-            if sharedSearchData.isInSearchMode {
-                ExploreScreen()
-                    .transition(.move(edge: .trailing))
-                    .zIndex(1)
+            // Custom Tab Bar - hide when in explore navigation or search mode
+            if !sharedSearchData.isInSearchMode && !sharedSearchData.isInExploreNavigation {
+                CustomTabBar(selectedTab: $selectedTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.3), value: sharedSearchData.isInSearchMode)
+        .animation(.easeInOut(duration: 0.3), value: sharedSearchData.isInExploreNavigation)
         .onReceive(sharedSearchData.$shouldNavigateToExplore) { shouldNavigate in
             if shouldNavigate {
                 if !sharedSearchData.isInSearchMode {
-                    // Only switch tabs if not in search mode
                     selectedTab = 2
                 }
                 
-                // Reset the navigation trigger after a delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     sharedSearchData.shouldNavigateToExplore = false
                     
-                    // Also reset country navigation flag if it was a country navigation
                     if sharedSearchData.shouldNavigateToExploreCities {
-                        // Don't reset it immediately, let the explore screen handle it
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                             if !sharedSearchData.shouldExecuteSearch {
-                                // Only reset if no search is pending
                                 sharedSearchData.shouldNavigateToExploreCities = false
                             }
                         }
@@ -71,11 +65,49 @@ struct RootTabView: View {
                     selectedTab = tabIndex
                 }
                 
-                // Reset the navigation trigger after a delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     sharedSearchData.shouldNavigateToTab = nil
                 }
             }
         }
+    }
+}
+
+// Custom Tab Bar Component
+struct CustomTabBar: View {
+    @Binding var selectedTab: Int
+    
+    private let tabItems = [
+        ("Home", "house", 0),
+        ("Alert", "bell.badge.fill", 1),
+        ("Explore", "globe", 2),
+        ("Track Flight", "paperplane.circle.fill", 3)
+    ]
+    
+    var body: some View {
+        HStack {
+            ForEach(tabItems, id: \.2) { item in
+                Button(action: {
+                    selectedTab = item.2
+                }) {
+                    VStack(spacing: 4) {
+                        Image(systemName: item.1)
+                            .font(.system(size: 20))
+                        Text(item.0)
+                            .font(.caption)
+                    }
+                    .foregroundColor(selectedTab == item.2 ? .blue : .gray)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Color(.separator)),
+            alignment: .top
+        )
     }
 }

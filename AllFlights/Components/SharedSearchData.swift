@@ -13,6 +13,8 @@ class SharedSearchDataStore: ObservableObject {
     // ADD: Tab bar visibility control
     @Published var isInSearchMode = false
     
+    @Published var isInExploreNavigation = false
+    
     // Search parameters
     @Published var fromLocation = ""
     @Published var toLocation = ""
@@ -149,21 +151,22 @@ class SharedSearchDataStore: ObservableObject {
     
     // NEW: Method to completely reset everything (for when user really wants to clear all state)
     func resetAll() {
-        shouldExecuteSearch = false
-        shouldNavigateToExplore = false
-        shouldNavigateToExploreCities = false
-        directFlightsOnly = false
-        isInSearchMode = false // ADDED: Reset search mode
-        selectedCountryId = ""
-        selectedCountryName = ""
-        fromLocation = ""
-        toLocation = ""
-        fromIataCode = ""
-        toIataCode = ""
-        selectedDates = []
-        multiCityTrips = []
-        shouldNavigateToTab = nil
-    }
+            shouldExecuteSearch = false
+            shouldNavigateToExplore = false
+            shouldNavigateToExploreCities = false
+            directFlightsOnly = false
+            isInSearchMode = false
+            isInExploreNavigation = false // ADD: Reset explore navigation
+            selectedCountryId = ""
+            selectedCountryName = ""
+            fromLocation = ""
+            toLocation = ""
+            fromIataCode = ""
+            toIataCode = ""
+            selectedDates = []
+            multiCityTrips = []
+            shouldNavigateToTab = nil
+        }
     
     // Helper method to check if search data is valid
     var hasValidSearchData: Bool {

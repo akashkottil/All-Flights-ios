@@ -2447,6 +2447,9 @@ class ExploreViewModel: ObservableObject {
         errorMessage = nil
         selectedCountryName = countryName
         
+        // FIXED: Set showingCities immediately, not in completion handler
+        showingCities = true
+        
         service.fetchDestinations(arrivalType: "city", arrivalId: countryId)
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { [weak self] completion in
@@ -2454,7 +2457,7 @@ class ExploreViewModel: ObservableObject {
                 if case .failure(let error) = completion {
                     self?.errorMessage = error.localizedDescription
                 }
-                self?.showingCities = true
+                // REMOVED: self?.showingCities = true (was causing the issue)
             }, receiveValue: { [weak self] destinations in
                 self?.destinations = destinations
             })
@@ -2696,6 +2699,9 @@ class ExploreViewModel: ObservableObject {
             
             // Return to countries view
             fetchCountries()
+        DispatchQueue.main.async {
+               SharedSearchDataStore.shared.isInSearchMode = false
+           }
             
             print("✅ Search form cleared and returned to explore countries")
         }
@@ -2725,28 +2731,35 @@ class ExploreViewModel: ObservableObject {
        }
     
     func goBackToCountries() {
-            print("goBackToCountries called")
-            
-            // If this was a direct search, clear the form completely
-            if isDirectSearch {
-                clearSearchFormAndReturnToExplore()
-                return
-            }
-            
-            // Otherwise use existing logic
-            isAnytimeMode = false
-            selectedCountryName = nil
-            selectedCity = nil
-            toLocation = "Anywhere"
-            showingCities = false
-            hasSearchedFlights = false
-            showingDetailedFlightList = false
-            flightResults = []
-            flightSearchResponse = nil
-            detailedFlightResults = []
-            detailedFlightError = nil
-            fetchCountries()
+        print("goBackToCountries called")
+        
+        // If this was a direct search, clear the form completely
+        if isDirectSearch {
+            clearSearchFormAndReturnToExplore()
+            return
         }
+        
+        // Otherwise use existing logic
+        isAnytimeMode = false
+        selectedCountryName = nil
+        selectedCity = nil
+        toLocation = "Anywhere"
+        showingCities = false
+        hasSearchedFlights = false
+        showingDetailedFlightList = false
+        flightResults = []
+        flightSearchResponse = nil
+        detailedFlightResults = []
+        detailedFlightError = nil
+        fetchCountries()
+        
+        // ADDED: Reset tab visibility when returning to countries
+        DispatchQueue.main.async {
+            if !SharedSearchDataStore.shared.isInSearchMode {
+                SharedSearchDataStore.shared.isInSearchMode = false
+            }
+        }
+    }
     
     // Helper function to format timestamp to readable date
     func formatDate(_ timestamp: Int) -> String {
@@ -2785,6 +2798,16 @@ struct ExploreScreen: View {
     
     // ADD: Observe shared search data
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    
+    
+    private var isInMainCountryView: Bool {
+          return !viewModel.showingCities &&
+                 !viewModel.hasSearchedFlights &&
+                 !viewModel.showingDetailedFlightList &&
+                 !sharedSearchData.isInSearchMode &&
+                 viewModel.selectedCountryName == nil &&
+                 viewModel.selectedCity == nil
+      }
     
     // NEW: Flag to track if we're in country navigation mode
     @State private var isCountryNavigationActive = false
@@ -3164,7 +3187,23 @@ struct ExploreScreen: View {
             }
             
             viewModel.setupAvailableMonths()
+            updateTabVisibility()
         }
+        .onChange(of: viewModel.showingCities) { showingCities in
+                    updateTabVisibility()
+                }
+                .onChange(of: viewModel.hasSearchedFlights) { hasSearchedFlights in
+                    updateTabVisibility()
+                }
+                .onChange(of: viewModel.showingDetailedFlightList) { showingDetailedFlightList in
+                    updateTabVisibility()
+                }
+                .onChange(of: viewModel.selectedCountryName) { selectedCountryName in
+                    updateTabVisibility()
+                }
+                .onChange(of: isInMainCountryView) { isInMainView in
+                    updateTabVisibility()
+                }
         .onChange(of: scrollOffset) { newOffset in
             // Collapse when scrolled down more than 50 points and not already collapsed
             let shouldCollapse = newOffset > 50
@@ -3195,6 +3234,26 @@ struct ExploreScreen: View {
             }
         }
     }
+    
+    private func updateTabVisibility() {
+            // Don't interfere if we're already in search mode from HomeView
+            guard !sharedSearchData.isInSearchMode else { return }
+            
+            DispatchQueue.main.async {
+                let shouldShowTabs = isInMainCountryView
+                
+                // Update tab visibility based on current state
+                if shouldShowTabs && sharedSearchData.isInExploreNavigation {
+                    // We're back to main country view - show tabs
+                    sharedSearchData.isInExploreNavigation = false
+                    print("📱 Showing tabs - back to main country view")
+                } else if !shouldShowTabs && !sharedSearchData.isInExploreNavigation {
+                    // We're in cities/flights/details - hide tabs
+                    sharedSearchData.isInExploreNavigation = true
+                    print("📱 Hiding tabs - in cities/flights view")
+                }
+            }
+        }
     
     // NEW: Handle country-to-cities navigation from HomeView
     private func handleIncomingCountryNavigation() {
