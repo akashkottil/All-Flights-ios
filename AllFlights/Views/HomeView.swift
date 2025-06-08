@@ -2,11 +2,12 @@ import SwiftUI
 import Combine
 
 
-// MARK: - Updated SharedFlightSearchViewModel for HomeView with Enhanced Recent Search
+
+// MARK: - Updated SharedFlightSearchViewModel for HomeView with Last Search Persistence
 class SharedFlightSearchViewModel: ObservableObject {
     @Published var fromLocation = "Departure?"
     @Published var toLocation = "Destination?"
-    @Published var fromIataCode: String = "" // Default to Delhi
+    @Published var fromIataCode: String = ""
     @Published var toIataCode: String = ""
     
     @Published var selectedDates: [Date] = []
@@ -23,6 +24,71 @@ class SharedFlightSearchViewModel: ObservableObject {
     // ADD: Direct flights toggle state
     @Published var directFlightsOnly = false
     
+    // ADD: Last search manager
+    private let lastSearchManager = LastSearchManager.shared
+    
+    // ADD: Track if we've loaded the last search (to prevent multiple loads)
+    private var hasLoadedLastSearch = false
+    
+    init() {
+        // Load last search on initialization
+        loadLastSearchState()
+    }
+    
+    // MARK: - Last Search Persistence Methods
+    
+    // Load the last search state
+    func loadLastSearchState() {
+        guard !hasLoadedLastSearch else { return }
+        hasLoadedLastSearch = true
+        
+        guard let lastSearch = lastSearchManager.loadLastSearch() else {
+            print("📭 No valid last search to restore")
+            return
+        }
+        
+        print("🔄 Restoring last search state...")
+        
+        // Restore all search parameters
+        fromLocation = lastSearch.fromLocation
+        toLocation = lastSearch.toLocation
+        fromIataCode = lastSearch.fromIataCode
+        toIataCode = lastSearch.toIataCode
+        selectedDates = lastSearch.selectedDates
+        isRoundTrip = lastSearch.isRoundTrip
+        selectedTab = lastSearch.selectedTab
+        adultsCount = lastSearch.adultsCount
+        childrenCount = lastSearch.childrenCount
+        childrenAges = lastSearch.childrenAges
+        selectedCabinClass = lastSearch.selectedCabinClass
+        multiCityTrips = lastSearch.multiCityTrips
+        directFlightsOnly = lastSearch.directFlightsOnly
+        
+        print("✅ Last search state restored successfully")
+        print("🔍 Route: \(fromIataCode) → \(toIataCode)")
+    }
+    
+    // Save the current search state
+    private func saveLastSearchState() {
+        lastSearchManager.saveLastSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips,
+            directFlightsOnly: directFlightsOnly
+        )
+    }
+    
+    // MARK: - Existing Methods (Updated)
+    
     func executeMultiCitySearch() {
         // Validate all trips have required data
         let isValid = multiCityTrips.allSatisfy { trip in
@@ -36,6 +102,9 @@ class SharedFlightSearchViewModel: ObservableObject {
         
         // ENHANCED: Save to recent searches with complete data before executing
         saveToRecentSearches()
+        
+        // NEW: Save last search state
+        saveLastSearchState()
         
         // Pass direct flights preference
         SharedSearchDataStore.shared.executeSearchFromHome(
@@ -85,10 +154,13 @@ class SharedFlightSearchViewModel: ObservableObject {
         }
     }
     
-    // UPDATED: executeSearch to use enhanced recent search saving
+    // UPDATED: executeSearch to use enhanced recent search saving and last search persistence
     func executeSearch() {
         // ENHANCED: Save to recent searches with complete data before executing
         saveToRecentSearches()
+        
+        // NEW: Save last search state
+        saveLastSearchState()
         
         // Pass direct flights preference
         SharedSearchDataStore.shared.executeSearchFromHome(
@@ -108,7 +180,6 @@ class SharedFlightSearchViewModel: ObservableObject {
         )
     }
     
-  
     // ENHANCED: Save current search to recent searches with complete information
     private func saveToRecentSearches() {
         // Only save if we have valid from/to locations
@@ -158,6 +229,17 @@ class SharedFlightSearchViewModel: ObservableObject {
     func executeSearchWithHistory() {
         executeSearch()
     }
+    
+    // NEW: Method to manually clear the last search (useful for testing or user action)
+    func clearLastSearch() {
+        lastSearchManager.clearLastSearch()
+    }
+    
+    // NEW: Check if current state matches last search
+    func hasLastSearchData() -> Bool {
+        return !fromIataCode.isEmpty && !toIataCode.isEmpty &&
+               fromLocation != "Departure?" && toLocation != "Destination?"
+    }
 }
 
 
@@ -169,9 +251,6 @@ struct HomeView: View {
     @GestureState private var dragOffset: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
     
-    
-
-    
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
     
@@ -181,6 +260,8 @@ struct HomeView: View {
     // UPDATED: Observe the recent search manager to track data changes
     @StateObject private var recentSearchManager = RecentSearchManager.shared
     
+    // ADD: Track if we've shown the restored search to user
+    @State private var hasShownRestoredSearch = false
 
     var body: some View {
         NavigationStack {
@@ -230,6 +311,8 @@ struct HomeView: View {
                         }
                         .frame(height: 0)
 
+         
+
                         // UPDATED: Conditionally show recent search section
                         conditionalRecentSearchSection
                         
@@ -254,10 +337,22 @@ struct HomeView: View {
             .onAppear {
                 // Fetch cheap flights data when home view appears
                 cheapFlightsViewModel.fetchCheapFlights()
+                
+                // Show the restored search indicator briefly
+                if searchViewModel.hasLastSearchData() && !hasShownRestoredSearch {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            hasShownRestoredSearch = true
+                        }
+                    }
+                }
             }
         }
         .scrollIndicators(.hidden)
     }
+    
+    // NEW: Last search indicator
+
     
     // IMPROVED: Function to update search expanded state based on scroll
     private func updateSearchExpandedState() {

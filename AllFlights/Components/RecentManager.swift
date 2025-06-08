@@ -143,3 +143,127 @@ class RecentLocationSearchManager: ObservableObject {
         }
     }
 }
+
+
+
+// MARK: - Last Search Model
+struct LastSearchState: Codable {
+    let fromLocation: String
+    let toLocation: String
+    let fromIataCode: String
+    let toIataCode: String
+    let selectedDates: [Date]
+    let isRoundTrip: Bool
+    let selectedTab: Int
+    let adultsCount: Int
+    let childrenCount: Int
+    let childrenAges: [Int?]
+    let selectedCabinClass: String
+    let multiCityTrips: [MultiCityTrip]
+    let directFlightsOnly: Bool
+    let timestamp: Date
+    
+    var isValid: Bool {
+        return !fromIataCode.isEmpty && !toIataCode.isEmpty &&
+               fromLocation != "Departure?" && toLocation != "Destination?"
+    }
+}
+
+// MARK: - Last Search Manager
+class LastSearchManager: ObservableObject {
+    static let shared = LastSearchManager()
+    
+    private let userDefaults = UserDefaults.standard
+    private let lastSearchKey = "LastSearchState"
+    
+    private init() {}
+    
+    // Save the current search state
+    func saveLastSearch(
+        fromLocation: String,
+        toLocation: String,
+        fromIataCode: String,
+        toIataCode: String,
+        selectedDates: [Date],
+        isRoundTrip: Bool,
+        selectedTab: Int,
+        adultsCount: Int,
+        childrenCount: Int,
+        childrenAges: [Int?],
+        selectedCabinClass: String,
+        multiCityTrips: [MultiCityTrip],
+        directFlightsOnly: Bool
+    ) {
+        let lastSearch = LastSearchState(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: selectedTab,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips,
+            directFlightsOnly: directFlightsOnly,
+            timestamp: Date()
+        )
+        
+        // Only save if the search is valid
+        guard lastSearch.isValid else {
+            print("⚠️ Skipping last search save - invalid data")
+            return
+        }
+        
+        do {
+            let encoded = try JSONEncoder().encode(lastSearch)
+            userDefaults.set(encoded, forKey: lastSearchKey)
+            print("✅ Last search saved successfully")
+        } catch {
+            print("❌ Failed to save last search: \(error)")
+        }
+    }
+    
+    // Load the last search state
+    // Load the last search state
+    func loadLastSearch() -> LastSearchState? {
+        guard let data = userDefaults.data(forKey: lastSearchKey) else {
+            print("📭 No last search found")
+            return nil
+        }
+        
+        do {
+            let lastSearch = try JSONDecoder().decode(LastSearchState.self, from: data)
+            
+            // Only return if the search is valid and not too old (e.g., within 30 days)
+            let daysSinceLastSearch = Calendar.current.dateComponents([.day], from: lastSearch.timestamp, to: Date()).day ?? 0
+            
+            if lastSearch.isValid && daysSinceLastSearch <= 30 {
+                print("✅ Last search loaded successfully: \(lastSearch.fromIataCode) → \(lastSearch.toIataCode)")
+                return lastSearch
+            } else {
+                print("⚠️ Last search is invalid or too old, clearing it")
+                clearLastSearch()
+                return nil
+            }
+        } catch {
+            print("❌ Failed to load last search (likely due to format change): \(error)")
+            // Clear corrupted/incompatible data
+            clearLastSearch()
+            return nil
+        }
+    }
+    
+    // Clear the last search
+    func clearLastSearch() {
+        userDefaults.removeObject(forKey: lastSearchKey)
+        print("🗑️ Last search cleared")
+    }
+    
+    // Check if there's a valid last search
+    func hasValidLastSearch() -> Bool {
+        return loadLastSearch() != nil
+    }
+}

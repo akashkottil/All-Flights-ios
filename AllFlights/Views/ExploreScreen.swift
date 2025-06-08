@@ -82,28 +82,42 @@ struct TimeRange: Codable {
     var max: Int?
 }
 
-struct MultiCityTrip: Identifiable {
+struct MultiCityTrip: Identifiable, Codable {
     var id = UUID()
     var fromLocation: String = ""
     var fromIataCode: String = ""
     var toLocation: String = ""
     var toIataCode: String = ""
     var date: Date = Date()
+    
     var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
+    
     var displayDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE, d MMM"
         return formatter.string(from: date)
     }
+    
     var compactDisplayDate: String {
-           let formatter = DateFormatter()
-           formatter.dateFormat = "E,d MMM" // Produces "Sat,7 Jun" format
-           return formatter.string(from: date)
-       }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E,d MMM" // Produces "Sat,7 Jun" format
+        return formatter.string(from: date)
+    }
+    
+    // Optional: Custom initializer to maintain existing functionality
+    init(fromLocation: String = "", fromIataCode: String = "",
+         toLocation: String = "", toIataCode: String = "", date: Date = Date()) {
+        self.id = UUID()
+        self.fromLocation = fromLocation
+        self.fromIataCode = fromIataCode
+        self.toLocation = toLocation
+        self.toIataCode = toIataCode
+        self.date = date
+    }
 }
 
 // MARK: - Search API Response Models
