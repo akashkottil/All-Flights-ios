@@ -1163,7 +1163,7 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
-    @Published var fromLocation = "Mumbai"  // Default to Kochi
+    @Published var fromLocation = "Delhi"  // Default to Kochi
     @Published var toLocation = "Anywhere"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
     
@@ -1180,7 +1180,7 @@ class ExploreViewModel: ObservableObject {
    
     @Published var hasSearchedFlights = false
     
-    @Published var fromIataCode: String = ""
+    @Published var fromIataCode: String = "DEL"
     @Published var toIataCode: String = ""
     
     @Published var selectedFlightDetail: FlightDetailResult?
@@ -2447,6 +2447,9 @@ class ExploreViewModel: ObservableObject {
         errorMessage = nil
         selectedCountryName = countryName
         
+        // ADDED: Update toLocation to country name when country is selected
+        toLocation = countryName
+        
         // FIXED: Set showingCities immediately, not in completion handler
         showingCities = true
         
@@ -2457,7 +2460,6 @@ class ExploreViewModel: ObservableObject {
                 if case .failure(let error) = completion {
                     self?.errorMessage = error.localizedDescription
                 }
-                // REMOVED: self?.showingCities = true (was causing the issue)
             }, receiveValue: { [weak self] destinations in
                 self?.destinations = destinations
             })
@@ -2467,6 +2469,7 @@ class ExploreViewModel: ObservableObject {
     func selectCity(city: ExploreDestination) {
         selectedCity = city
         toLocation = city.location.name
+        toIataCode = city.location.iata  // ADDED: Set the IATA code when city is selected
         
         // Fetch flight details when a city is selected
         fetchFlightDetails(destination: city.location.iata)
@@ -2707,28 +2710,29 @@ class ExploreViewModel: ObservableObject {
         }
 
     func goBackToCities() {
-           print("goBackToCities called")
-           
-           // If this was a direct search, clear the form completely
-           if isDirectSearch {
-               clearSearchFormAndReturnToExplore()
-               return
-           }
-           
-           // Otherwise use existing logic
-           isAnytimeMode = false
-           hasSearchedFlights = false
-           flightResults = []
-           flightSearchResponse = nil
-           selectedCity = nil
-           toLocation = "Anywhere"
-           // Keep showingCities = true to show cities
-           // Fetch cities again for the selected country
-           if let countryName = selectedCountryName,
-              let country = destinations.first(where: { $0.location.name == countryName }) {
-               fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
-           }
-       }
+        print("goBackToCities called")
+        
+        // If this was a direct search, clear the form completely
+        if isDirectSearch {
+            clearSearchFormAndReturnToExplore()
+            return
+        }
+        
+        // Otherwise use existing logic
+        isAnytimeMode = false
+        hasSearchedFlights = false
+        flightResults = []
+        flightSearchResponse = nil
+        selectedCity = nil
+        toIataCode = ""  // ADDED: Clear IATA code when going back to cities
+        // Keep toLocation as country name - don't reset it here
+        
+        // Fetch cities again for the selected country
+        if let countryName = selectedCountryName,
+           let country = destinations.first(where: { $0.location.name == countryName }) {
+            fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
+        }
+    }
     
     func goBackToCountries() {
         print("goBackToCountries called")
@@ -2744,6 +2748,7 @@ class ExploreViewModel: ObservableObject {
         selectedCountryName = nil
         selectedCity = nil
         toLocation = "Anywhere"
+        toIataCode = ""  // ADDED: Clear IATA code when going back to countries
         showingCities = false
         hasSearchedFlights = false
         showingDetailedFlightList = false
@@ -2753,7 +2758,7 @@ class ExploreViewModel: ObservableObject {
         detailedFlightError = nil
         fetchCountries()
         
-        // ADDED: Reset tab visibility when returning to countries
+        // Reset tab visibility when returning to countries
         DispatchQueue.main.async {
             if !SharedSearchDataStore.shared.isInSearchMode {
                 SharedSearchDataStore.shared.isInSearchMode = false
@@ -3806,35 +3811,32 @@ struct SearchCard: View {
             }
         }
     }
+ 
     // MARK: - Helper Methods for Dynamic Text Display
-        
-        private func getFromLocationDisplayText() -> String {
-            if viewModel.fromLocation.isEmpty || viewModel.fromLocation == "Mumbai" {
-                return "From where?"
-            }
-            return viewModel.fromLocation
+
+    // MARK: - Helper Methods for Dynamic Text Display
+
+    private func getFromLocationDisplayText() -> String {
+        if viewModel.fromIataCode.isEmpty {
+            return "DEL Delhi"  // CHANGED: Show both IATA and city name
         }
-        
-        private func getFromLocationTextColor() -> Color {
-            if viewModel.fromLocation.isEmpty || viewModel.fromLocation == "Mumbai" {
-                return .gray
-            }
-            return .primary
+        return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
+    }
+
+    private func getFromLocationTextColor() -> Color {
+        return .primary  // Always primary
+    }
+
+    private func getToLocationDisplayText() -> String {
+        if viewModel.toIataCode.isEmpty {
+            return viewModel.toLocation  // Show just "Anywhere" or country name when no IATA code
         }
-        
-        private func getToLocationDisplayText() -> String {
-            if viewModel.toLocation == "Anywhere" || viewModel.toLocation.isEmpty {
-                return "Anywhere"
-            }
-            return viewModel.toLocation
-        }
-        
-        private func getToLocationTextColor() -> Color {
-            if viewModel.toLocation == "Anywhere" || viewModel.toLocation.isEmpty {
-                return .gray
-            }
-            return .primary
-        }
+        return "\(viewModel.toIataCode) \(viewModel.toLocation)"  // Show "BOM Mumbai" format when IATA code available
+    }
+
+    private func getToLocationTextColor() -> Color {
+        return .primary  // Always primary
+    }
         
         private func getDateDisplayText() -> String {
             // If we just cleared the form, show "Anytime"
