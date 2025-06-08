@@ -7,17 +7,31 @@ struct RecentLocationSearchView: View {
     let showAnywhereOption: Bool
     let onAnywhereSelected: (() -> Void)?
     
+    // ADD: Search type filter
+    let searchType: LocationSearchType?
+    
     init(onLocationSelected: @escaping (AutocompleteResult) -> Void,
          showAnywhereOption: Bool = false,
-         onAnywhereSelected: (() -> Void)? = nil) {
+         onAnywhereSelected: (() -> Void)? = nil,
+         searchType: LocationSearchType? = nil) {
         self.onLocationSelected = onLocationSelected
         self.showAnywhereOption = showAnywhereOption
         self.onAnywhereSelected = onAnywhereSelected
+        self.searchType = searchType
+    }
+    
+    // ADD: Computed property for filtered searches
+    private var filteredRecentSearches: [RecentLocationSearch] {
+        if let searchType = searchType {
+            return recentSearchManager.getRecentSearches(for: searchType)
+        } else {
+            return recentSearchManager.recentSearches
+        }
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            if !recentSearchManager.recentSearches.isEmpty || showAnywhereOption {
+            if !filteredRecentSearches.isEmpty || showAnywhereOption {
                 // Header with title and clear button
                 HStack {
                     Text("Recent Searches")
@@ -26,10 +40,14 @@ struct RecentLocationSearchView: View {
                     
                     Spacer()
                     
-                    if !recentSearchManager.recentSearches.isEmpty {
+                    if !filteredRecentSearches.isEmpty {
                         Button("Clear") {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                recentSearchManager.clearAllRecentSearches()
+                                if let searchType = searchType {
+                                    recentSearchManager.clearRecentSearches(for: searchType)
+                                } else {
+                                    recentSearchManager.clearAllRecentSearches()
+                                }
                             }
                         }
                         .font(.system(size: 14))
@@ -51,14 +69,14 @@ struct RecentLocationSearchView: View {
                                     onAnywhereSelected?()
                                 }
                             
-                            if !recentSearchManager.recentSearches.isEmpty {
+                            if !filteredRecentSearches.isEmpty {
                                 Divider()
                                     .padding(.horizontal)
                             }
                         }
                         
                         // Recent searches list using the same LocationResultRow as search results
-                        ForEach(recentSearchManager.recentSearches) { recentSearch in
+                        ForEach(filteredRecentSearches) { recentSearch in
                             // Convert RecentLocationSearch to AutocompleteResult to use same component
                             let autocompleteResult = AutocompleteResult(
                                 iataCode: recentSearch.iataCode,

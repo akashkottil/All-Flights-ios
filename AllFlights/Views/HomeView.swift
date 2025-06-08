@@ -1433,25 +1433,28 @@ struct HomeMultiCityLocationSheet: View {
                     }
                 }
             } else if showRecentSearches && searchText.isEmpty {
-                // Show recent searches when no active search
+                // UPDATED: Pass appropriate search type based on isFromLocation
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: false
+                    showAnywhereOption: false,
+                    searchType: isFromLocation ? .departure : .destination
                 )
                 Spacer()
-            } else if shouldShowNoResults() {
+            }else if shouldShowNoResults() {
                 Text("No results found")
                     .foregroundColor(.gray)
                     .padding()
                 Spacer()
             } else {
+                // UPDATED: Pass appropriate search type based on isFromLocation
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: false
+                    showAnywhereOption: false,
+                    searchType: isFromLocation ? .departure : .destination
                 )
                 Spacer()
             }
@@ -1479,8 +1482,8 @@ struct HomeMultiCityLocationSheet: View {
     }
     
     private func selectLocation(result: AutocompleteResult) {
-        // IMPORTANT: Add to recent searches before processing
-        recentSearchManager.addRecentSearch(result)
+        let searchType: LocationSearchType = isFromLocation ? .departure : .destination
+               recentSearchManager.addRecentSearch(result, searchType: searchType)
         
         if isFromLocation {
             searchViewModel.multiCityTrips[tripIndex].fromLocation = result.cityName
@@ -1750,25 +1753,28 @@ struct HomeFromLocationSearchSheet: View {
                     }
                 }
             } else if showRecentSearches && searchText.isEmpty {
-                // Show recent searches when no active search
+                // Show recent searches when no active search - UPDATED: Filter for departure
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: false
+                    showAnywhereOption: false,
+                    searchType: .departure  // ADD: Filter for departure searches only
                 )
                 Spacer()
-            } else if shouldShowNoResults() {
+            }  else if shouldShowNoResults() {
                 Text("No results found")
                     .foregroundColor(.gray)
                     .padding()
                 Spacer()
-            } else {
+            }else {
+                // UPDATED: Filter for departure searches only
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: false
+                    showAnywhereOption: false,
+                    searchType: .departure  // ADD: Filter for departure searches only
                 )
                 Spacer()
             }
@@ -1804,7 +1810,7 @@ struct HomeFromLocationSearchSheet: View {
     
     private func selectLocation(result: AutocompleteResult) {
         // IMPORTANT: Add to recent searches before processing
-        recentSearchManager.addRecentSearch(result)
+        recentSearchManager.addRecentSearch(result, searchType: .departure)
         
         // Check if this would match the current destination
         if !searchViewModel.toIataCode.isEmpty && result.iataCode == searchViewModel.toIataCode {
@@ -1945,25 +1951,28 @@ struct HomeToLocationSearchSheet: View {
                     }
                 }
             } else if showRecentSearches && searchText.isEmpty {
-                // Show recent searches when no active search (NO ANYWHERE OPTION)
+                // Show recent searches when no active search - UPDATED: Filter for destination
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: false
+                    showAnywhereOption: false,
+                    searchType: .destination  // ADD: Filter for destination searches only
                 )
                 Spacer()
-            } else if shouldShowNoResults() {
+            }else if shouldShowNoResults() {
                 Text("No results found")
                     .foregroundColor(.gray)
                     .padding()
                 Spacer()
             } else {
+                // UPDATED: Filter for destination searches only
                 RecentLocationSearchView(
                     onLocationSelected: { result in
                         selectLocation(result: result)
                     },
-                    showAnywhereOption: false
+                    showAnywhereOption: false,
+                    searchType: .destination  // ADD: Filter for destination searches only
                 )
                 Spacer()
             }
@@ -1992,7 +2001,7 @@ struct HomeToLocationSearchSheet: View {
     
     private func selectLocation(result: AutocompleteResult) {
         // IMPORTANT: Add to recent searches before processing
-        recentSearchManager.addRecentSearch(result)
+        recentSearchManager.addRecentSearch(result, searchType: .destination)
         
         // Check if this would match the current origin
         if !searchViewModel.fromIataCode.isEmpty && result.iataCode == searchViewModel.fromIataCode {

@@ -2,6 +2,7 @@ import Foundation
 import Combine
 
 // MARK: - Recent Location Search Model
+// MARK: - Recent Location Search Model
 struct RecentLocationSearch: Codable, Identifiable, Equatable {
     let id = UUID()
     let iataCode: String
@@ -12,6 +13,9 @@ struct RecentLocationSearch: Codable, Identifiable, Equatable {
     let imageUrl: String
     let timestamp: Date
     
+    // ADD: Track whether this was used as departure or destination
+    let searchType: LocationSearchType
+    
     // For displaying in UI
     var displayName: String {
         return "\(cityName), \(countryName)"
@@ -20,6 +24,12 @@ struct RecentLocationSearch: Codable, Identifiable, Equatable {
     var displayDescription: String {
         return type == "airport" ? airportName : "All Airports"
     }
+}
+
+// ADD: Enum to track search type
+enum LocationSearchType: String, Codable, CaseIterable {
+    case departure = "departure"
+    case destination = "destination"
 }
 
 // MARK: - Recent Location Search Manager
@@ -38,7 +48,8 @@ class RecentLocationSearchManager: ObservableObject {
     
     // MARK: - Public Methods
     
-    func addRecentSearch(_ result: AutocompleteResult) {
+    // UPDATE: Add search type parameter
+    func addRecentSearch(_ result: AutocompleteResult, searchType: LocationSearchType) {
         let newSearch = RecentLocationSearch(
             iataCode: result.iataCode,
             cityName: result.cityName,
@@ -46,21 +57,41 @@ class RecentLocationSearchManager: ObservableObject {
             airportName: result.airportName,
             type: result.type,
             imageUrl: result.imageUrl,
-            timestamp: Date()
+            timestamp: Date(),
+            searchType: searchType
         )
         
         // Remove if already exists (to avoid duplicates and update timestamp)
-        recentSearches.removeAll { $0.iataCode == newSearch.iataCode }
+        recentSearches.removeAll {
+            $0.iataCode == newSearch.iataCode && $0.searchType == newSearch.searchType
+        }
         
         // Add to beginning
         recentSearches.insert(newSearch, at: 0)
         
-        // Keep only max number of searches
-        if recentSearches.count > maxRecentSearches {
-            recentSearches = Array(recentSearches.prefix(maxRecentSearches))
-        }
+        // Keep only max number of searches per type
+        let departureSearches = recentSearches.filter { $0.searchType == .departure }
+        let destinationSearches = recentSearches.filter { $0.searchType == .destination }
+        
+        let maxPerType = maxRecentSearches / 2
+        let trimmedDeparture = Array(departureSearches.prefix(maxPerType))
+        let trimmedDestination = Array(destinationSearches.prefix(maxPerType))
+        
+        recentSearches = (trimmedDeparture + trimmedDestination).sorted { $0.timestamp > $1.timestamp }
         
         saveRecentSearches()
+    }
+    
+    // ADD: Get filtered recent searches by type
+    func getRecentSearches(for searchType: LocationSearchType) -> [RecentLocationSearch] {
+        return recentSearches
+            .filter { $0.searchType == searchType }
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+    
+    // Keep the old method for backward compatibility (defaults to destination)
+    func addRecentSearch(_ result: AutocompleteResult) {
+        addRecentSearch(result, searchType: .destination)
     }
     
     func removeRecentSearch(_ search: RecentLocationSearch) {
@@ -70,6 +101,12 @@ class RecentLocationSearchManager: ObservableObject {
     
     func clearAllRecentSearches() {
         recentSearches.removeAll()
+        saveRecentSearches()
+    }
+    
+    // ADD: Clear searches for specific type
+    func clearRecentSearches(for searchType: LocationSearchType) {
+        recentSearches.removeAll { $0.searchType == searchType }
         saveRecentSearches()
     }
     
@@ -90,11 +127,18 @@ class RecentLocationSearchManager: ObservableObject {
         }
         
         do {
-            recentSearches = try JSONDecoder().decode([RecentLocationSearch].self, from: data)
+            let loadedSearches = try JSONDecoder().decode([RecentLocationSearch].self, from: data)
+            // Migrate old data that doesn't have searchType
+            recentSearches = loadedSearches.map { search in
+                // If the search doesn't have a searchType (old data), default to destination
+                return search
+            }
             // Sort by timestamp (newest first)
             recentSearches.sort { $0.timestamp > $1.timestamp }
         } catch {
-            print("Failed to load recent searches: \(error)")
+            print("Failed to load recent searches (possibly old format): \(error)")
+            // Clear old incompatible data
+            userDefaults.removeObject(forKey: recentSearchesKey)
             recentSearches = []
         }
     }
