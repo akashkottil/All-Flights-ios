@@ -3824,7 +3824,7 @@ struct SearchCard: View {
         }
     }
     
-    // ADD: Animated swap function (similar to HomeView)
+    // ADD: Animated swap function with comprehensive refetch logic
     private func animatedSwapLocations() {
         // Only allow swap if both locations are set and not "Anywhere"
         guard !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty,
@@ -3839,23 +3839,31 @@ struct SearchCard: View {
 
         // Delay swap logic to align with animation duration
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            // Perform swap halfway through animation for smoothness
-            let tempLocation = viewModel.fromLocation
-            let tempCode = viewModel.fromIataCode
+            // Store original values before swapping
+            let originalFromLocation = viewModel.fromLocation
+            let originalFromCode = viewModel.fromIataCode
+            let originalToLocation = viewModel.toLocation
+            let originalToCode = viewModel.toIataCode
             
-            viewModel.fromLocation = viewModel.toLocation
-            viewModel.fromIataCode = viewModel.toIataCode
+            // Perform swap
+            viewModel.fromLocation = originalToLocation
+            viewModel.fromIataCode = originalToCode
+            viewModel.toLocation = originalFromLocation
+            viewModel.toIataCode = originalFromCode
             
-            viewModel.toLocation = tempLocation
-            viewModel.toIataCode = tempCode
+            // Update search context with swapped values
+            viewModel.selectedOriginCode = viewModel.fromIataCode
+            viewModel.selectedDestinationCode = viewModel.toIataCode
             
-            // If we have search results, trigger a new search with swapped locations
-            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
-                // Update the search context
-                viewModel.selectedOriginCode = viewModel.fromIataCode
-                viewModel.selectedDestinationCode = viewModel.toIataCode
+            // Clear existing results before new search
+            viewModel.detailedFlightResults = []
+            viewModel.flightResults = []
+            
+            // Trigger refetch based on current context
+            if viewModel.showingDetailedFlightList {
+                // We're in detailed flight view - trigger detailed search
+                print("🔄 Swapping and refetching detailed flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
                 
-                // Trigger search with swapped locations
                 viewModel.searchFlightsForDates(
                     origin: viewModel.fromIataCode,
                     destination: viewModel.toIataCode,
@@ -3863,7 +3871,77 @@ struct SearchCard: View {
                     departureDate: viewModel.selectedDepartureDatee,
                     isDirectSearch: viewModel.isDirectSearch
                 )
+            } else if viewModel.hasSearchedFlights {
+                // We're in basic flight results view - refetch basic flights
+                print("🔄 Swapping and refetching basic flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                
+                if let selectedCity = viewModel.selectedCity {
+                    // Update selected city to reflect the new destination
+                    // Create a mock city object for the new destination if needed
+                    viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
+                } else {
+                    // Fallback to detailed search
+                    viewModel.searchFlightsForDates(
+                        origin: viewModel.fromIataCode,
+                        destination: viewModel.toIataCode,
+                        returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                        departureDate: viewModel.selectedDepartureDatee,
+                        isDirectSearch: true
+                    )
+                }
+            } else if !viewModel.dates.isEmpty {
+                // We have dates selected but no current search - trigger new search
+                print("🔄 Swapping and starting new search with dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                
+                // Update dates in string format for API
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                if viewModel.dates.count >= 2 {
+                    let sortedDates = viewModel.dates.sorted()
+                    viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                    viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+                } else if viewModel.dates.count == 1 {
+                    viewModel.selectedDepartureDatee = formatter.string(from: viewModel.dates[0])
+                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.dates[0]) {
+                        viewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                    }
+                }
+                
+                viewModel.searchFlightsForDates(
+                    origin: viewModel.fromIataCode,
+                    destination: viewModel.toIataCode,
+                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                    departureDate: viewModel.selectedDepartureDatee,
+                    isDirectSearch: true
+                )
+            } else {
+                // No dates selected - provide default dates and search
+                print("🔄 Swapping with default dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                
+                let calendar = Calendar.current
+                let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                let dayAfterTomorrow = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+                
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                viewModel.selectedDepartureDatee = formatter.string(from: tomorrow)
+                viewModel.selectedReturnDatee = formatter.string(from: dayAfterTomorrow)
+                
+                // Also update dates array for calendar sync
+                viewModel.dates = viewModel.isRoundTrip ? [tomorrow, dayAfterTomorrow] : [tomorrow]
+                
+                viewModel.searchFlightsForDates(
+                    origin: viewModel.fromIataCode,
+                    destination: viewModel.toIataCode,
+                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                    departureDate: viewModel.selectedDepartureDatee,
+                    isDirectSearch: true
+                )
             }
+            
+            print("✅ Swap completed and refetch initiated")
         }
     }
  
