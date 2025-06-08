@@ -4762,10 +4762,13 @@ struct MultiCityLocationSheet: View {
     }
 }
 
-// MARK: - Loading Border View
+
+// MARK: - Updated Loading Border View with Rotating Gradient Segments
 struct LoadingBorderView: View {
-    @State private var progressValue: CGFloat = 0.0
+    @State private var rotationProgress: Double = 0
     @State private var isAnimating: Bool = false
+    
+    private let segmentLength: Double = 0.5 // Half the border
     
     var body: some View {
         ZStack {
@@ -4773,26 +4776,152 @@ struct LoadingBorderView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.orange.opacity(0.3), lineWidth: 2.5)
             
-            // Main progress section (darker) - just this single element now
+            // Rotating loading segment that moves around the border
             RoundedRectangle(cornerRadius: 12)
-                .trim(from: 0, to: progressValue)
-                .stroke(Color.orange, lineWidth: 2.5)
-                .animation(.linear(duration: 0.4), value: progressValue)
+                .trim(from: rotationProgress, to: rotationProgress + segmentLength)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.1),  // Faded start
+                            Color.orange.opacity(0.6),  // Building up
+                            Color.orange,                // Full intensity in middle
+                            Color.orange.opacity(0.6),  // Fading down
+                            Color.orange.opacity(0.1)   // Faded end
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
         }
         .onAppear {
-            // Slowed down main animation
-            withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
-                progressValue = 1.0
+            // Animation that moves the segment around the border
+            withAnimation(.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+                rotationProgress = 1.0
             }
             
-            // Keeping the subtle pulse for interest (can be removed if desired)
+            // Subtle pulse animation for extra visual interest
             withAnimation(Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 isAnimating = true
             }
         }
-        .scaleEffect(isAnimating ? 1.02 : 1.0)
+        .scaleEffect(isAnimating ? 1.01 : 1.0)
     }
 }
+
+// MARK: - Alternative Version with More Pronounced Gradient Ends
+struct LoadingBorderViewAlternative: View {
+    @State private var rotationProgress: Double = 0
+    @State private var isAnimating: Bool = false
+    
+    private let segmentLength: Double = 0.4 // Slightly smaller segment
+    
+    var body: some View {
+        ZStack {
+            // Base light stroke (background track)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 2.5)
+            
+            // Rotating loading segment with more dramatic gradient
+            RoundedRectangle(cornerRadius: 12)
+                .trim(from: rotationProgress, to: rotationProgress + segmentLength)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.clear,                 // Completely transparent start
+                            Color.orange.opacity(0.3),  // Gradual fade in
+                            Color.orange.opacity(0.7),  // Building intensity
+                            Color.orange,                // Peak intensity
+                            Color.orange,                // Maintain peak
+                            Color.orange.opacity(0.7),  // Start fade out
+                            Color.orange.opacity(0.3),  // Gradual fade out
+                            Color.clear                  // Completely transparent end
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 3.0, lineCap: .round)
+                )
+        }
+        .onAppear {
+            // Smooth rotation animation around the border
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                rotationProgress = 1.0
+            }
+            
+            // Gentle pulse for breathing effect
+            withAnimation(Animation.easeInOut(duration: 2.8).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
+        .scaleEffect(isAnimating ? 1.008 : 1.0)
+    }
+}
+
+// MARK: - Version with Dual Segments (Top-Bottom Parallel)
+struct LoadingBorderViewDualSegments: View {
+    @State private var rotationProgress: Double = 0
+    @State private var isAnimating: Bool = false
+    
+    private let segmentLength: Double = 0.25 // Quarter segments for parallel effect
+    
+    var body: some View {
+        ZStack {
+            // Base light stroke (background track)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 2.5)
+            
+            // First rotating segment
+            RoundedRectangle(cornerRadius: 12)
+                .trim(from: rotationProgress, to: rotationProgress + segmentLength)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.1),
+                            Color.orange.opacity(0.8),
+                            Color.orange,
+                            Color.orange.opacity(0.8),
+                            Color.orange.opacity(0.1)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
+            
+            // Second rotating segment (offset by 0.5 for opposite side)
+            RoundedRectangle(cornerRadius: 12)
+                .trim(from: (rotationProgress + 0.5).truncatingRemainder(dividingBy: 1.0),
+                      to: (rotationProgress + 0.5 + segmentLength).truncatingRemainder(dividingBy: 1.0))
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.1),
+                            Color.orange.opacity(0.8),
+                            Color.orange,
+                            Color.orange.opacity(0.8),
+                            Color.orange.opacity(0.1)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 3.0).repeatForever(autoreverses: false)) {
+                rotationProgress = 1.0
+            }
+            
+            withAnimation(Animation.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
+        .scaleEffect(isAnimating ? 1.01 : 1.0)
+    }
+}
+
+
 
 // MARK: - Skeleton Destination Card
 struct SkeletonDestinationCard: View {
