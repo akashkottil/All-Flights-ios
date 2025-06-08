@@ -38,8 +38,8 @@ struct RootTabView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: sharedSearchData.isInSearchMode)
-        .animation(.easeInOut(duration: 0.3), value: sharedSearchData.isInExploreNavigation)
+        .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInSearchMode)
+        .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInExploreNavigation)
         .onReceive(sharedSearchData.$shouldNavigateToExplore) { shouldNavigate in
             if shouldNavigate {
                 if !sharedSearchData.isInSearchMode {
