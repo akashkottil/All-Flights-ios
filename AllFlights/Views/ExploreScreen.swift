@@ -1172,6 +1172,7 @@ private func isFilterRequestNonEmpty(_ filterRequest: FlightFilterRequest) -> Bo
 
 // MARK: - View Model
 class ExploreViewModel: ObservableObject {
+    private static var cachedDestinations: [ExploreDestination]? = nil
     @Published var destinations: [ExploreDestination] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
@@ -1298,6 +1299,9 @@ class ExploreViewModel: ObservableObject {
             
             // FIXED: Set loading state to true if destinations will be cleared
             // This ensures skeleton shows during the reset-to-fetch process
+        if !preserveCountries {
+                    destinations = []
+                }
             if destinations.isEmpty {
                 isLoading = true
                 print("🔄 Setting loading state during reset (destinations empty)")
@@ -2445,35 +2449,55 @@ class ExploreViewModel: ObservableObject {
     
     // MARK: - Enhanced fetchCountries method (replace the existing fetchCountries)
     func fetchCountries() {
-        // FIXED: Set loading state immediately, not just when the method starts
-        isLoading = true
-        errorMessage = nil
-        
-        print("🔄 fetchCountries: Loading state set to true immediately")
-        
-        service.fetchDestinations()
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoading = false
-                if case .failure(let error) = completion {
-                    self?.errorMessage = error.localizedDescription
-                    print("❌ fetchCountries failed: \(error.localizedDescription)")
-                }
-            }, receiveValue: { [weak self] destinations in
-                self?.destinations = destinations
+            // First check if we already have cached data
+            if let cachedData = ExploreViewModel.cachedDestinations, !cachedData.isEmpty {
+                print("✅ Using cached country list data")
+                self.destinations = cachedData
+                self.isLoading = false
                 
-                self?.debugDuplicateFlightIDs()
-                
-                // You should also update the currency info here if you've modified
-                // the service to return it separately
-                if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
-                    self?.updateCurrencyInfo(currencyInfo)
+                // Update currency info if available
+                if let currencyInfo = self.service.lastFetchedCurrencyInfo {
+                    self.updateCurrencyInfo(currencyInfo)
                 }
                 
-                print("✅ fetchCountries completed: \(destinations.count) destinations loaded")
-            })
-            .store(in: &cancellables)
-    }
+                return
+            }
+            
+            // No cached data, proceed with normal fetch
+            isLoading = true
+            errorMessage = nil
+            
+            print("🔄 fetchCountries: Loading state set to true immediately")
+            
+            service.fetchDestinations()
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { [weak self] completion in
+                    self?.isLoading = false
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = error.localizedDescription
+                        print("❌ fetchCountries failed: \(error.localizedDescription)")
+                    }
+                }, receiveValue: { [weak self] destinations in
+                    self?.destinations = destinations
+                    
+                    // Cache the data for future use
+                    ExploreViewModel.cachedDestinations = destinations
+                    
+                    self?.debugDuplicateFlightIDs()
+                    
+                    if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
+                        self?.updateCurrencyInfo(currencyInfo)
+                    }
+                    
+                    print("✅ fetchCountries completed: \(destinations.count) destinations loaded")
+                })
+                .store(in: &cancellables)
+        }
+        
+        // Add this method to clear the cache if needed
+        func clearCountriesCache() {
+            ExploreViewModel.cachedDestinations = nil
+        }
     
     
     func fetchCitiesFor(countryId: String, countryName: String) {
