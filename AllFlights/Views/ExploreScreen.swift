@@ -1245,6 +1245,7 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
+    
     // Add this method inside the ExploreViewModel class
 
     func resetToInitialState(preserveCountries: Bool = true) {
@@ -3556,7 +3557,11 @@ struct ExpandedSearchCard: View {
                         .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
                     
                     // Animated or static stroke based on loading state
-                    if viewModel.isLoading || viewModel.isLoadingFlights {
+                    // In your search card components, update the loading border condition:
+                    if viewModel.isLoading ||
+                       viewModel.isLoadingFlights ||
+                       viewModel.isLoadingDetailedFlights ||
+                       (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil) {
                         LoadingBorderView()
                     } else {
                         RoundedRectangle(cornerRadius: 12)
@@ -4812,45 +4817,36 @@ struct MultiCityLocationSheet: View {
 
 // MARK: - Updated Loading Border View with Rotating Gradient Segments
 struct LoadingBorderView: View {
-    @State private var rotationProgress: Double = 0
-    @State private var isAnimating: Bool = false
-
-    private let segmentLength: Double = 0.5 // Half the border
-
+    @State private var rotationAngle: Double = 0
+    
     var body: some View {
         ZStack {
-            // Base stroke (background track)
+            // Base stroke
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 3.0) // Slightly thicker
-
-            // Rotating loading segment
+                .stroke(Color.orange.opacity(0.3), lineWidth: 3.0)
+            
+            // Continuous rotating gradient border
             RoundedRectangle(cornerRadius: 12)
-                .trim(from: rotationProgress, to: rotationProgress + segmentLength)
                 .stroke(
                     AngularGradient(
                         gradient: Gradient(stops: [
-                            .init(color: Color.orange.opacity(0.0), location: 0.0),
-                            .init(color: Color.orange, location: 0.05),
-                            .init(color: Color.orange, location: 0.95),
-                            .init(color: Color.orange.opacity(0.0), location: 1.0)
+                            .init(color: Color.orange, location: 0.0),
+                            .init(color: Color.orange, location: 0.2),
+                            .init(color: Color.orange.opacity(0.1), location: 0.5),
+                            .init(color: Color.clear, location: 0.7)
                         ]),
-                        center: .center
+                        center: .center,
+                        startAngle: .degrees(rotationAngle),
+                        endAngle: .degrees(rotationAngle + 360)
                     ),
-                    style: StrokeStyle(lineWidth: 3.0, lineCap: .round)
+                    lineWidth: 3.0
                 )
         }
         .onAppear {
-            // Animate the segment around the border
-            withAnimation(.linear(duration: 2.5).repeatForever(autoreverses: false)) {
-                rotationProgress = 1.0
-            }
-
-            // Subtle pulse
-            withAnimation(Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-                isAnimating = true
+            withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
+                rotationAngle = 360
             }
         }
-        .scaleEffect(isAnimating ? 1.01 : 1.0)
     }
 }
 
