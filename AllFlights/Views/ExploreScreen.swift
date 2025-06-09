@@ -9013,7 +9013,7 @@ struct ProviderSelectionSheet: View {
                         dismiss()
                     }) {
                         Image(systemName: "xmark")
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                     }
                 }
             }
