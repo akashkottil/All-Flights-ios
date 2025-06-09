@@ -1192,7 +1192,24 @@ struct EnhancedSearchInput: View {
             }
         }
         
-        // Updated validation for required fields
+        // NEW: Check for "anytime" or "anywhere" conditions
+        let isAnytimeSearch = searchViewModel.selectedDates.isEmpty
+        let isAnywhereSearch = searchViewModel.toLocation == "Anywhere" || searchViewModel.toLocation == "Destination?" || searchViewModel.toIataCode.isEmpty
+        
+        // If anytime OR anywhere is selected, navigate to explore screen instead
+        if isAnytimeSearch || isAnywhereSearch {
+            // Clear any search state and navigate to explore mode
+            SharedSearchDataStore.shared.isInSearchMode = false
+            SharedSearchDataStore.shared.shouldNavigateToTab = 2 // Navigate to explore tab (index 1)
+            
+            // Clear search execution flags
+            SharedSearchDataStore.shared.shouldExecuteSearch = false
+            SharedSearchDataStore.shared.shouldNavigateToExplore = false
+            
+            return
+        }
+        
+        // Updated validation for required fields (only for regular searches)
         let valid: Bool
         if searchViewModel.selectedTab == 2 {
             valid = searchViewModel.multiCityTrips.allSatisfy { trip in
@@ -2567,18 +2584,19 @@ struct HomeToLocationSearchSheet: View {
                 }
                 .padding()
                 Spacer()
-            } else if let error = searchError {
-                Text(error)
-                    .foregroundColor(.red)
-                    .padding()
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(8)
-                    .padding()
-                Spacer()
             } else if !results.isEmpty {
-                // Show search results (NO ANYWHERE OPTION for HomeView)
+                // Show search results with Anywhere option at top
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        // ADDED: Anywhere option at top of search results
+                        AnywhereOptionRow()
+                            .onTapGesture {
+                                selectAnywhereLocation()
+                            }
+                        
+                        Divider()
+                            .padding(.horizontal)
+                        
                         ForEach(results) { result in
                             LocationResultRow(result: result)
                                 .onTapGesture {
@@ -2588,29 +2606,50 @@ struct HomeToLocationSearchSheet: View {
                     }
                 }
             } else if showRecentSearches && searchText.isEmpty {
-                // Show recent searches when no active search - UPDATED: Filter for destination
-                RecentLocationSearchView(
-                    onLocationSelected: { result in
-                        selectLocation(result: result)
-                    },
-                    showAnywhereOption: false,
-                    searchType: .destination  // ADD: Filter for destination searches only
-                )
+                // Show recent searches with Anywhere option at top
+                VStack(spacing: 0) {
+                    // ADDED: Anywhere option at top of recent searches
+                    AnywhereOptionRow()
+                        .onTapGesture {
+                            selectAnywhereLocation()
+                        }
+                    
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: .destination
+                    )
+                }
                 Spacer()
-            }else if shouldShowNoResults() {
+            } else if shouldShowNoResults() {
                 Text("No results found")
                     .foregroundColor(.gray)
                     .padding()
                 Spacer()
             } else {
-                // UPDATED: Filter for destination searches only
-                RecentLocationSearchView(
-                    onLocationSelected: { result in
-                        selectLocation(result: result)
-                    },
-                    showAnywhereOption: false,
-                    searchType: .destination  // ADD: Filter for destination searches only
-                )
+                // Default state with Anywhere option
+                VStack(spacing: 0) {
+                    AnywhereOptionRow()
+                        .onTapGesture {
+                            selectAnywhereLocation()
+                        }
+                    
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: .destination
+                    )
+                }
                 Spacer()
             }
         }
@@ -2630,6 +2669,12 @@ struct HomeToLocationSearchSheet: View {
         } else {
             results = []
         }
+    }
+    
+    private func selectAnywhereLocation() {
+        searchViewModel.toLocation = "Anywhere"
+        searchViewModel.toIataCode = ""
+        dismiss()
     }
     
     private func shouldShowNoResults() -> Bool {
