@@ -1743,7 +1743,7 @@ struct EnhancedSearchInput: View {
     
     private var dateDisplayText: String {
         if searchViewModel.selectedDates.isEmpty {
-            return "Select dates"
+            return "Anytime"  // Changed from "Select dates"
         } else if searchViewModel.selectedDates.count == 1 {
             return formatDateForDisplay(searchViewModel.selectedDates[0])
         } else {
@@ -2202,15 +2202,11 @@ struct HomeCollapsibleSearchInput: View {
    
                     
                     // Date display (if selected)
-                    if !searchViewModel.selectedDates.isEmpty {
-              
- 
-                            Text(formatDatesForCollapsed())
-                                .font(.system(size: 14))
-                                .foregroundColor(.primary)
-                            Spacer()
-                        
-                    }
+                    // Date display (always show, will display "Anytime" when no dates selected)
+                    Text(formatDatesForCollapsed())
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
+                    Spacer()
 
                     
                     Spacer()
@@ -2249,9 +2245,9 @@ struct HomeCollapsibleSearchInput: View {
         } else if searchViewModel.selectedDates.count == 1 {
             return formatter.string(from: searchViewModel.selectedDates[0])
         }
-        return "Select dates"
+        return "Anytime"  // Changed from "Select dates"
     }
-    
+
     private func formatDatesForCollapsed() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM"
@@ -2262,7 +2258,7 @@ struct HomeCollapsibleSearchInput: View {
         } else if searchViewModel.selectedDates.count == 1 {
             return formatter.string(from: searchViewModel.selectedDates[0])
         }
-        return "Select dates"
+        return "Anytime"  // This will show when selectedDates is empty
     }
 }
 
@@ -2720,6 +2716,7 @@ struct HomeToLocationSearchSheet: View {
     }
 }
 // MARK: - Home Calendar Sheet
+// MARK: - Home Calendar Sheet
 struct HomeCalendarSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -2730,13 +2727,14 @@ struct HomeCalendarSheet: View {
             toiatacode: $searchViewModel.toIataCode,
             parentSelectedDates: $searchViewModel.selectedDates,
             onAnytimeSelection: { results in
+                // Clear the selected dates when anytime is selected
+                searchViewModel.selectedDates = []
                 dismiss()
             },
             onTripTypeChange: { newIsRoundTrip in
                 searchViewModel.isRoundTrip = newIsRoundTrip
-                searchViewModel.selectedTab = newIsRoundTrip ? 0 : 1
-            },
-            isRoundTrip: searchViewModel.isRoundTrip
+                searchViewModel.selectedTab = newIsRoundTrip ? 1 : 0
+            }
         )
     }
 }
