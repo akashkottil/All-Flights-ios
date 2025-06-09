@@ -1247,57 +1247,63 @@ class ExploreViewModel: ObservableObject {
     // Add this method inside the ExploreViewModel class
 
     func resetToInitialState(preserveCountries: Bool = true) {
-        // Reset all search-related states
-        isDirectSearch = false
-        showingDetailedFlightList = false
-        hasSearchedFlights = false
-        flightResults = []
-        detailedFlightResults = []
-        flightSearchResponse = nil
-        selectedFlightId = nil
-        isAnytimeMode = false
-        directFlightsOnlyFromHome = false
-        
-        // Reset navigation states
-        showingCities = false
-        selectedCountryName = nil
-        selectedCity = nil
-        
-        // Reset location states to default
-        toLocation = "Anywhere"
-        toIataCode = ""
-        fromLocation = "Mumbai"
-        fromIataCode = "DEL"
-        
-        // Clear search context
-        selectedOriginCode = ""
-        selectedDestinationCode = ""
-        selectedDepartureDatee = ""
-        selectedReturnDatee = ""
-        dates = []
-        
-        // Reset error states
-        errorMessage = nil
-        detailedFlightError = nil
-        isLoadingDetailedFlights = false
-        isLoadingFlights = false
-        
-        // Reset pagination
-        currentPage = 1
-        totalFlightCount = 0
-        actualLoadedCount = 0
-        hasMoreFlights = true
-        isLoadingMoreFlights = false
-        isFirstLoad = true
-        isDataCached = false
-        
-        // Clear multi-city data
-        multiCityTrips = []
-        
-        // Only clear destinations if specifically requested
-        if !preserveCountries {
-            destinations = []
-        }
+        print("🔄 Resetting ExploreViewModel to initial state")
+            
+            // Reset all search-related states
+            isDirectSearch = false
+            showingDetailedFlightList = false
+            hasSearchedFlights = false
+            flightResults = []
+            detailedFlightResults = []
+            flightSearchResponse = nil
+            selectedFlightId = nil
+            isAnytimeMode = false
+            directFlightsOnlyFromHome = false
+            
+            // Reset navigation states
+            showingCities = false
+            selectedCountryName = nil
+            selectedCity = nil
+            
+            // Reset location states to default
+            toLocation = "Anywhere"
+            toIataCode = ""
+            fromLocation = "Mumbai"
+            fromIataCode = "DEL"
+            
+            // Clear search context
+            selectedOriginCode = ""
+            selectedDestinationCode = ""
+            selectedDepartureDatee = ""
+            selectedReturnDatee = ""
+            dates = []
+            
+            // Reset error states
+            errorMessage = nil
+            detailedFlightError = nil
+            isLoadingDetailedFlights = false
+            isLoadingFlights = false
+            
+            // Reset pagination
+            currentPage = 1
+            totalFlightCount = 0
+            actualLoadedCount = 0
+            hasMoreFlights = true
+            isLoadingMoreFlights = false
+            isFirstLoad = true
+            isDataCached = false
+            
+            // Clear multi-city data
+            multiCityTrips = []
+            
+            // FIXED: Set loading state to true if destinations will be cleared
+            // This ensures skeleton shows during the reset-to-fetch process
+            if destinations.isEmpty {
+                isLoading = true
+                print("🔄 Setting loading state during reset (destinations empty)")
+            }
+            
+            print("✅ ExploreViewModel reset completed")
     }
     
     func debugDuplicateFlightIDs() {
@@ -2158,6 +2164,13 @@ class ExploreViewModel: ObservableObject {
         childrenAges = [0]
         selectedCabinClass = "Economy"
         
+        // FIXED: Set initial loading state to true if no destinations are loaded
+        // This ensures skeleton appears immediately when view is first shown
+        if destinations.isEmpty {
+            isLoading = true
+            print("🔄 ExploreViewModel: Setting initial loading state to true")
+        }
+        
         // Add observer for dates changes
         $dates
             .sink { [weak self] selectedDates in
@@ -2430,30 +2443,37 @@ class ExploreViewModel: ObservableObject {
            return nil
        }
     
+    // MARK: - Enhanced fetchCountries method (replace the existing fetchCountries)
     func fetchCountries() {
-           isLoading = true
-           errorMessage = nil
-           
-           service.fetchDestinations()
-               .receive(on: DispatchQueue.main)
-               .sink(receiveCompletion: { [weak self] completion in
-                   self?.isLoading = false
-                   if case .failure(let error) = completion {
-                       self?.errorMessage = error.localizedDescription
-                   }
-               }, receiveValue: { [weak self] destinations in
-                   self?.destinations = destinations
-                   
-                   self?.debugDuplicateFlightIDs()
-                   
-                   // You should also update the currency info here if you've modified
-                   // the service to return it separately
-                   if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
-                       self?.updateCurrencyInfo(currencyInfo)
-                   }
-               })
-               .store(in: &cancellables)
-       }
+        // FIXED: Set loading state immediately, not just when the method starts
+        isLoading = true
+        errorMessage = nil
+        
+        print("🔄 fetchCountries: Loading state set to true immediately")
+        
+        service.fetchDestinations()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoading = false
+                if case .failure(let error) = completion {
+                    self?.errorMessage = error.localizedDescription
+                    print("❌ fetchCountries failed: \(error.localizedDescription)")
+                }
+            }, receiveValue: { [weak self] destinations in
+                self?.destinations = destinations
+                
+                self?.debugDuplicateFlightIDs()
+                
+                // You should also update the currency info here if you've modified
+                // the service to return it separately
+                if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
+                    self?.updateCurrencyInfo(currencyInfo)
+                }
+                
+                print("✅ fetchCountries completed: \(destinations.count) destinations loaded")
+            })
+            .store(in: &cancellables)
+    }
     
     
     func fetchCitiesFor(countryId: String, countryName: String) {
@@ -3125,6 +3145,7 @@ struct ExploreScreen: View {
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 50) // space equal to tab bar height
         }
+        // MARK: - Updated onAppear for ExploreScreen (replace the existing .onAppear)
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
             print("🔍 hasSearchedFlights: \(viewModel.hasSearchedFlights)")
@@ -3200,27 +3221,30 @@ struct ExploreScreen: View {
                 print("🔄 Manual navigation to explore detected with dirty state - resetting view model")
                 resetExploreViewModelToInitialState()
                 
-                // Fetch countries after reset
+                // FIXED: Set loading state immediately and fetch countries without delay
+                viewModel.isLoading = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     viewModel.fetchCountries()
                 }
                 return
             }
             
-            // Only fetch countries if we don't have them and we're not in any special navigation state
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                let shouldFetchCountries = viewModel.destinations.isEmpty &&
-                                         isInCleanExploreState &&
-                                         !sharedSearchData.shouldNavigateToExploreCities &&
-                                         !sharedSearchData.shouldExecuteSearch &&
-                                         !isCountryNavigationActive
+            // FIXED: Check if we need to fetch countries and do it immediately with loading state
+            let shouldFetchCountries = viewModel.destinations.isEmpty &&
+                                     isInCleanExploreState &&
+                                     !sharedSearchData.shouldNavigateToExploreCities &&
+                                     !sharedSearchData.shouldExecuteSearch &&
+                                     !isCountryNavigationActive
+            
+            if shouldFetchCountries {
+                print("🔍 Setting loading state and fetching countries immediately...")
+                // FIXED: Set loading state immediately
+                viewModel.isLoading = true
                 
-                if shouldFetchCountries {
-                    print("🔍 Fetching countries (destinations empty and clean state)...")
-                    viewModel.fetchCountries()
-                } else {
-                    print("🔍 Skipping country fetch - countries loaded or navigation state active")
-                }
+                // FIXED: Fetch countries immediately (no delay)
+                viewModel.fetchCountries()
+            } else {
+                print("🔍 Skipping country fetch - countries loaded or navigation state active")
             }
             
             viewModel.setupAvailableMonths()
