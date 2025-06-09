@@ -3560,7 +3560,7 @@ struct ExpandedSearchCard: View {
                         LoadingBorderView()
                     } else {
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 1)
+                            .stroke(Color.orange, lineWidth: 2)
                     }
                 }
             )

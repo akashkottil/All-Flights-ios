@@ -1264,7 +1264,7 @@ struct EnhancedSearchInput: View {
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.orange, lineWidth: 1)
+                .stroke(Color.orange, lineWidth: 2)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
         .padding(.horizontal, 16)
@@ -2228,7 +2228,7 @@ struct HomeCollapsibleSearchInput: View {
             .cornerRadius(26)
             .overlay(
                 RoundedRectangle(cornerRadius: 26)
-                    .stroke(Color.orange, lineWidth: 1)
+                    .stroke(Color.orange, lineWidth: 2)
             )
             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         }
