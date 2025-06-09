@@ -4286,8 +4286,7 @@ struct FlightResultCard: View {
 
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
-    @State private var cardAppeared = false
-    @State private var cardScale: CGFloat = 0.95
+    @State private var cardScale: CGFloat = 1.0  // Start at normal scale
     @State private var isPressed = false
     let item: ExploreDestination
     let viewModel: ExploreViewModel
@@ -4348,7 +4347,7 @@ struct APIDestinationCard: View {
                     }
                 }
                 
-                // Everything else stays exactly the same
+                // Content text
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Flights from")
                         .font(.system(size: 12))
@@ -4375,21 +4374,9 @@ struct APIDestinationCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(cardScale)
-        .opacity(cardAppeared ? 1 : 0)
-        .offset(x: cardAppeared ? 0 : 20)
+        // REMOVED: All slide-in animations (opacity, offset, cardAppeared state)
         .shadow(color: Color.black.opacity(isPressed ? 0.15 : 0.05), radius: isPressed ? 8 : 4, x: 0, y: isPressed ? 4 : 2)
-        .animation(
-            .spring(response: 0.6, dampingFraction: 0.8)
-            .delay(Double.random(in: 0...0.2)), // Random stagger
-            value: cardAppeared
-        )
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
-        .onAppear {
-            withAnimation {
-                cardAppeared = true
-                cardScale = 1.0
-            }
-        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed) // Only animate press state
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                 isPressed = pressing
@@ -9745,6 +9732,7 @@ struct EnhancedSkeletonDestinationCard: View {
     @State private var isAnimating = false
     @State private var breatheScale: CGFloat = 1.0
     @State private var glowOpacity: Double = 0.3
+    @State private var cardAppeared = false  // Keep animation for skeleton
     
     var body: some View {
         HStack(spacing: 12) {
@@ -9763,137 +9751,97 @@ struct EnhancedSkeletonDestinationCard: View {
                         )
                     )
                     .frame(width: 80, height: 80)
-                    .shimmer(duration: 2.0)
+                    .shimmer(duration: 1.5)
                 
-                // Subtle icon overlay
+                // Floating icon animation
                 Image(systemName: "photo")
                     .font(.system(size: 24))
-                    .foregroundColor(Color(.systemGray4))
-                    .opacity(0.6)
+                    .foregroundColor(.gray.opacity(0.4))
+                    .scaleEffect(breatheScale)
             }
             
             // Enhanced text placeholders
             VStack(alignment: .leading, spacing: 8) {
-                // "Flights from" placeholder with gradient
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(.systemGray6),
-                                Color(.systemGray5)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 85, height: 12)
+                // "Flights from" placeholder
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(.systemGray5))
+                    .frame(width: 80, height: 12)
                     .shimmer(duration: 1.8)
                 
-                // Location name placeholder with subtle animation
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(.systemGray5),
-                                Color(.systemGray4),
-                                Color(.systemGray5)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 140, height: 18)
-                    .shimmer(duration: 1.6)
-                
-                // "Direct/Connecting" placeholder
+                // Location name placeholder
                 RoundedRectangle(cornerRadius: 6)
                     .fill(
                         LinearGradient(
-                            colors: [
-                                Color(.systemGray6),
-                                Color(.systemGray5)
-                            ],
+                            colors: [Color(.systemGray4), Color(.systemGray5)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: 70, height: 12)
-                    .shimmer(duration: 2.2)
+                    .frame(width: 140, height: 20)
+                    .shimmer(duration: 1.6)
+                
+                // Direct/Connecting placeholder
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(.systemGray5))
+                    .frame(width: 60, height: 12)
+                    .shimmer(duration: 2.0)
             }
             
             Spacer()
             
-            // Enhanced price placeholder with glow effect
-            ZStack {
+            // Enhanced price placeholder
+            VStack(alignment: .trailing, spacing: 4) {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(.systemGray5),
+                                Color(.systemGray4),
+                                Color(.systemGray3),
                                 Color(.systemGray4)
                             ],
-                            startPoint: .top,
-                            endPoint: .bottom
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
                     )
                     .frame(width: 80, height: 24)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(
-                                Color(.systemGray3).opacity(glowOpacity),
-                                lineWidth: 1
-                            )
+                            .stroke(Color(.systemGray3).opacity(glowOpacity), lineWidth: 1)
                     )
                     .shimmer(duration: 1.4)
             }
         }
-        .padding(16)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color(.systemGray5).opacity(0.3),
-                                    Color(.systemGray4).opacity(0.1)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray6), lineWidth: 1)
                 )
         )
-        .shadow(
-            color: Color.black.opacity(0.04),
-            radius: 8,
-            x: 0,
-            y: 4
-        )
         .scaleEffect(breatheScale)
-        .padding(.horizontal)
+        // KEEP: Slide-in animations for skeleton only
+        .opacity(cardAppeared ? 1 : 0)
+        .offset(x: cardAppeared ? 0 : 20)
+        .animation(
+            .spring(response: 0.6, dampingFraction: 0.8)
+            .delay(Double.random(in: 0...0.3)), // Staggered appearance for skeletons
+            value: cardAppeared
+        )
         .onAppear {
-            startAnimations()
-        }
-    }
-    
-    private func startAnimations() {
-        // Breathing animation
-        withAnimation(
-            .easeInOut(duration: 2.0)
-            .repeatForever(autoreverses: true)
-        ) {
-            breatheScale = 1.02
-        }
-        
-        // Glow animation
-        withAnimation(
-            .easeInOut(duration: 1.5)
-            .repeatForever(autoreverses: true)
-        ) {
-            glowOpacity = 0.1
+            withAnimation {
+                cardAppeared = true
+            }
+            
+            // Continuous breathing animation
+            withAnimation(
+                Animation.easeInOut(duration: 2.0)
+                    .repeatForever(autoreverses: true)
+            ) {
+                breatheScale = 1.01
+                glowOpacity = 0.1
+            }
         }
     }
 }
