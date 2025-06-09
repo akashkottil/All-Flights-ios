@@ -10236,34 +10236,7 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                 
                 Spacer()
                 
-                // Select button with premium glow
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.orange.opacity(0.4),
-                                    Color.orange.opacity(0.2),
-                                    Color.orange.opacity(0.4)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 24, height: 24)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    Color.orange.opacity(glowIntensity * 2),
-                                    lineWidth: 2
-                                )
-                        )
-                        .shimmer(duration: 1.2)
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.orange.opacity(0.6))
-                }
+ 
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
