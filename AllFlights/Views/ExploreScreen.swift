@@ -2839,7 +2839,6 @@ struct ExploreScreen: View {
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
     
     // MODIFIED: Updated back navigation to handle "Anywhere" destination
-    // MODIFIED: Updated back navigation to handle search mode
     private func handleBackNavigation() {
         print("=== Back Navigation Debug ===")
         print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
@@ -2850,15 +2849,24 @@ struct ExploreScreen: View {
         print("isDirectSearch: \(viewModel.isDirectSearch)")
         print("isInSearchMode: \(sharedSearchData.isInSearchMode)")
         
-        // UPDATED: Special handling for search mode - return to home
+        // PRIORITY 1: Handle search mode - return to home if user came from direct search
         if sharedSearchData.isInSearchMode {
             print("Action: Search mode detected - returning to home")
+            
+            // If a flight is selected, deselect it first
+            if viewModel.selectedFlightId != nil {
+                print("Action: Deselecting flight before returning to home")
+                viewModel.selectedFlightId = nil
+                return
+            }
+            
+            // Return to HomeScreen and exit search mode
             sharedSearchData.returnToHomeFromSearch()
-            print("=== End Back Navigation Debug ===")
+            print("=== End Back Navigation Debug - Returned to Home ===")
             return
         }
         
-        // Special handling for direct searches from HomeView
+        // PRIORITY 2: Handle direct search cases (when not in search mode but is direct search)
         if viewModel.isDirectSearch {
             print("Action: Direct search detected - clearing form and returning to explore")
             
@@ -2866,38 +2874,26 @@ struct ExploreScreen: View {
                 // If a flight is selected, deselect it first
                 print("Action: Deselecting flight in direct search")
                 viewModel.selectedFlightId = nil
-            } else if viewModel.showingDetailedFlightList && viewModel.hasSearchedFlights {
-                // CHANGED: If we have flight results and we're coming from search dates button
-                // Just go back to flight results instead of clearing the form
-                print("Action: Going back to flight results from search dates view")
-                viewModel.showingDetailedFlightList = false
-                // Don't clear search form here
             } else if viewModel.showingDetailedFlightList {
-                // If on flight list from direct search (not from View these dates), go back and clear form
-                print("Action: Going back from direct search flight list - clearing form")
-                isCountryNavigationActive = false // Reset the flag
-                viewModel.clearSearchFormAndReturnToExplore()
-            } else {
-                // Fallback - clear form
-                print("Action: Fallback direct search back navigation - clearing form")
-                isCountryNavigationActive = false // Reset the flag
+                // Clear the search form and return to main explore
+                print("Action: Clearing direct search form")
+                isCountryNavigationActive = false
                 viewModel.clearSearchFormAndReturnToExplore()
             }
             print("=== End Back Navigation Debug ===")
             return
         }
         
-        // Rest of the existing code remains unchanged
-        // Special handling for "Anywhere" destination in explore flow
+        // PRIORITY 3: Handle "Anywhere" destination in explore flow
         if viewModel.toLocation == "Anywhere" {
             print("Action: Handling Anywhere destination - going back to countries")
-            isCountryNavigationActive = false // Reset the flag
-            sharedSearchData.resetAll() // Use the new resetAll method
+            isCountryNavigationActive = false
+            sharedSearchData.resetAll()
             viewModel.resetToAnywhereDestination()
             return
         }
         
-        // Regular explore flow navigation
+        // PRIORITY 4: Regular explore flow navigation
         if viewModel.selectedFlightId != nil {
             // If a flight is selected, deselect it first (go back to flight list)
             print("Action: Deselecting flight (going back to flight list)")
@@ -2910,7 +2906,7 @@ struct ExploreScreen: View {
             // Go back from flight results to cities or countries
             if viewModel.toLocation == "Anywhere" {
                 print("Action: Going back from flight results to countries (Anywhere)")
-                isCountryNavigationActive = false // Reset the flag
+                isCountryNavigationActive = false
                 viewModel.goBackToCountries()
             } else {
                 print("Action: Going back from flight results to cities")
@@ -2919,7 +2915,7 @@ struct ExploreScreen: View {
         } else if viewModel.showingCities {
             // Go back from cities to countries
             print("Action: Going back from cities to countries")
-            isCountryNavigationActive = false // Reset the flag
+            isCountryNavigationActive = false
             viewModel.goBackToCountries()
         }
         print("=== End Back Navigation Debug ===")
@@ -3139,6 +3135,28 @@ struct ExploreScreen: View {
             print("🔍 isInSearchMode: \(sharedSearchData.isInSearchMode)")
             print("🔍 isCountryNavigationActive: \(isCountryNavigationActive)")
             print("🔍 destinations count: \(viewModel.destinations.count)")
+            print("🔍 sharedSearchData.selectedTab: \(sharedSearchData.selectedTab)")
+            
+            // UPDATED: Initialize selectedTab based on search mode
+            if sharedSearchData.isInSearchMode {
+                // If coming from direct search, use the original selectedTab but limit to available options
+                if sharedSearchData.selectedTab == 2 {
+                    // Multi-city search - keep as is
+                    selectedTab = 2
+                } else {
+                    // Return or One-way - map appropriately
+                    selectedTab = sharedSearchData.selectedTab
+                }
+                isRoundTrip = sharedSearchData.isRoundTrip
+                print("🔍 Initialized from search mode: selectedTab=\(selectedTab), isRoundTrip=\(isRoundTrip)")
+            } else {
+                // Not in search mode - ensure we don't have multi-city selected
+                if selectedTab >= 2 {
+                    selectedTab = 0 // Reset to Return
+                    isRoundTrip = true
+                }
+                print("🔍 Regular explore mode: selectedTab=\(selectedTab), isRoundTrip=\(isRoundTrip)")
+            }
             
             // NEW: Check if we're in a clean explore state with countries already loaded
             let isInCleanExploreState = !viewModel.hasSearchedFlights &&
@@ -3330,6 +3348,7 @@ struct ExploreScreen: View {
     // Existing handleIncomingSearchFromHome method remains the same...
     private func handleIncomingSearchFromHome() {
         print("🔥 ExploreScreen: Received search data from HomeView")
+        print("🔥 Original selectedTab: \(sharedSearchData.selectedTab)")
         print("🔥 Direct flights only: \(sharedSearchData.directFlightsOnly)")
         
         // Transfer all search data to the view model
@@ -3345,7 +3364,7 @@ struct ExploreScreen: View {
         viewModel.selectedCabinClass = sharedSearchData.selectedCabinClass
         viewModel.multiCityTrips = sharedSearchData.multiCityTrips
         
-        // Update local state
+        // UPDATED: Set selectedTab and isRoundTrip based on shared data
         selectedTab = sharedSearchData.selectedTab
         isRoundTrip = sharedSearchData.isRoundTrip
         
@@ -3357,7 +3376,7 @@ struct ExploreScreen: View {
         viewModel.isDirectSearch = true
         viewModel.showingDetailedFlightList = true
         
-        // ADD: Store direct flights preference in view model for later use
+        // Store direct flights preference in view model for later use
         viewModel.directFlightsOnlyFromHome = sharedSearchData.directFlightsOnly
         
         // Handle multi-city vs regular search
@@ -3366,7 +3385,7 @@ struct ExploreScreen: View {
             // Multi-city search
             viewModel.searchMultiCityFlights()
         } else {
-            print("🔥 Executing regular search")
+            print("🔥 Executing regular search (selectedTab: \(selectedTab))")
             // Regular search - format dates for API
             if !sharedSearchData.selectedDates.isEmpty {
                 let formatter = DateFormatter()
@@ -3670,7 +3689,8 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 
 
-// MARK: - Search Card Component (Updated with Animated Swap)
+
+// MARK: - Search Card Component (Updated with Conditional Multi-City)
 struct SearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     @State private var showingSearchSheet = false
@@ -3684,11 +3704,21 @@ struct SearchCard: View {
     
     var selectedTab: Int
     
+    // ADD: Observe shared search data
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    
+    // Determine if multi-city should be shown
+    private var shouldShowMultiCity: Bool {
+        return sharedSearchData.isInSearchMode && sharedSearchData.selectedTab == 2 && selectedTab == 2
+    }
+    
     var body: some View {
-        if selectedTab == 2 {
-            // Multi-city search card
+        // Conditionally show multi-city or regular interface
+        if shouldShowMultiCity {
+            // Multi-city search card - only show when came from direct multi-city search
             MultiCitySearchCard(viewModel: viewModel)
         } else {
+            // Regular interface for return/one-way trips
             VStack(spacing: 5) {
                 Divider()
                     .padding(.horizontal,-16)
@@ -3707,7 +3737,7 @@ struct SearchCard: View {
                     
                     Spacer()
                     
-                    // UPDATED: Animated swap button
+                    // Animated swap button
                     Button(action: {
                         animatedSwapLocations()
                     }) {
@@ -3735,7 +3765,6 @@ struct SearchCard: View {
                             Image(systemName: "airplane.arrival")
                                 .foregroundColor(.primary)
                             
-                            // UPDATED: Better handling for cleared/anywhere state
                             Text(getToLocationDisplayText())
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(getToLocationTextColor())
@@ -3750,9 +3779,8 @@ struct SearchCard: View {
                 // Date and passengers row
                 HStack {
                     Button(action: {
-                        // MODIFIED: Only show calendar if destination is not "Anywhere"
+                        // Only show calendar if destination is not "Anywhere"
                         if viewModel.toLocation == "Anywhere" {
-                            // If destination is "Anywhere", go back to explore mode
                             handleAnywhereDestination()
                         } else {
                             showingCalendar = true
@@ -3761,7 +3789,6 @@ struct SearchCard: View {
                         Image(systemName: "calendar")
                             .foregroundColor(.primary)
                       
-                        // UPDATED: Better date display handling
                         Text(getDateDisplayText())
                             .foregroundColor(getDateTextColor())
                             .font(.system(size: 14, weight: .medium))
@@ -3769,7 +3796,7 @@ struct SearchCard: View {
                     
                     Spacer()
                     
-                    // Passenger selection button - now clickable
+                    // Passenger selection button
                     Button(action: {
                         viewModel.showingPassengersSheet = true
                     }) {
@@ -3777,7 +3804,6 @@ struct SearchCard: View {
                             Image(systemName: "person.fill")
                                 .foregroundColor(.black)
                             
-                            // Display the passenger and cabin class info
                             Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.black)
@@ -3797,24 +3823,21 @@ struct SearchCard: View {
                     viewModel.updateDatesAndRunSearch()
                 }
             }) {
-                
                 CalendarView(
-                        fromiatacode: $viewModel.fromIataCode,
-                        toiatacode: $viewModel.toIataCode,
-                        parentSelectedDates: $viewModel.dates,
-                        onAnytimeSelection: { results in
-                            // Handle flight results from "Anytime" button
-                            viewModel.handleAnytimeResults(results)
-                        }, onTripTypeChange: { newIsRoundTrip in
-                            // Update the trip type when calendar requests it
-                            isRoundTrip = newIsRoundTrip
-                            viewModel.isRoundTrip = newIsRoundTrip
-                        },
-                        isRoundTrip: isRoundTrip
-                    )
+                    fromiatacode: $viewModel.fromIataCode,
+                    toiatacode: $viewModel.toIataCode,
+                    parentSelectedDates: $viewModel.dates,
+                    onAnytimeSelection: { results in
+                        viewModel.handleAnytimeResults(results)
+                    },
+                    onTripTypeChange: { newIsRoundTrip in
+                        isRoundTrip = newIsRoundTrip
+                        viewModel.isRoundTrip = newIsRoundTrip
+                    },
+                    isRoundTrip: isRoundTrip
+                )
             }
             .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
-                // ADDED: Trigger search when passenger sheet is dismissed (Apply clicked)
                 triggerSearchAfterPassengerChange()
             }) {
                 PassengersAndClassSelector(
@@ -3825,20 +3848,17 @@ struct SearchCard: View {
                 )
             }
             .onAppear {
-                // Ensure viewModel's isRoundTrip is in sync with the binding
                 viewModel.isRoundTrip = isRoundTrip
             }
             .onChange(of: isRoundTrip) { newValue in
-                // Update viewModel when isRoundTrip changes
                 viewModel.isRoundTrip = newValue
-                
-                // FIXED: Use centralized trip type change handling
                 viewModel.handleTripTypeChange()
             }
         }
     }
     
-    // ADD: Animated swap function with comprehensive refetch logic
+    // MARK: - Helper Methods
+    
     private func animatedSwapLocations() {
         // Only allow swap if both locations are set and not "Anywhere"
         guard !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty,
@@ -3875,7 +3895,6 @@ struct SearchCard: View {
             
             // Trigger refetch based on current context
             if viewModel.showingDetailedFlightList {
-                // We're in detailed flight view - trigger detailed search
                 print("🔄 Swapping and refetching detailed flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
                 
                 viewModel.searchFlightsForDates(
@@ -3886,15 +3905,11 @@ struct SearchCard: View {
                     isDirectSearch: viewModel.isDirectSearch
                 )
             } else if viewModel.hasSearchedFlights {
-                // We're in basic flight results view - refetch basic flights
                 print("🔄 Swapping and refetching basic flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
                 
                 if let selectedCity = viewModel.selectedCity {
-                    // Update selected city to reflect the new destination
-                    // Create a mock city object for the new destination if needed
                     viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
                 } else {
-                    // Fallback to detailed search
                     viewModel.searchFlightsForDates(
                         origin: viewModel.fromIataCode,
                         destination: viewModel.toIataCode,
@@ -3904,10 +3919,8 @@ struct SearchCard: View {
                     )
                 }
             } else if !viewModel.dates.isEmpty {
-                // We have dates selected but no current search - trigger new search
                 print("🔄 Swapping and starting new search with dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
                 
-                // Update dates in string format for API
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd"
                 
@@ -3930,7 +3943,6 @@ struct SearchCard: View {
                     isDirectSearch: true
                 )
             } else {
-                // No dates selected - provide default dates and search
                 print("🔄 Swapping with default dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
                 
                 let calendar = Calendar.current
@@ -3943,7 +3955,6 @@ struct SearchCard: View {
                 viewModel.selectedDepartureDatee = formatter.string(from: tomorrow)
                 viewModel.selectedReturnDatee = formatter.string(from: dayAfterTomorrow)
                 
-                // Also update dates array for calendar sync
                 viewModel.dates = viewModel.isRoundTrip ? [tomorrow, dayAfterTomorrow] : [tomorrow]
                 
                 viewModel.searchFlightsForDates(
@@ -3958,38 +3969,34 @@ struct SearchCard: View {
             print("✅ Swap completed and refetch initiated")
         }
     }
- 
-    // MARK: - Helper Methods for Dynamic Text Display (rest of the methods remain the same)
 
     private func getFromLocationDisplayText() -> String {
         if viewModel.fromIataCode.isEmpty {
-            return "DEL Delhi"  // CHANGED: Show both IATA and city name
+            return "DEL Delhi"
         }
         return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
     }
 
     private func getFromLocationTextColor() -> Color {
-        return .primary  // Always primary
+        return .primary
     }
 
     private func getToLocationDisplayText() -> String {
         if viewModel.toIataCode.isEmpty {
-            return viewModel.toLocation  // Show just "Anywhere" or country name when no IATA code
+            return viewModel.toLocation
         }
-        return "\(viewModel.toIataCode) \(viewModel.toLocation)"  // Show "BOM Mumbai" format when IATA code available
+        return "\(viewModel.toIataCode) \(viewModel.toLocation)"
     }
 
     private func getToLocationTextColor() -> Color {
-        return .primary  // Always primary
+        return .primary
     }
         
     private func getDateDisplayText() -> String {
-        // If we just cleared the form, show "Anytime"
         if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
             return "Anytime"
         }
         
-        // Display "Anytime" if using anytime results or if destination is "Anywhere"
         if viewModel.toLocation == "Anywhere" {
             return "Anytime"
         } else if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
@@ -4012,32 +4019,21 @@ struct SearchCard: View {
         return .primary
     }
     
-    // NEW: Handle when destination is "Anywhere"
     private func handleAnywhereDestination() {
-        // Reset to explore mode
         viewModel.goBackToCountries()
-        
-        // Clear the specific destination
         viewModel.toLocation = "Anywhere"
         viewModel.toIataCode = ""
-        
-        // Clear any search results
         viewModel.hasSearchedFlights = false
         viewModel.showingDetailedFlightList = false
         viewModel.flightResults = []
         viewModel.detailedFlightResults = []
     }
     
-    // Helper function to trigger search after passenger changes
     private func triggerSearchAfterPassengerChange() {
-        // Only trigger if destination is not "Anywhere"
         if viewModel.toLocation != "Anywhere" {
-            // Check if we have active search context
             if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
-                // Clear existing results
                 viewModel.detailedFlightResults = []
                 
-                // Restart search with new passenger data
                 viewModel.searchFlightsForDates(
                     origin: viewModel.selectedOriginCode,
                     destination: viewModel.selectedDestinationCode,
@@ -4045,14 +4041,12 @@ struct SearchCard: View {
                     departureDate: viewModel.selectedDepartureDatee
                 )
             }
-            // If we're in the explore flow with a selected city
             else if let city = viewModel.selectedCity {
                 viewModel.fetchFlightDetails(destination: city.location.iata)
             }
         }
     }
     
-    // Helper method to format date for display
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM"
@@ -4397,28 +4391,40 @@ struct TabButton: View {
     }
 }
 
-// MARK: - Updated TripTypeTabView with Targeted Loading Protection
+
+// MARK: - Updated TripTypeTabView with Conditional Multi-City Display
 struct TripTypeTabView: View {
     @Binding var selectedTab: Int
     @Binding var isRoundTrip: Bool
-    @ObservedObject var viewModel: ExploreViewModel // Add this to access the view model directly
-    let tabs = ["Return", "One way", "Multi city"]
+    @ObservedObject var viewModel: ExploreViewModel
     
-    // Calculate dimensions once for consistency
+    // ADD: Observe shared search data to determine if multi-city should be shown
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    
+    // Conditional tabs based on search mode and original search type
+    private var availableTabs: [String] {
+        // Only show multi-city if user came from direct search AND original search was multi-city
+        if sharedSearchData.isInSearchMode && sharedSearchData.selectedTab == 2 {
+            return ["Return", "One way", "Multi city"]
+        } else {
+            return ["Return", "One way"]
+        }
+    }
+    
+    // Calculate dimensions based on available tabs
     private var totalWidth: CGFloat {
-        return UIScreen.main.bounds.width * 0.6 // Total width of tab control
+        return UIScreen.main.bounds.width * 0.6
     }
     
     private var tabWidth: CGFloat {
-        return totalWidth / 3 // Each tab gets 1/3 of the space
+        return totalWidth / CGFloat(availableTabs.count)
     }
     
-    // Offset adjustment to shift the white background slightly right
     private var rightShift: CGFloat {
-        return 5 // Positive value shifts to the right
+        return 5
     }
     
-    // MARK: - Targeted Loading State Check (Only for ModifiedDetailedFlightListView)
+    // MARK: - Targeted Loading State Check
     private var isLoadingInDetailedView: Bool {
         return viewModel.showingDetailedFlightList &&
                (viewModel.isLoadingDetailedFlights ||
@@ -4436,13 +4442,13 @@ struct TripTypeTabView: View {
             // Sliding white background with adjustment for right shift
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - 10) // Slightly narrower than tab width
-                .offset(x: (CGFloat(selectedTab) * tabWidth) + rightShift) // Added rightShift
+                .frame(width: tabWidth - 10)
+                .offset(x: (CGFloat(selectedTab) * tabWidth) + rightShift)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
             
-            // Tab buttons row with consistent spacing
+            // Tab buttons row with conditional tabs
             HStack(spacing: 0) {
-                ForEach(0..<tabs.count, id: \.self) { index in
+                ForEach(0..<availableTabs.count, id: \.self) { index in
                     Button(action: {
                         // TARGETED SAFETY CHECK: Only block changes in ModifiedDetailedFlightListView during loading
                         if isLoadingInDetailedView {
@@ -4452,12 +4458,12 @@ struct TripTypeTabView: View {
                         
                         selectedTab = index
                         
-                        // Handle multi-city selection
-                        if index == 2 {
+                        // Handle multi-city selection (only if available)
+                        if index == 2 && availableTabs.count > 2 {
                             // Initialize multi city trips
                             viewModel.initializeMultiCityTrips()
                         } else {
-                            // UPDATED: Use centralized trip type change logic
+                            // Handle return/one-way trip types
                             let newIsRoundTrip = (index == 0)
                             
                             if isRoundTrip != newIsRoundTrip {
@@ -4465,21 +4471,20 @@ struct TripTypeTabView: View {
                                 isRoundTrip = newIsRoundTrip
                                 viewModel.isRoundTrip = newIsRoundTrip
                                 
-                                // FIXED: Call the centralized method instead of duplicating logic
+                                // Call the centralized method
                                 viewModel.handleTripTypeChange()
                             }
                         }
                     }) {
-                        Text(tabs[index])
+                        Text(availableTabs[index])
                             .font(.system(size: 13, weight: selectedTab == index ? .semibold : .regular))
                             .foregroundColor(
-                                // Only change appearance when loading in detailed view
                                 isLoadingInDetailedView ? .gray.opacity(0.5) : (selectedTab == index ? .blue : .black)
                             )
                             .frame(width: tabWidth)
                             .padding(.vertical, 8)
                     }
-                    .disabled(isLoadingInDetailedView) // Only disable in detailed view during loading
+                    .disabled(isLoadingInDetailedView)
                 }
             }
             .onChange(of: isRoundTrip) { newValue in
@@ -4491,7 +4496,15 @@ struct TripTypeTabView: View {
         }
         .frame(width: totalWidth, height: 36)
         .padding(.horizontal, 4)
-        .opacity(isLoadingInDetailedView ? 0.6 : 1.0) // Visual feedback only when loading in detailed view
+        .opacity(isLoadingInDetailedView ? 0.6 : 1.0)
+        .onReceive(sharedSearchData.$isInSearchMode) { _ in
+            // Reset selectedTab when search mode changes and multi-city is not available
+            if !sharedSearchData.isInSearchMode || sharedSearchData.selectedTab != 2 {
+                if selectedTab >= availableTabs.count {
+                    selectedTab = 0 // Reset to "Return" if current tab is not available
+                }
+            }
+        }
     }
 }
 
