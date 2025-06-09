@@ -4818,40 +4818,38 @@ struct MultiCityLocationSheet: View {
 struct LoadingBorderView: View {
     @State private var rotationProgress: Double = 0
     @State private var isAnimating: Bool = false
-    
+
     private let segmentLength: Double = 0.5 // Half the border
-    
+
     var body: some View {
         ZStack {
-            // Base light stroke (background track)
+            // Base stroke (background track)
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 2.5)
-            
-            // Rotating loading segment that moves around the border
+                .stroke(Color.orange.opacity(0.3), lineWidth: 3.0) // Slightly thicker
+
+            // Rotating loading segment
             RoundedRectangle(cornerRadius: 12)
                 .trim(from: rotationProgress, to: rotationProgress + segmentLength)
                 .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.orange.opacity(0.1),  // Faded start
-                            Color.orange.opacity(0.6),  // Building up
-                            Color.orange,                // Full intensity in middle
-                            Color.orange.opacity(0.6),  // Fading down
-                            Color.orange.opacity(0.1)   // Faded end
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
+                    AngularGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color.orange.opacity(0.0), location: 0.0),
+                            .init(color: Color.orange, location: 0.05),
+                            .init(color: Color.orange, location: 0.95),
+                            .init(color: Color.orange.opacity(0.0), location: 1.0)
+                        ]),
+                        center: .center
                     ),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                    style: StrokeStyle(lineWidth: 3.0, lineCap: .round)
                 )
         }
         .onAppear {
-            // Animation that moves the segment around the border
+            // Animate the segment around the border
             withAnimation(.linear(duration: 2.5).repeatForever(autoreverses: false)) {
                 rotationProgress = 1.0
             }
-            
-            // Subtle pulse animation for extra visual interest
+
+            // Subtle pulse
             withAnimation(Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 isAnimating = true
             }
@@ -4859,6 +4857,7 @@ struct LoadingBorderView: View {
         .scaleEffect(isAnimating ? 1.01 : 1.0)
     }
 }
+
 
 // MARK: - Alternative Version with More Pronounced Gradient Ends
 struct LoadingBorderViewAlternative: View {
