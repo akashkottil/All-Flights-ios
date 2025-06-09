@@ -2860,86 +2860,89 @@ struct ExploreScreen: View {
     
     // MODIFIED: Updated back navigation to handle "Anywhere" destination
     private func handleBackNavigation() {
-        print("=== Back Navigation Debug ===")
-        print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
-        print("showingDetailedFlightList: \(viewModel.showingDetailedFlightList)")
-        print("hasSearchedFlights: \(viewModel.hasSearchedFlights)")
-        print("showingCities: \(viewModel.showingCities)")
-        print("toLocation: \(viewModel.toLocation)")
-        print("isDirectSearch: \(viewModel.isDirectSearch)")
-        print("isInSearchMode: \(sharedSearchData.isInSearchMode)")
-        
-        // PRIORITY 1: Handle search mode - return to home if user came from direct search
-        if sharedSearchData.isInSearchMode {
-            print("Action: Search mode detected - returning to home")
+            print("=== Back Navigation Debug ===")
+            print("selectedFlightId: \(viewModel.selectedFlightId ?? "nil")")
+            print("showingDetailedFlightList: \(viewModel.showingDetailedFlightList)")
+            print("hasSearchedFlights: \(viewModel.hasSearchedFlights)")
+            print("showingCities: \(viewModel.showingCities)")
+            print("toLocation: \(viewModel.toLocation)")
+            print("isDirectSearch: \(viewModel.isDirectSearch)")
+            print("isInSearchMode: \(sharedSearchData.isInSearchMode)")
             
-            // If a flight is selected, deselect it first
-            if viewModel.selectedFlightId != nil {
-                print("Action: Deselecting flight before returning to home")
-                viewModel.selectedFlightId = nil
+            // UPDATED: Special handling for search mode - return to home
+            if sharedSearchData.isInSearchMode {
+                print("Action: Search mode detected - returning to home")
+                sharedSearchData.returnToHomeFromSearch()
+                print("=== End Back Navigation Debug ===")
                 return
             }
             
-            // Return to HomeScreen and exit search mode
-            sharedSearchData.returnToHomeFromSearch()
-            print("=== End Back Navigation Debug - Returned to Home ===")
-            return
-        }
-        
-        // PRIORITY 2: Handle direct search cases (when not in search mode but is direct search)
-        if viewModel.isDirectSearch {
-            print("Action: Direct search detected - clearing form and returning to explore")
+            // Special handling for direct searches from HomeView
+            if viewModel.isDirectSearch {
+                print("Action: Direct search detected - clearing form and returning to explore")
+                
+                if viewModel.selectedFlightId != nil {
+                    // If a flight is selected, deselect it first
+                    print("Action: Deselecting flight in direct search")
+                    viewModel.selectedFlightId = nil
+                } else if viewModel.showingDetailedFlightList && viewModel.hasSearchedFlights {
+                    // CHANGED: If we have flight results and we're coming from search dates button
+                    // Just go back to flight results instead of clearing the form
+                    print("Action: Going back to flight results from search dates view")
+                    viewModel.showingDetailedFlightList = false
+                    // Don't clear search form here
+                } else if viewModel.showingDetailedFlightList {
+                    // If on flight list from direct search (not from View these dates), go back and clear form
+                    print("Action: Going back from direct search flight list - clearing form")
+                    isCountryNavigationActive = false // Reset the flag
+                    viewModel.clearSearchFormAndReturnToExplore()
+                } else {
+                    // Fallback - clear form
+                    print("Action: Fallback direct search back navigation - clearing form")
+                    isCountryNavigationActive = false // Reset the flag
+                    viewModel.clearSearchFormAndReturnToExplore()
+                }
+                print("=== End Back Navigation Debug ===")
+                return
+            }
             
+            // Rest of the existing code remains unchanged
+            // Special handling for "Anywhere" destination in explore flow
+            if viewModel.toLocation == "Anywhere" {
+                print("Action: Handling Anywhere destination - going back to countries")
+                isCountryNavigationActive = false // Reset the flag
+                sharedSearchData.resetAll() // Use the new resetAll method
+                viewModel.resetToAnywhereDestination()
+                return
+            }
+            
+            // Regular explore flow navigation
             if viewModel.selectedFlightId != nil {
-                // If a flight is selected, deselect it first
-                print("Action: Deselecting flight in direct search")
+                // If a flight is selected, deselect it first (go back to flight list)
+                print("Action: Deselecting flight (going back to flight list)")
                 viewModel.selectedFlightId = nil
             } else if viewModel.showingDetailedFlightList {
-                // Clear the search form and return to main explore
-                print("Action: Clearing direct search form")
-                isCountryNavigationActive = false
-                viewModel.clearSearchFormAndReturnToExplore()
+                // If no flight is selected but we're on detailed flight list, go back to previous level
+                print("Action: Going back from flight list to previous level")
+                viewModel.goBackToFlightResults()
+            } else if viewModel.hasSearchedFlights {
+                // Go back from flight results to cities or countries
+                if viewModel.toLocation == "Anywhere" {
+                    print("Action: Going back from flight results to countries (Anywhere)")
+                    isCountryNavigationActive = false // Reset the flag
+                    viewModel.goBackToCountries()
+                } else {
+                    print("Action: Going back from flight results to cities")
+                    viewModel.goBackToCities()
+                }
+            } else if viewModel.showingCities {
+                // Go back from cities to countries
+                print("Action: Going back from cities to countries")
+                isCountryNavigationActive = false // Reset the flag
+                viewModel.goBackToCountries()
             }
             print("=== End Back Navigation Debug ===")
-            return
         }
-        
-        // PRIORITY 3: Handle "Anywhere" destination in explore flow
-        if viewModel.toLocation == "Anywhere" {
-            print("Action: Handling Anywhere destination - going back to countries")
-            isCountryNavigationActive = false
-            sharedSearchData.resetAll()
-            viewModel.resetToAnywhereDestination()
-            return
-        }
-        
-        // PRIORITY 4: Regular explore flow navigation
-        if viewModel.selectedFlightId != nil {
-            // If a flight is selected, deselect it first (go back to flight list)
-            print("Action: Deselecting flight (going back to flight list)")
-            viewModel.selectedFlightId = nil
-        } else if viewModel.showingDetailedFlightList {
-            // If no flight is selected but we're on detailed flight list, go back to previous level
-            print("Action: Going back from flight list to previous level")
-            viewModel.goBackToFlightResults()
-        } else if viewModel.hasSearchedFlights {
-            // Go back from flight results to cities or countries
-            if viewModel.toLocation == "Anywhere" {
-                print("Action: Going back from flight results to countries (Anywhere)")
-                isCountryNavigationActive = false
-                viewModel.goBackToCountries()
-            } else {
-                print("Action: Going back from flight results to cities")
-                viewModel.goBackToCities()
-            }
-        } else if viewModel.showingCities {
-            // Go back from cities to countries
-            print("Action: Going back from cities to countries")
-            isCountryNavigationActive = false
-            viewModel.goBackToCountries()
-        }
-        print("=== End Back Navigation Debug ===")
-    }
 
     private func getCurrentMonthName() -> String {
         if !viewModel.isAnytimeMode && viewModel.selectedMonthIndex < viewModel.availableMonths.count {
