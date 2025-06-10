@@ -2285,22 +2285,29 @@ class ExploreViewModel: ObservableObject {
                 print("   - Total available: \(response.count)")
                 print("   - Cached: \(response.cache)")
                 
+                // Apply client-side filtering for exact stop counts
+                let clientFilteredResults = self.applyClientSideStopFiltering(
+                    results: response.results,
+                    filterRequest: filterRequest
+                )
+                
                 // Update all tracking variables from API response
-                self.totalFlightCount = response.count
+                self.totalFlightCount = clientFilteredResults.count // Use client-filtered count
                 self.isDataCached = response.cache
-                self.actualLoadedCount = response.results.count
+                self.actualLoadedCount = clientFilteredResults.count
                 self.hasMoreFlights = self.shouldContinueLoadingMore()
                 self.isLoadingDetailedFlights = false
                 self.detailedFlightError = nil
                 
-                // Update results - this will trigger UI update
-                self.detailedFlightResults = response.results
+                // Update results with client-filtered data
+                self.detailedFlightResults = clientFilteredResults
                 
                 // Update the last poll response for airline data etc.
                 self.lastPollResponse = response
                 
                 print("📊 Filter application complete:")
-                print("   - Displayed results: \(self.detailedFlightResults.count)")
+                print("   - API results: \(response.results.count)")
+                print("   - Client filtered: \(clientFilteredResults.count)")
                 print("   - Total count: \(self.totalFlightCount)")
                 print("   - Has more: \(self.hasMoreFlights)")
                 
@@ -2309,6 +2316,68 @@ class ExploreViewModel: ObservableObject {
             }
         )
         .store(in: &cancellables)
+    }
+    
+    private func applyClientSideStopFiltering(
+        results: [FlightDetailResult],
+        filterRequest: FlightFilterRequest
+    ) -> [FlightDetailResult] {
+        
+        // Get the current stop filter selections from the filter sheet state
+        let directSelected = filterSheetState.directFlightsSelected
+        let oneStopSelected = filterSheetState.oneStopSelected
+        let multiStopSelected = filterSheetState.multiStopSelected
+        
+        let selectedOptions = [
+            (directSelected, "direct"),
+            (oneStopSelected, "oneStop"),
+            (multiStopSelected, "multiStop")
+        ].filter { $0.0 }.map { $0.1 }
+        
+        print("🛑 Client-side filtering for stops: \(selectedOptions)")
+        
+        // If all options are selected or no options are selected, return all results
+        if selectedOptions.count == 0 || selectedOptions.count == 3 {
+            print("🛑 No stop filtering needed (all or none selected)")
+            return results
+        }
+        
+        let filteredResults = results.filter { flight in
+            // Get the maximum stop count for this flight across all legs
+            let maxStops = flight.legs.map { $0.stopCount }.max() ?? 0
+            
+            let isDirect = maxStops == 0
+            let isOneStop = maxStops == 1
+            let isMultiStop = maxStops >= 2
+            
+            // Check if this flight matches the selected criteria
+            if selectedOptions.count == 1 {
+                // Only one option selected - be exclusive
+                if directSelected && !oneStopSelected && !multiStopSelected {
+                    return isDirect
+                } else if !directSelected && oneStopSelected && !multiStopSelected {
+                    return isOneStop // Only 1-stop flights, exclude direct
+                } else if !directSelected && !oneStopSelected && multiStopSelected {
+                    return isMultiStop // Only 2+ stop flights, exclude direct and 1-stop
+                }
+            } else if selectedOptions.count == 2 {
+                // Two options selected
+                if directSelected && oneStopSelected && !multiStopSelected {
+                    return isDirect || isOneStop
+                } else if directSelected && !oneStopSelected && multiStopSelected {
+                    return isDirect || isMultiStop
+                } else if !directSelected && oneStopSelected && multiStopSelected {
+                    return isOneStop || isMultiStop // Exclude direct flights
+                }
+            }
+            
+            // Default: include the flight
+            return true
+        }
+        
+        print("🛑 Client-side filtering result: \(results.count) → \(filteredResults.count) flights")
+        
+        return filteredResults
     }
     
     func createCompleteFilterRequest() -> FlightFilterRequest? {
@@ -6168,9 +6237,10 @@ struct DetailedFlightCardWrapper: View {
                         OutboundAirlineCode: outboundSegment.airlineIata,
                         OutboundAirlineLogo: outboundSegment.airlineLogo,
                         
-                        ReturnAirline: returnSegment!.airlineName,
-                        ReturnAirlineCode: returnSegment!.airlineIata,
-                        ReturnAirlineLogo: returnSegment!.airlineLogo,
+                        // FIXED: For one-way trips, use outbound airline data as placeholder for return
+                        ReturnAirline: outboundSegment.airlineName,
+                        ReturnAirlineCode: outboundSegment.airlineIata,
+                        ReturnAirlineLogo: outboundSegment.airlineLogo,
                         
                         price: "₹\(Int(result.minPrice))",
                         priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
@@ -8289,10 +8359,15 @@ struct FlightFilterSheet: View {
                         Text("\(formatPrice(priceRange[0])) - \(formatPrice(priceRange[1]))")
                             .foregroundColor(.primary)
                         
-                        RangeSliderView(values: $priceRange, minValue: 0, maxValue: max(2000, priceRange[1] * 1.2), onChangeHandler: {
-                            hasPriceChanged = true
-                            triggerPreviewUpdate()
-                        })
+                        RangeSliderView(
+                            values: $priceRange,
+                            minValue: 0,
+                            maxValue: calculateDynamicMaxPrice(),
+                            onChangeHandler: {
+                                hasPriceChanged = true
+                                triggerPreviewUpdate()
+                            }
+                        )
                         
                         HStack {
                             Text(formatPrice(priceRange[0]))
@@ -8634,12 +8709,46 @@ struct FlightFilterSheet: View {
             }
         }
         
-        // Add stop count if changed
+        // UPDATED: Smarter API-level stop filtering + client-side filtering
         if hasStopsChanged {
-            if directFlightsSelected && !oneStopSelected && !multiStopSelected {
-                filterRequest.stopCountMax = 0
-            } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
-                filterRequest.stopCountMax = 1
+            let selectedOptions = [
+                (directFlightsSelected, "direct"),
+                (oneStopSelected, "oneStop"),
+                (multiStopSelected, "multiStop")
+            ].filter { $0.0 }.map { $0.1 }
+            
+            print("🛑 Selected stop options: \(selectedOptions)")
+            
+            if selectedOptions.count == 1 {
+                // Only one option selected
+                if directFlightsSelected {
+                    // Only direct flights - use API filtering
+                    filterRequest.stopCountMax = 0
+                    print("🛑 API Filter: Direct flights only (stopCountMax = 0)")
+                } else if oneStopSelected {
+                    // Only 1-stop flights - get up to 1 stop via API, filter out direct on client
+                    filterRequest.stopCountMax = 1
+                    print("🛑 API Filter: Up to 1-stop (stopCountMax = 1), client will filter out direct")
+                } else if multiStopSelected {
+                    // Only 2+ stops - no API limit, client will filter out 0 and 1 stop
+                    print("🛑 API Filter: No limit, client will filter out direct and 1-stop")
+                }
+            } else if selectedOptions.count == 2 {
+                // Two options selected
+                if directFlightsSelected && oneStopSelected {
+                    // Direct and 1-stop - use API filtering
+                    filterRequest.stopCountMax = 1
+                    print("🛑 API Filter: Direct and 1-stop (stopCountMax = 1)")
+                } else if directFlightsSelected && multiStopSelected {
+                    // Direct and 2+ stops - no API filtering, client will exclude 1-stop
+                    print("🛑 API Filter: No limit, client will filter out 1-stop only")
+                } else if oneStopSelected && multiStopSelected {
+                    // 1-stop and 2+ stops - no API filtering, client will exclude direct
+                    print("🛑 API Filter: No limit, client will filter out direct")
+                }
+            } else if selectedOptions.count == 3 || selectedOptions.count == 0 {
+                // All options or no options - no filtering
+                print("🛑 API Filter: No stop filtering")
             }
         }
         
@@ -8685,7 +8794,21 @@ struct FlightFilterSheet: View {
                request1.iataCodesInclude == request2.iataCodesInclude
     }
     
-    // MARK: - Existing Helper Methods (unchanged)
+    // MARK: - Helper Methods
+    
+    private func calculateDynamicMaxPrice() -> Double {
+        // Get the max price from the API response if available
+        if let pollResponse = viewModel.lastPollResponse {
+            let apiMaxPrice = pollResponse.maxPrice
+            // Use the larger of: API max price * 1.5 or current slider max + 50%
+            let dynamicMax = max(apiMaxPrice * 1.5, priceRange[1] * 1.5)
+            // Ensure minimum of ₹5000 for reasonable range
+            return max(5000, dynamicMax)
+        } else {
+            // Fallback: use current range + 50% or minimum ₹5000
+            return max(5000, priceRange[1] * 1.5)
+        }
+    }
     
     private func formatTime(hours: Int) -> String {
         let hour = hours % 12 == 0 ? 12 : hours % 12
@@ -8747,12 +8870,24 @@ struct FlightFilterSheet: View {
     }
     
     private func initializePriceRange() {
+        // Set price range based on min/max price in results
         if let pollResponse = viewModel.lastPollResponse {
             let minPrice = pollResponse.minPrice
             let maxPrice = pollResponse.maxPrice
             
-            if minPrice > 0 && maxPrice >= minPrice {
-                priceRange = [minPrice, maxPrice]
+            // Only update if we have valid prices and haven't been modified by user
+            if minPrice > 0 && maxPrice >= minPrice && !hasPriceChanged {
+                // Set initial range with some padding
+                let paddedMin = max(0, minPrice * 0.9) // 10% below min
+                let paddedMax = maxPrice * 1.1 // 10% above max
+                priceRange = [paddedMin, paddedMax]
+                print("📊 Initialized price range: ₹\(Int(paddedMin)) - ₹\(Int(paddedMax))")
+            }
+        } else {
+            // Fallback default range
+            if !hasPriceChanged {
+                priceRange = [0.0, 3000.0]
+                print("📊 Using fallback price range: ₹0 - ₹3000")
             }
         }
     }
