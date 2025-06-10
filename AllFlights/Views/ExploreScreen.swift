@@ -1401,7 +1401,7 @@ class ExploreViewModel: ObservableObject {
                     self.service.pollFlightResultsPaginated(
                         searchId: searchResponse.searchId,
                         page: 1,
-                        limit: 20
+                        limit: 30
                     )
                     .receive(on: DispatchQueue.main)
                     .sink(
@@ -1532,7 +1532,7 @@ class ExploreViewModel: ObservableObject {
             self.service.pollFlightResultsPaginated(
                 searchId: searchId,
                 page: self.currentPage,
-                limit: 20,
+                limit: 30,
                 filterRequest: self._currentFilterRequest
             )
             .receive(on: DispatchQueue.main)
@@ -1636,7 +1636,7 @@ class ExploreViewModel: ObservableObject {
         service.pollFlightResultsPaginated(
             searchId: searchId,
             page: nextPage,
-            limit: 20,
+            limit: 30,
             filterRequest: _currentFilterRequest
         )
         .receive(on: DispatchQueue.main)
