@@ -478,6 +478,8 @@ class ExploreAPIService {
     private var currentFlightSearchRequest: DataRequest?
     private let session = Session()
     
+    // Replace the existing pollFlightResultsPaginated method in ExploreAPIService
+
     func pollFlightResultsPaginated(searchId: String, page: Int = 1, limit: Int = 20, filterRequest: FlightFilterRequest? = nil) -> AnyPublisher<FlightPollResponse, Error> {
         let baseURL = "https://staging.plane.lascade.com/api/poll/"
         
@@ -497,27 +499,155 @@ class ExploreAPIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("IN", forHTTPHeaderField: "country")
         
-        // Build request body from filter request (only include non-null fields)
+        // Build request body from filter request
         var requestDict: [String: Any] = [:]
+        
         if let filterRequest = filterRequest {
-            // Your existing filterRequest parsing logic...
+            print("🔧 Building filter request body:")
+            
+            // Only add fields that have meaningful values
+            if let durationMax = filterRequest.durationMax, durationMax > 0 {
+                requestDict["duration_max"] = durationMax
+                print("   Duration max: \(durationMax) minutes")
+            }
+            
+            if let stopCountMax = filterRequest.stopCountMax {
+                requestDict["stop_count_max"] = stopCountMax
+                print("   Stop count max: \(stopCountMax)")
+            }
+            
+            if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
+                var rangesArray: [[String: Any]] = []
+                
+                for range in ranges {
+                    var rangeDict: [String: Any] = [:]
+                    
+                    if let arrival = range.arrival {
+                        var arrivalDict: [String: Any] = [:]
+                        if let min = arrival.min {
+                            arrivalDict["min"] = min
+                        }
+                        if let max = arrival.max {
+                            arrivalDict["max"] = max
+                        }
+                        if !arrivalDict.isEmpty {
+                            rangeDict["arrival"] = arrivalDict
+                        }
+                    }
+                    
+                    if let departure = range.departure {
+                        var departureDict: [String: Any] = [:]
+                        if let min = departure.min {
+                            departureDict["min"] = min
+                        }
+                        if let max = departure.max {
+                            departureDict["max"] = max
+                        }
+                        if !departureDict.isEmpty {
+                            rangeDict["departure"] = departureDict
+                        }
+                    }
+                    
+                    if !rangeDict.isEmpty {
+                        rangesArray.append(rangeDict)
+                    }
+                }
+                
+                if !rangesArray.isEmpty {
+                    requestDict["arrival_departure_ranges"] = rangesArray
+                    print("   Time ranges: \(rangesArray.count) ranges")
+                }
+            }
+            
+            // Only add non-empty arrays
+            if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
+                requestDict["iata_codes_exclude"] = exclude
+                print("   Exclude airlines: \(exclude)")
+            }
+            
+            if let include = filterRequest.iataCodesInclude, !include.isEmpty {
+                requestDict["iata_codes_include"] = include
+                print("   Include airlines: \(include)")
+            }
+            
+            // Only add sorting if it's specified AND it's a valid value
+            if let sortBy = filterRequest.sortBy, !sortBy.isEmpty {
+                // Only use valid sort values
+                let validSortValues = ["price", "duration", "departure", "arrival"]
+                if validSortValues.contains(sortBy) {
+                    requestDict["sort_by"] = sortBy
+                    print("   Sort by: \(sortBy)")
+                    
+                    // Add sort_order if needed
+                    if let sortOrder = filterRequest.sortOrder, !sortOrder.isEmpty {
+                        requestDict["sort_order"] = sortOrder
+                        print("   Sort order: \(sortOrder)")
+                    } else {
+                        // Default sort order is ascending
+                        requestDict["sort_order"] = "asc"
+                        print("   Sort order: asc (default)")
+                    }
+                } else {
+                    print("   ⚠️ Invalid sort value ignored: \(sortBy)")
+                }
+            }
+            
+            // Only add non-empty arrays
+            if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
+                requestDict["agency_exclude"] = agencyExclude
+                print("   Exclude agencies: \(agencyExclude)")
+            }
+            
+            if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
+                requestDict["agency_include"] = agencyInclude
+                print("   Include agencies: \(agencyInclude)")
+            }
+            
+            // Only add price constraints if they're meaningful
+            if let priceMin = filterRequest.priceMin, priceMin > 0 {
+                requestDict["price_min"] = priceMin
+                print("   Price min: ₹\(priceMin)")
+            }
+            
+            if let priceMax = filterRequest.priceMax, priceMax > 0 {
+                requestDict["price_max"] = priceMax
+                print("   Price max: ₹\(priceMax)")
+            }
         }
         
         // Add body to request
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+            if !requestDict.isEmpty {
+                request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+                
+                // Debug log the complete request body
+                if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
+                    print("🔧 Final API request body: \(requestBody)")
+                }
+            } else {
+                // Empty request body for no filters
+                request.httpBody = try JSONSerialization.data(withJSONObject: [:])
+                print("🔧 Empty filter request (no filters applied)")
+            }
         } catch {
-            print("Error encoding pagination request: \(error)")
+            print("❌ Error encoding filter request: \(error)")
             return Fail(error: error).eraseToAnyPublisher()
         }
         
-        print("Fetching page \(page) with limit \(limit) for search ID: \(searchId)")
+        print("🚀 Making API call to poll endpoint")
+        print("   Search ID: \(searchId)")
+        print("   Page: \(page)")
+        print("   Limit: \(limit)")
         
         // Return a publisher that will emit results
         return Future<FlightPollResponse, Error> { promise in
             AF.request(request)
                 .validate()
                 .responseData { [weak self] response in
+                    // Log response details
+                    print("📡 Poll API Response:")
+                    print("   Status Code: \(response.response?.statusCode ?? 0)")
+                    
                     switch response.result {
                     case .success(let data):
                         do {
@@ -532,15 +662,25 @@ class ExploreAPIService {
                             // Update cache status
                             self?.viewModelReference?.isDataCached = pollResponse.cache
                             
-                            print("Successfully fetched page \(page): \(pollResponse.results.count) results, total: \(pollResponse.count), cached: \(pollResponse.cache)")
+                            print("✅ Poll response decoded successfully:")
+                            print("   Results: \(pollResponse.results.count)")
+                            print("   Total: \(pollResponse.count)")
+                            print("   Cached: \(pollResponse.cache)")
+                            print("   Has Next: \(pollResponse.next != nil)")
                             
                             promise(.success(pollResponse))
                         } catch {
-                            print("Pagination decoding error: \(error)")
+                            print("❌ Poll response decoding error: \(error)")
+                            if let responseStr = String(data: data, encoding: .utf8) {
+                                print("   Response data: \(responseStr.prefix(500))")
+                            }
                             promise(.failure(error))
                         }
                     case .failure(let error):
-                        print("Pagination API error: \(error)")
+                        print("❌ Poll API request failed: \(error)")
+                        if let data = response.data, let responseStr = String(data: data, encoding: .utf8) {
+                            print("   Error response: \(responseStr.prefix(500))")
+                        }
                         promise(.failure(error))
                     }
                 }
@@ -1245,7 +1385,26 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
-    
+    func getFilterPreviewCount(filterRequest: FlightFilterRequest) -> AnyPublisher<Int, Error> {
+        guard let searchId = currentSearchId else {
+            return Fail(error: NSError(domain: "ExploreViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "No search ID available"]))
+                .eraseToAnyPublisher()
+        }
+        
+        print("🔍 Getting filter preview count for searchId: \(searchId)")
+        
+        return service.pollFlightResultsPaginated(
+            searchId: searchId,
+            page: 1,
+            limit: 1, // We only need the count, not the actual results
+            filterRequest: filterRequest
+        )
+        .map { response in
+            print("📊 Preview count response: \(response.count) flights")
+            return response.count
+        }
+        .eraseToAnyPublisher()
+    }
     // Add this method inside the ExploreViewModel class
 
     func resetToInitialState(preserveCountries: Bool = true) {
@@ -2071,65 +2230,107 @@ class ExploreViewModel: ObservableObject {
     }
     
     func applyPollFilters(filterRequest: FlightFilterRequest) {
-            guard let searchId = currentSearchId else {
-                print("⚠️ No search ID available for filter application")
-                return
-            }
-            
-            print("🔍 Applying filters via API - searchId: \(searchId)")
-            
-            // Store the filter request
-            self._currentFilterRequest = filterRequest
-            
-            // Reset pagination and cache tracking for filtered results
-            isLoadingDetailedFlights = true
-            detailedFlightError = nil
-            currentPage = 1
-            actualLoadedCount = 0
-            isDataCached = false
-            hasMoreFlights = true
-            isLoadingMoreFlights = false
-            isFirstLoad = true
-            
-            service.pollFlightResultsPaginated(
-                searchId: searchId,
-                page: 1,
-                limit: 8,
-                filterRequest: filterRequest
-            )
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    guard let self = self else { return }
-                    
-                    self.isLoadingDetailedFlights = false
-                    
-                    if case .failure(let error) = completion {
-                        print("❌ Filter application failed: \(error.localizedDescription)")
-                        self.detailedFlightError = error.localizedDescription
-                    }
-                },
-                receiveValue: { [weak self] response in
-                    guard let self = self else { return }
-                    
-                    print("✅ Filters applied: \(response.results.count) flights, total: \(response.count), cached: \(response.cache)")
-                    
-                    // FIXED: Update all tracking variables from API response
-                    self.totalFlightCount = response.count
-                    self.isDataCached = response.cache
-                    self.actualLoadedCount = response.results.count
-                    self.hasMoreFlights = self.shouldContinueLoadingMore()
-                    self.isLoadingDetailedFlights = false
-                    self.detailedFlightError = nil
-                    
-                    // Update results
-                    self.detailedFlightResults = response.results
-                    
-                    print("📊 Filter complete: \(self.actualLoadedCount)/\(self.totalFlightCount), cached: \(self.isDataCached), hasMore: \(self.hasMoreFlights)")
-                }
-            )
-            .store(in: &cancellables)
+        guard let searchId = currentSearchId else {
+            print("⚠️ No search ID available for filter application")
+            return
         }
+        
+        print("🔍 Applying filters via API - searchId: \(searchId)")
+        print("🔍 Filter request: \(filterRequest)")
+        
+        // Store the filter request for future use
+        self._currentFilterRequest = filterRequest
+        
+        // Reset pagination and cache tracking for filtered results
+        isLoadingDetailedFlights = true
+        detailedFlightError = nil
+        currentPage = 1
+        actualLoadedCount = 0
+        isDataCached = false
+        hasMoreFlights = true
+        isLoadingMoreFlights = false
+        isFirstLoad = true
+        
+        // Clear existing results immediately to show loading state
+        detailedFlightResults = []
+        
+        service.pollFlightResultsPaginated(
+            searchId: searchId,
+            page: 1,
+            limit: 20, // Use larger limit for filtered results
+            filterRequest: filterRequest
+        )
+        .receive(on: DispatchQueue.main)
+        .sink(
+            receiveCompletion: { [weak self] completion in
+                guard let self = self else { return }
+                
+                self.isLoadingDetailedFlights = false
+                
+                if case .failure(let error) = completion {
+                    print("❌ Filter application failed: \(error.localizedDescription)")
+                    self.detailedFlightError = error.localizedDescription
+                    
+                    // Don't revert to old results on error, keep empty state
+                    self.detailedFlightResults = []
+                    self.totalFlightCount = 0
+                    self.actualLoadedCount = 0
+                }
+            },
+            receiveValue: { [weak self] response in
+                guard let self = self else { return }
+                
+                print("✅ Filters applied successfully:")
+                print("   - Results count: \(response.results.count)")
+                print("   - Total available: \(response.count)")
+                print("   - Cached: \(response.cache)")
+                
+                // Update all tracking variables from API response
+                self.totalFlightCount = response.count
+                self.isDataCached = response.cache
+                self.actualLoadedCount = response.results.count
+                self.hasMoreFlights = self.shouldContinueLoadingMore()
+                self.isLoadingDetailedFlights = false
+                self.detailedFlightError = nil
+                
+                // Update results - this will trigger UI update
+                self.detailedFlightResults = response.results
+                
+                // Update the last poll response for airline data etc.
+                self.lastPollResponse = response
+                
+                print("📊 Filter application complete:")
+                print("   - Displayed results: \(self.detailedFlightResults.count)")
+                print("   - Total count: \(self.totalFlightCount)")
+                print("   - Has more: \(self.hasMoreFlights)")
+                
+                // Force UI update
+                self.objectWillChange.send()
+            }
+        )
+        .store(in: &cancellables)
+    }
+    
+    func createCompleteFilterRequest() -> FlightFilterRequest? {
+        guard let currentFilter = _currentFilterRequest else { return nil }
+        
+        var filterRequest = FlightFilterRequest()
+        
+        // Copy all non-nil values from current filter
+        filterRequest.durationMax = currentFilter.durationMax
+        filterRequest.stopCountMax = currentFilter.stopCountMax
+        filterRequest.arrivalDepartureRanges = currentFilter.arrivalDepartureRanges
+        filterRequest.iataCodesExclude = currentFilter.iataCodesExclude
+        filterRequest.iataCodesInclude = currentFilter.iataCodesInclude
+        filterRequest.sortBy = currentFilter.sortBy
+        filterRequest.sortOrder = currentFilter.sortOrder
+        filterRequest.agencyExclude = currentFilter.agencyExclude
+        filterRequest.agencyInclude = currentFilter.agencyInclude
+        filterRequest.priceMin = currentFilter.priceMin
+        filterRequest.priceMax = currentFilter.priceMax
+        
+        return filterRequest
+    }
     
     
     func updateChildrenAgesArray(for newCount: Int) {
@@ -7145,7 +7346,6 @@ struct ModifiedDetailedFlightListView: View {
     @State private var showingFlightDetails = false
     
     @State private var showingLoadingSkeletons = true
-    
     @State private var hasReceivedEmptyResults = false
     
     // Auto-retry mechanism
@@ -7186,7 +7386,7 @@ struct ModifiedDetailedFlightListView: View {
                     selectedFilter: selectedFilter,
                     onSelectFilter: { filter in
                         selectedFilter = filter
-                        applyFilterOption(filter)
+                        applyQuickFilterOption(filter)
                     }
                 )
             }
@@ -7194,22 +7394,13 @@ struct ModifiedDetailedFlightListView: View {
             .padding(.vertical, 8)
             .background(Color("scroll"))
             
-
-            // Flight count display - show whenever we have a valid total count
-            // Flight count display - show whenever we have a valid total count
-            if viewModel.totalFlightCount > 0 {
+            // Flight count display - UPDATED: Always show count when available
+            if viewModel.totalFlightCount > 0 || !filteredResults.isEmpty {
                 HStack {
-                    if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
-                        // When we have a count but no visible results after filtering
-                        Text("\(viewModel.totalFlightCount) flights found")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                    } else {
-                        // Standard display showing total available flights
-                        Text("\(viewModel.totalFlightCount) flights found")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                    }
+                    let displayCount = viewModel.totalFlightCount > 0 ? viewModel.totalFlightCount : filteredResults.count
+                    Text("\(displayCount) flights found")
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -7232,7 +7423,7 @@ struct ModifiedDetailedFlightListView: View {
                                 .offset(y: skeletonOffset)
                                 .animation(
                                     .spring(response: 0.6, dampingFraction: 0.8)
-                                    .delay(Double(index) * 0.1), // Staggered appearance
+                                    .delay(Double(index) * 0.1),
                                     value: skeletonOpacity
                                 )
                         }
@@ -7244,14 +7435,14 @@ struct ModifiedDetailedFlightListView: View {
                             skeletonOffset = 0
                         }
                     }
-                }else if case .error(let message) = viewState {
+                } else if case .error(let message) = viewState {
                     VStack {
                         Spacer()
-                        Text(message)
+                        Text("Error: \(message)")
                             .foregroundColor(.red)
                             .padding()
                         Button("Retry") {
-                            initiateSearch()
+                            retrySearch()
                         }
                         .padding()
                         .background(Color.blue)
@@ -7259,16 +7450,24 @@ struct ModifiedDetailedFlightListView: View {
                         .cornerRadius(8)
                         Spacer()
                     }
-                } else if hasReceivedEmptyResults {
-                    // ONLY show this when we've received a confirmed empty result
+                } else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
+                    // Show empty state only when we're certain there are no results
                     VStack {
                         Spacer()
-                        Text("No flights found")
+                        Text("No flights found with current filters")
                             .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                        
+                        Button("Clear Filters") {
+                            clearAllFilters()
+                        }
+                        .padding(.top, 16)
+                        .foregroundColor(.blue)
+                        
                         Spacer()
                     }
                 } else if !filteredResults.isEmpty {
-                    // Only show flight list when we have results
+                    // Show flight list when we have results
                     PaginatedFlightList(
                         viewModel: viewModel,
                         filteredResults: filteredResults,
@@ -7279,12 +7478,11 @@ struct ModifiedDetailedFlightListView: View {
                         }
                     )
                     .onAppear {
-                        // Data is visible, cancel any pending retries
                         cancelRetryTimer()
                         hasReceivedEmptyResults = false
                     }
                 } else {
-                    // Show skeleton loading while waiting for retries
+                    // Show skeleton loading while processing
                     VStack {
                         Spacer()
                         ForEach(0..<4, id: \.self) { _ in
@@ -7295,7 +7493,6 @@ struct ModifiedDetailedFlightListView: View {
                     }
                 }
             }
-
         }
         .sheet(isPresented: $showingFilterSheet) {
             FlightFilterSheet(viewModel: viewModel)
@@ -7310,89 +7507,180 @@ struct ModifiedDetailedFlightListView: View {
             }
         }
         .onAppear {
-            print("View appeared - starting auto data flow")
+            print("📱 ModifiedDetailedFlightListView appeared")
             applyInitialDirectFilterIfNeeded()
             initiateSearch()
-            if !viewModel.detailedFlightResults.isEmpty {
-                    viewModel.debugDuplicateFlightIDs()
-                }
-            // Start the auto-retry timer
             startRetryTimer()
         }
         .onDisappear {
-            // Clean up timer when view disappears
             cancelRetryTimer()
         }
+        // UPDATED: Better handling of detailedFlightResults changes
         .onReceive(viewModel.$detailedFlightResults) { newResults in
-                    print("📱 UI received \(newResults.count) results from viewModel")
-                    
-                    if !newResults.isEmpty {
-                        // We have results
-                        hasReceivedEmptyResults = false
-                        viewModel.debugDuplicateFlightIDs()
-                        updateResults(newResults)
-                        cancelRetryTimer()
-                    } else if !viewModel.isLoadingDetailedFlights && viewModel.isDataCached {
-                        // We've finished loading, data is cached, and results are empty
-                        // This means it's a confirmed empty result
-                        hasReceivedEmptyResults = true
-                    }
-                }
-            
-        
+            print("📱 Received \(newResults.count) results from viewModel")
+            handleNewResults(newResults)
+        }
         .onReceive(viewModel.$isLoadingDetailedFlights) { isLoading in
-                    print("Loading state changed: \(isLoading)")
-                    
-                    if isLoading {
-                        viewState = .loading
-                        return
-                    }
-                    
-                    // Loading finished
-                    if !viewModel.detailedFlightResults.isEmpty {
-                        hasReceivedEmptyResults = false
-                        viewState = .loaded
-                        updateResults(viewModel.detailedFlightResults)
-                        cancelRetryTimer()
-                    } else if let error = viewModel.detailedFlightError, !error.isEmpty {
-                        viewState = .error(error)
-                        startRetryTimer()
-                    } else if viewModel.detailedFlightResults.isEmpty && viewModel.isDataCached {
-                        // Only show empty state when we're certain the API returned empty results
-                        hasReceivedEmptyResults = true
-                    }
-                }
+            print("📱 Loading state changed: \(isLoading)")
+            handleLoadingStateChange(isLoading)
+        }
         .onReceive(viewModel.$selectedFlightId) { newValue in
             showingFlightDetails = newValue != nil
+        }
+        // UPDATED: Listen for total count changes to update UI
+        .onReceive(viewModel.$totalFlightCount) { newCount in
+            print("📱 Total flight count updated: \(newCount)")
+            if newCount > 0 && filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
+                // We have a count but no results yet - this might be from a filter update
+                viewState = .loading
+            }
+        }
+    }
+    
+    // MARK: - Event Handlers
+    
+    private func handleNewResults(_ newResults: [FlightDetailResult]) {
+        if !newResults.isEmpty {
+            hasReceivedEmptyResults = false
+            viewModel.debugDuplicateFlightIDs()
+            updateFilteredResults(newResults)
+            cancelRetryTimer()
+            viewState = .loaded
+        } else if !viewModel.isLoadingDetailedFlights && viewModel.isDataCached {
+            hasReceivedEmptyResults = true
+            filteredResults = []
+            viewState = .empty
+        }
+    }
+    
+    private func handleLoadingStateChange(_ isLoading: Bool) {
+        if isLoading {
+            viewState = .loading
+            return
+        }
+        
+        // Loading finished
+        if !viewModel.detailedFlightResults.isEmpty {
+            hasReceivedEmptyResults = false
+            viewState = .loaded
+            updateFilteredResults(viewModel.detailedFlightResults)
+            cancelRetryTimer()
+        } else if let error = viewModel.detailedFlightError, !error.isEmpty {
+            viewState = .error(error)
+            filteredResults = []
+            startRetryTimer()
+        } else if viewModel.detailedFlightResults.isEmpty && viewModel.isDataCached {
+            hasReceivedEmptyResults = true
+            filteredResults = []
+            viewState = .empty
+        }
+    }
+    
+    // MARK: - Filter Management
+    
+    private func updateFilteredResults(_ results: [FlightDetailResult]) {
+        // UPDATED: Always use the results directly since filtering is done server-side
+        filteredResults = results
+        print("📱 Updated filtered results: \(filteredResults.count) flights")
+    }
+    
+    private func applyQuickFilterOption(_ filter: FlightFilterTabView.FilterOption) {
+        print("🔧 Applying quick filter: \(filter.rawValue)")
+        
+        // Create filter request based on the selected quick filter
+        var filterRequest: FlightFilterRequest? = nil
+        
+        switch filter {
+        case .all:
+            // Clear all filters
+            filterRequest = FlightFilterRequest()
+        case .best:
+            // For "best", don't set any sort parameter
+            filterRequest = FlightFilterRequest()
+        case .cheapest:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "price"
+            filterRequest!.sortOrder = "asc"
+        case .fastest:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "duration"
+            filterRequest!.sortOrder = "asc"
+        case .direct:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.stopCountMax = 0
+        }
+        
+        // Apply the filter if we have one
+        if let request = filterRequest {
+           
+            viewModel.applyPollFilters(filterRequest: request)
+        }
+    }
+    
+    private func clearAllFilters() {
+        print("🧹 Clearing all filters")
+        selectedFilter = .all
+        let emptyFilter = FlightFilterRequest()
+        viewModel.applyPollFilters(filterRequest: emptyFilter)
+    }
+    
+    // MARK: - Search Management
+    
+    private func retrySearch() {
+        print("🔄 Retrying search")
+        viewState = .loading
+        
+        if !viewModel.detailedFlightResults.isEmpty {
+            print("Using \(viewModel.detailedFlightResults.count) existing results")
+            updateFilteredResults(viewModel.detailedFlightResults)
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                viewState = .loaded
+            }
+        } else if viewModel.currentSearchId != nil {
+            print("Re-polling with existing search ID")
+            let filterRequest = viewModel.currentFilterRequest ?? FlightFilterRequest()
+            viewModel.applyPollFilters(filterRequest: filterRequest)
+        } else {
+            print("Starting fresh search")
+            initiateSearch()
+        }
+    }
+    
+    private func initiateSearch() {
+        print("🚀 Initiating search")
+        viewState = .loading
+        
+        if !viewModel.isLoadingDetailedFlights {
+            let filterRequest = FlightFilterRequest()
+            viewModel.applyPollFilters(filterRequest: filterRequest)
+        } else if !viewModel.detailedFlightResults.isEmpty {
+            print("Using existing \(viewModel.detailedFlightResults.count) results")
+            updateFilteredResults(viewModel.detailedFlightResults)
         }
     }
     
     // MARK: - Auto Retry Methods
     
     private func startRetryTimer() {
-        // Cancel any existing timer first
         cancelRetryTimer()
         
-        // Only start timer if we haven't exceeded retry limit
         if retryCount < 5 {
-            print("Starting retry timer (attempt \(retryCount + 1))")
+            print("⏰ Starting retry timer (attempt \(retryCount + 1))")
             retryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { _ in
-                // Check if data is stale (no updates for 3+ seconds)
                 let timeSinceLastData = Date().timeIntervalSince(lastDataTimestamp)
                 let dataIsStale = timeSinceLastData > 3.0
                 
-                // Auto-retry if the data is stale and we're not currently loading
                 if dataIsStale && !viewModel.isLoadingDetailedFlights {
-                    print("Auto-retry triggered (attempt \(retryCount + 1))")
+                    print("🔄 Auto-retry triggered (attempt \(retryCount + 1))")
                     retryCount += 1
-                    forceReloadData()
+                    retrySearch()
                 }
                 
-                // Restart timer for next attempt if needed
                 if retryCount < 5 {
                     startRetryTimer()
                 } else {
-                    print("Max retry attempts reached (\(retryCount))")
+                    print("❌ Max retry attempts reached (\(retryCount))")
                 }
             }
         }
@@ -7409,144 +7697,12 @@ struct ModifiedDetailedFlightListView: View {
         return viewModel.multiCityTrips.count >= 2
     }
     
-    private func forceReloadData() {
-        print("Force reloading data")
-        viewState = .loading
-        
-        // If we have search results but they're not showing, try to use them
-        if !viewModel.detailedFlightResults.isEmpty {
-            print("Using \(viewModel.detailedFlightResults.count) existing results")
-            updateResults(viewModel.detailedFlightResults)
-            
-            // Transition to loaded state
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                viewState = .loaded
-            }
-        } else if viewModel.currentSearchId != nil {
-            // We have a search ID but no results, try polling again
-            print("Re-polling with existing search ID")
-            let filterRequest = viewModel.currentFilterRequest ?? FlightFilterRequest()
-            viewModel.applyPollFilters(filterRequest: filterRequest)
-        } else {
-            // Last resort - start a new search
-            print("Starting fresh search")
-            initiateSearch()
-        }
-    }
-    
-    private func initiateSearch() {
-        print("Initiating search")
-        viewState = .loading
-        
-        // Only trigger a new search if we don't already have one in progress
-        if !viewModel.isLoadingDetailedFlights {
-            let filterRequest = FlightFilterRequest()
-            viewModel.applyPollFilters(filterRequest: filterRequest)
-        } else if !viewModel.detailedFlightResults.isEmpty {
-            // We already have results, just update our filtered results
-            print("Using existing \(viewModel.detailedFlightResults.count) results")
-            updateResults(viewModel.detailedFlightResults)
-        }
-    }
-    
-    private func updateResults(_ results: [FlightDetailResult]) {
-        // Update view state based on results
-        if results.isEmpty {
-            if viewModel.isLoadingDetailedFlights {
-                print("Empty results but still loading")
-                viewState = .loading
-            } else if let error = viewModel.detailedFlightError, !error.isEmpty {
-                print("Error state: \(error)")
-                viewState = .error(error)
-            } else {
-                print("No results found")
-                viewState = .empty
-            }
-        } else {
-            print("Updated with \(results.count) results")
-            viewState = .loaded
-            filteredResults = results
-            applyLocalFilters()
-        }
-    }
-    
     private func applyInitialDirectFilterIfNeeded() {
         if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
-            print("Applying initial direct filter")
+            print("🎯 Applying initial direct filter")
             selectedFilter = .direct
             hasAppliedInitialDirectFilter = true
         }
-    }
-    
-    private func applyFilterOption(_ filter: FlightFilterTabView.FilterOption) {
-        print("Applying filter: \(filter.rawValue)")
-        selectedFilter = filter
-        
-        // First try to apply filter through local filtering
-        applyLocalFilters()
-        
-        // For certain filters that need server-side processing, also make an API call
-        if filter == .direct || filter == .cheapest || filter == .fastest {
-            var filterRequest = FlightFilterRequest()
-            
-            switch filter {
-            case .cheapest:
-                filterRequest.sortBy = "price"
-                filterRequest.sortOrder = "asc"
-            case .fastest:
-                filterRequest.sortBy = "duration"
-                filterRequest.sortOrder = "asc"
-            case .direct:
-                filterRequest.stopCountMax = 0
-            default:
-                break
-            }
-            
-            // Only make API call if we have valid search context
-            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
-                viewState = .loading
-                viewModel.applyPollFilters(filterRequest: filterRequest)
-            }
-        }
-    }
-    
-    private func applyLocalFilters() {
-        let sourceResults = viewModel.detailedFlightResults
-        print("Applying local filters to \(sourceResults.count) results")
-        
-        switch selectedFilter {
-        case .all:
-            filteredResults = sourceResults
-            
-        case .best:
-            // Handle "best" locally since API doesn't support it
-            let bestResults = sourceResults.filter { $0.isBest }
-            let otherResults = sourceResults.filter { !$0.isBest }
-            filteredResults = bestResults + otherResults
-            
-        case .cheapest:
-            let cheapestResults = sourceResults.filter { $0.isCheapest }
-            let otherResults = sourceResults.filter { !$0.isCheapest }.sorted { $0.minPrice < $1.minPrice }
-            filteredResults = cheapestResults + otherResults
-            
-        case .fastest:
-            let fastestResults = sourceResults.filter { $0.isFastest }
-            let otherResults = sourceResults.filter { !$0.isFastest }.sorted { $0.totalDuration < $1.totalDuration }
-            filteredResults = fastestResults + otherResults
-            
-        case .direct:
-            let directFlights = sourceResults.filter { flight in
-                flight.legs.allSatisfy { $0.stopCount == 0 }
-            }.sorted { $0.minPrice < $1.minPrice }
-            
-            let connectingFlights = sourceResults.filter { flight in
-                !flight.legs.allSatisfy { $0.stopCount == 0 }
-            }.sorted { $0.minPrice < $1.minPrice }
-            
-            filteredResults = directFlights + connectingFlights
-        }
-        
-        print("Filter \(selectedFilter.rawValue) applied: \(filteredResults.count) results")
     }
 }
 
@@ -8042,6 +8198,12 @@ struct FlightFilterSheet: View {
     @State private var hasAirlinesChanged = false
     @State private var availableAirlines: [(name: String, code: String, logo: String)] = []
     
+    // Live preview functionality
+    @State private var previewFlightCount: Int = 0
+    @State private var isLoadingPreview = false
+    @State private var lastPreviewRequest: FlightFilterRequest?
+    @State private var previewTimer: Timer?
+    
     enum SortOption: String, CaseIterable {
         case best = "Best"
         case cheapest = "Cheapest"
@@ -8049,34 +8211,6 @@ struct FlightFilterSheet: View {
         case outboundTakeOff = "Outbound Take Off Time"
         case outboundLanding = "Outbound Landing Time"
     }
-    
-    // Map FlightFilterTabView.FilterOption to SortOption
-        private func mapFilterOptionToSortOption(_ option: FlightFilterTabView.FilterOption) -> SortOption {
-            switch option {
-            case .best:
-                return .best
-            case .cheapest:
-                return .cheapest
-            case .fastest:
-                return .fastest
-            default:
-                return .best
-            }
-        }
-        
-        // Map SortOption to FlightFilterTabView.FilterOption
-        private func mapSortOptionToFilterOption(_ option: SortOption) -> FlightFilterTabView.FilterOption {
-            switch option {
-            case .best:
-                return .best
-            case .cheapest:
-                return .cheapest
-            case .fastest:
-                return .fastest
-            default:
-                return .best
-            }
-        }
     
     var body: some View {
         NavigationView {
@@ -8095,12 +8229,12 @@ struct FlightFilterSheet: View {
                                 
                                 Spacer()
                                 
-                                // Checkmark for selected option
                                 Image(systemName: sortOption == option ? "inset.filled.square" : "square")
                                     .foregroundColor(sortOption == option ? .blue : .gray)
                                     .onTapGesture {
                                         sortOption = option
                                         hasSortChanged = true
+                                        triggerPreviewUpdate()
                                     }
                             }
                         }
@@ -8114,64 +8248,34 @@ struct FlightFilterSheet: View {
                             .font(.headline)
                             .foregroundColor(.primary)
                         
-                        // Direct flights
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("Direct flights")
-                                    .foregroundColor(.primary)
-                                Text("From ₹3200")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: directFlightsSelected ? "checkmark.square.fill" : "square")
-                                .foregroundColor(directFlightsSelected ? .blue : .gray)
-                                .onTapGesture {
-                                    directFlightsSelected.toggle()
-                                    hasStopsChanged = true
-                                }
+                        stopFilterRow(
+                            title: "Direct flights",
+                            subtitle: "From ₹3200",
+                            isSelected: directFlightsSelected
+                        ) {
+                            directFlightsSelected.toggle()
+                            hasStopsChanged = true
+                            triggerPreviewUpdate()
                         }
                         
-                        // 1 Stop
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("1 Stop")
-                                    .foregroundColor(.primary)
-                                Text("From ₹2800")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: oneStopSelected ? "checkmark.square.fill" : "square")
-                                .foregroundColor(oneStopSelected ? .blue : .gray)
-                                .onTapGesture {
-                                    oneStopSelected.toggle()
-                                    hasStopsChanged = true
-                                }
+                        stopFilterRow(
+                            title: "1 Stop",
+                            subtitle: "From ₹2800",
+                            isSelected: oneStopSelected
+                        ) {
+                            oneStopSelected.toggle()
+                            hasStopsChanged = true
+                            triggerPreviewUpdate()
                         }
                         
-                        // 2+ Stops
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("2+ Stops")
-                                    .foregroundColor(.primary)
-                                Text("From ₹2400")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: multiStopSelected ? "checkmark.square.fill" : "square")
-                                .foregroundColor(multiStopSelected ? .blue : .gray)
-                                .onTapGesture {
-                                    multiStopSelected.toggle()
-                                    hasStopsChanged = true
-                                }
+                        stopFilterRow(
+                            title: "2+ Stops",
+                            subtitle: "From ₹2400",
+                            isSelected: multiStopSelected
+                        ) {
+                            multiStopSelected.toggle()
+                            hasStopsChanged = true
+                            triggerPreviewUpdate()
                         }
                     }
                     
@@ -8187,6 +8291,7 @@ struct FlightFilterSheet: View {
                         
                         RangeSliderView(values: $priceRange, minValue: 0, maxValue: max(2000, priceRange[1] * 1.2), onChangeHandler: {
                             hasPriceChanged = true
+                            triggerPreviewUpdate()
                         })
                         
                         HStack {
@@ -8219,6 +8324,7 @@ struct FlightFilterSheet: View {
                             
                             RangeSliderView(values: $departureTimes, minValue: 0, maxValue: 24, onChangeHandler: {
                                 hasTimesChanged = true
+                                triggerPreviewUpdate()
                             })
                             
                             HStack {
@@ -8241,6 +8347,7 @@ struct FlightFilterSheet: View {
                             
                             RangeSliderView(values: $arrivalTimes, minValue: 0, maxValue: 24, onChangeHandler: {
                                 hasTimesChanged = true
+                                triggerPreviewUpdate()
                             })
                             
                             HStack {
@@ -8269,6 +8376,7 @@ struct FlightFilterSheet: View {
                         
                         RangeSliderView(values: $durationRange, minValue: 1, maxValue: 8.5, onChangeHandler: {
                             hasDurationChanged = true
+                            triggerPreviewUpdate()
                         })
                         
                         HStack {
@@ -8286,7 +8394,7 @@ struct FlightFilterSheet: View {
                     
                     Divider()
                     
-                    // Airlines section - only show if we have airline data
+                    // Airlines section
                     if !availableAirlines.isEmpty {
                         airlinesSection
                     }
@@ -8296,7 +8404,6 @@ struct FlightFilterSheet: View {
             .navigationTitle("Filter")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // Close button
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
                         dismiss()
@@ -8306,7 +8413,6 @@ struct FlightFilterSheet: View {
                     }
                 }
                 
-                // Clear all button
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Clear all") {
                         resetFilters()
@@ -8314,35 +8420,82 @@ struct FlightFilterSheet: View {
                     .foregroundColor(.blue)
                 }
             }
-            // Apply button at the bottom
             .safeAreaInset(edge: .bottom) {
-                Button(action: {
-                    applyFilters()
-                }) {
-                    Text("Apply Filters")
-                        .fontWeight(.medium)
+                // Enhanced Apply button with live count
+                VStack(spacing: 12) {
+                    // Live preview count
+                    if isLoadingPreview {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Checking flights...")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.horizontal)
+                    } else if previewFlightCount > 0 {
+                        Text("\(previewFlightCount) flights found with current filters")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal)
+                    }
+                    
+                    Button(action: {
+                        applyFilters()
+                    }) {
+                        HStack {
+                            Text("Apply Filters")
+                                .fontWeight(.medium)
+                            
+                            if previewFlightCount > 0 && !isLoadingPreview {
+                                Text("(\(previewFlightCount))")
+                                    .fontWeight(.medium)
+                            }
+                        }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.orange)
                         .cornerRadius(8)
                         .padding()
+                    }
                 }
                 .background(Color(.systemBackground))
             }
         }
         .onAppear {
-            // Load airlines from the viewModel's current results if available
             populateAirlinesFromResults()
-            
-            // Set initial price range based on min/max prices from results if available
             initializePriceRange()
-            
-            // Load saved filter state from the viewModel
             loadFilterStateFromViewModel()
-        }    }
+            // Set initial preview count
+            previewFlightCount = viewModel.totalFlightCount
+        }
+        .onDisappear {
+            // Cancel any pending preview requests
+            previewTimer?.invalidate()
+        }
+    }
     
-    // MARK: - UI Sections
+    // MARK: - UI Helper Views
+    
+    @ViewBuilder
+    private func stopFilterRow(title: String, subtitle: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(title)
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+            
+            Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                .foregroundColor(isSelected ? .blue : .gray)
+                .onTapGesture(perform: action)
+        }
+    }
     
     private var airlinesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -8355,6 +8508,7 @@ struct FlightFilterSheet: View {
                 Button("Clear all") {
                     selectedAirlines.removeAll()
                     hasAirlinesChanged = true
+                    triggerPreviewUpdate()
                 }
                 .foregroundColor(.blue)
                 .font(.subheadline)
@@ -8362,7 +8516,6 @@ struct FlightFilterSheet: View {
             
             ForEach(availableAirlines, id: \.code) { airline in
                 HStack {
-                    // Airline logo using AsyncImage
                     if !airline.logo.isEmpty {
                         AsyncImage(url: URL(string: airline.logo)) { phase in
                             if let image = phase.image {
@@ -8371,29 +8524,11 @@ struct FlightFilterSheet: View {
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 24, height: 24)
                             } else {
-                                // Placeholder for loading or failed loads
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 24, height: 24)
-                                    
-                                    Text(String(airline.code.prefix(1)))
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                fallbackAirlineLogo(code: airline.code)
                             }
                         }
                     } else {
-                        // Fallback if no logo URL
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: 24, height: 24)
-                            
-                            Text(String(airline.code.prefix(1)))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
+                        fallbackAirlineLogo(code: airline.code)
                     }
                     
                     Text(airline.name)
@@ -8401,7 +8536,6 @@ struct FlightFilterSheet: View {
                     
                     Spacer()
                     
-                    // Checkmark for selected airlines
                     Image(systemName: selectedAirlines.contains(airline.code) ? "checkmark.square.fill" : "square")
                         .foregroundColor(selectedAirlines.contains(airline.code) ? .blue : .gray)
                         .onTapGesture {
@@ -8411,13 +8545,147 @@ struct FlightFilterSheet: View {
                                 selectedAirlines.insert(airline.code)
                             }
                             hasAirlinesChanged = true
+                            triggerPreviewUpdate()
                         }
                 }
             }
         }
     }
     
-    // MARK: - Helper Methods
+    @ViewBuilder
+    private func fallbackAirlineLogo(code: String) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.gray.opacity(0.2))
+                .frame(width: 24, height: 24)
+            
+            Text(String(code.prefix(1)))
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+    }
+    
+    // MARK: - Live Preview Methods
+    
+    private func triggerPreviewUpdate() {
+        // Cancel existing timer
+        previewTimer?.invalidate()
+        
+        // Only proceed if we have a search ID
+        guard viewModel.currentSearchId != nil else {
+            print("⚠️ No search ID available for preview update")
+            return
+        }
+        
+        // Start new timer with debounce
+        previewTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { _ in
+            updatePreviewCount()
+        }
+    }
+    
+    private func updatePreviewCount() {
+        let filterRequest = createCurrentFilterRequest()
+        
+        // Don't make API call if request hasn't changed
+        if let lastRequest = lastPreviewRequest,
+           areFilterRequestsEqual(lastRequest, filterRequest) {
+            return
+        }
+        
+        lastPreviewRequest = filterRequest
+        isLoadingPreview = true
+        
+        // Use the public method from viewModel
+        viewModel.getFilterPreviewCount(filterRequest: filterRequest)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    self.isLoadingPreview = false
+                    if case .failure(let error) = completion {
+                        print("Preview update error: \(error)")
+                    }
+                },
+                receiveValue: { count in
+                    self.previewFlightCount = count
+                    self.isLoadingPreview = false
+                }
+            )
+            .store(in: &viewModel.cancellables)
+    }
+    
+    private func createCurrentFilterRequest() -> FlightFilterRequest {
+        var filterRequest = FlightFilterRequest()
+        
+        // Add sort options if changed
+        if hasSortChanged {
+            switch sortOption {
+            case .best:
+                filterRequest.sortBy = nil
+            case .cheapest:
+                filterRequest.sortBy = "price"
+                filterRequest.sortOrder = "asc"
+            case .fastest:
+                filterRequest.sortBy = "duration"
+                filterRequest.sortOrder = "asc"
+            case .outboundTakeOff:
+                filterRequest.sortBy = "departure"
+            case .outboundLanding:
+                filterRequest.sortBy = "arrival"
+            }
+        }
+        
+        // Add stop count if changed
+        if hasStopsChanged {
+            if directFlightsSelected && !oneStopSelected && !multiStopSelected {
+                filterRequest.stopCountMax = 0
+            } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
+                filterRequest.stopCountMax = 1
+            }
+        }
+        
+        // Add price range if changed
+        if hasPriceChanged {
+            filterRequest.priceMin = Int(priceRange[0])
+            filterRequest.priceMax = Int(priceRange[1])
+        }
+        
+        // Add duration if changed
+        if hasDurationChanged {
+            filterRequest.durationMax = Int(durationRange[1] * 60)
+        }
+        
+        // Add time ranges if changed
+        if hasTimesChanged {
+            let departureMin = Int(departureTimes[0] * 3600)
+            let departureMax = Int(departureTimes[1] * 3600)
+            let arrivalMin = Int(arrivalTimes[0] * 3600)
+            let arrivalMax = Int(arrivalTimes[1] * 3600)
+            
+            let timeRange = ArrivalDepartureRange(
+                arrival: TimeRange(min: arrivalMin, max: arrivalMax),
+                departure: TimeRange(min: departureMin, max: departureMax)
+            )
+            filterRequest.arrivalDepartureRanges = [timeRange]
+        }
+        
+        // Add airline filters if changed
+        if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
+            filterRequest.iataCodesInclude = Array(selectedAirlines)
+        }
+        
+        return filterRequest
+    }
+    
+    private func areFilterRequestsEqual(_ request1: FlightFilterRequest, _ request2: FlightFilterRequest) -> Bool {
+        return request1.sortBy == request2.sortBy &&
+               request1.stopCountMax == request2.stopCountMax &&
+               request1.priceMin == request2.priceMin &&
+               request1.priceMax == request2.priceMax &&
+               request1.durationMax == request2.durationMax &&
+               request1.iataCodesInclude == request2.iataCodesInclude
+    }
+    
+    // MARK: - Existing Helper Methods (unchanged)
     
     private func formatTime(hours: Int) -> String {
         let hour = hours % 12 == 0 ? 12 : hours % 12
@@ -8434,14 +8702,13 @@ struct FlightFilterSheet: View {
     private func formatPrice(_ price: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
-        formatter.currencySymbol = "₹" // Update based on user's locale or app settings
+        formatter.currencySymbol = "₹"
         formatter.maximumFractionDigits = 0
         
         return formatter.string(from: NSNumber(value: price)) ?? "₹\(Int(price))"
     }
     
     private func resetFilters() {
-        // Reset all filters to default values
         sortOption = .best
         hasSortChanged = false
         
@@ -8460,19 +8727,18 @@ struct FlightFilterSheet: View {
         selectedAirlines.removeAll()
         hasAirlinesChanged = false
         
-        // Reset price range based on available flights
         initializePriceRange()
         hasPriceChanged = false
+        
+        triggerPreviewUpdate()
     }
     
     private func populateAirlinesFromResults() {
-        // Get unique airlines from current flight results
         if let pollResponse = viewModel.lastPollResponse {
             self.availableAirlines = pollResponse.airlines.map { airline in
                 return (name: airline.airlineName, code: airline.airlineIata, logo: airline.airlineLogo)
             }
             
-            // If airlines were previously selected, filter to only include airlines that exist in the response
             if !selectedAirlines.isEmpty {
                 let availableCodes = Set(availableAirlines.map { $0.code })
                 selectedAirlines = selectedAirlines.intersection(availableCodes)
@@ -8481,85 +8747,23 @@ struct FlightFilterSheet: View {
     }
     
     private func initializePriceRange() {
-        // Set price range based on min/max price in results
         if let pollResponse = viewModel.lastPollResponse {
             let minPrice = pollResponse.minPrice
             let maxPrice = pollResponse.maxPrice
             
-            // Only update if we have valid prices
             if minPrice > 0 && maxPrice >= minPrice {
                 priceRange = [minPrice, maxPrice]
             }
         }
     }
     
-    // Modified to only include filters that user has interacted with
     private func applyFilters() {
-        // Create an empty filter request
-        var filterRequest = FlightFilterRequest()
+        let filterRequest = createCurrentFilterRequest()
         
-        // Only add sort options if changed by user
-        if hasSortChanged {
-            switch sortOption {
-            case .best:
-                // Don't set sortBy for "best" - it's not supported by API
-                filterRequest.sortBy = nil
-            case .cheapest:
-                filterRequest.sortBy = "price"
-                filterRequest.sortOrder = "asc"
-            case .fastest:
-                filterRequest.sortBy = "duration"
-                filterRequest.sortOrder = "asc"
-            case .outboundTakeOff:
-                filterRequest.sortBy = "departure"
-            case .outboundLanding:
-                filterRequest.sortBy = "arrival"
-            }
-        }
-        
-        // Only add stop count if changed by user
-        if hasStopsChanged {
-            if directFlightsSelected && !oneStopSelected && !multiStopSelected {
-                filterRequest.stopCountMax = 0
-            } else if (directFlightsSelected && oneStopSelected) || (!directFlightsSelected && oneStopSelected && !multiStopSelected) {
-                filterRequest.stopCountMax = 1
-            }
-        }
-        
-        // Only add price range if changed by user
-        if hasPriceChanged {
-            filterRequest.priceMin = Int(priceRange[0])
-            filterRequest.priceMax = Int(priceRange[1])
-        }
-        
-        // Only add duration if changed by user
-        if hasDurationChanged {
-            filterRequest.durationMax = Int(durationRange[1] * 60)
-        }
-        
-        // Only add time ranges if changed by user
-        if hasTimesChanged {
-            let departureMin = Int(departureTimes[0] * 3600) // Convert to seconds
-            let departureMax = Int(departureTimes[1] * 3600)
-            let arrivalMin = Int(arrivalTimes[0] * 3600)
-            let arrivalMax = Int(arrivalTimes[1] * 3600)
-            
-            let timeRange = ArrivalDepartureRange(
-                arrival: TimeRange(min: arrivalMin, max: arrivalMax),
-                departure: TimeRange(min: departureMin, max: departureMax)
-            )
-            filterRequest.arrivalDepartureRanges = [timeRange]
-        }
-        
-        // Only add airline filters if changed by user
-        if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
-            filterRequest.iataCodesInclude = Array(selectedAirlines)
-        }
-        
-        // SAVE FILTER STATE TO VIEW MODEL
+        // Save filter state to view model
         saveFilterStateToViewModel()
         
-        // Apply the filter through the API
+        // Apply the filter through the API - this will update the main results
         viewModel.applyPollFilters(filterRequest: filterRequest)
         
         // Dismiss the sheet
@@ -8567,63 +8771,57 @@ struct FlightFilterSheet: View {
     }
     
     private func saveFilterStateToViewModel() {
-            viewModel.filterSheetState.sortOption = mapSortOptionToFilterOption(sortOption)
-            viewModel.filterSheetState.directFlightsSelected = directFlightsSelected
-            viewModel.filterSheetState.oneStopSelected = oneStopSelected
-            viewModel.filterSheetState.multiStopSelected = multiStopSelected
-            viewModel.filterSheetState.priceRange = priceRange
-            viewModel.filterSheetState.departureTimes = departureTimes
-            viewModel.filterSheetState.arrivalTimes = arrivalTimes
-            viewModel.filterSheetState.durationRange = durationRange
-            viewModel.filterSheetState.selectedAirlines = selectedAirlines
-        }
-        
-        private func loadFilterStateFromViewModel() {
-            sortOption = mapFilterOptionToSortOption(viewModel.filterSheetState.sortOption)
-            directFlightsSelected = viewModel.filterSheetState.directFlightsSelected
-            oneStopSelected = viewModel.filterSheetState.oneStopSelected
-            multiStopSelected = viewModel.filterSheetState.multiStopSelected
-            
-            // Only load price range if it's been previously set
-            if viewModel.filterSheetState.priceRange != [0.0, 2000.0] {
-                priceRange = viewModel.filterSheetState.priceRange
-            }
-            
-            departureTimes = viewModel.filterSheetState.departureTimes
-            arrivalTimes = viewModel.filterSheetState.arrivalTimes
-            durationRange = viewModel.filterSheetState.durationRange
-            selectedAirlines = viewModel.filterSheetState.selectedAirlines
-        }
+        viewModel.filterSheetState.sortOption = mapSortOptionToFilterOption(sortOption)
+        viewModel.filterSheetState.directFlightsSelected = directFlightsSelected
+        viewModel.filterSheetState.oneStopSelected = oneStopSelected
+        viewModel.filterSheetState.multiStopSelected = multiStopSelected
+        viewModel.filterSheetState.priceRange = priceRange
+        viewModel.filterSheetState.departureTimes = departureTimes
+        viewModel.filterSheetState.arrivalTimes = arrivalTimes
+        viewModel.filterSheetState.durationRange = durationRange
+        viewModel.filterSheetState.selectedAirlines = selectedAirlines
+    }
     
+    private func loadFilterStateFromViewModel() {
+        sortOption = mapFilterOptionToSortOption(viewModel.filterSheetState.sortOption)
+        directFlightsSelected = viewModel.filterSheetState.directFlightsSelected
+        oneStopSelected = viewModel.filterSheetState.oneStopSelected
+        multiStopSelected = viewModel.filterSheetState.multiStopSelected
+        
+        if viewModel.filterSheetState.priceRange != [0.0, 2000.0] {
+            priceRange = viewModel.filterSheetState.priceRange
+        }
+        
+        departureTimes = viewModel.filterSheetState.departureTimes
+        arrivalTimes = viewModel.filterSheetState.arrivalTimes
+        durationRange = viewModel.filterSheetState.durationRange
+        selectedAirlines = viewModel.filterSheetState.selectedAirlines
+    }
     
-    // Helper method to print applied filters for debugging
-    private func printAppliedFilters(_ request: FlightFilterRequest) {
-        var filterDescription = "Applied filters: "
-        
-        if let sortBy = request.sortBy {
-            filterDescription += "Sort by \(sortBy) "
-            if let sortOrder = request.sortOrder {
-                filterDescription += "(\(sortOrder)), "
-            }
+    private func mapFilterOptionToSortOption(_ option: FlightFilterTabView.FilterOption) -> SortOption {
+        switch option {
+        case .best:
+            return .best
+        case .cheapest:
+            return .cheapest
+        case .fastest:
+            return .fastest
+        default:
+            return .best
         }
-        
-        if let stopCountMax = request.stopCountMax {
-            filterDescription += "Max stops: \(stopCountMax), "
+    }
+    
+    private func mapSortOptionToFilterOption(_ option: SortOption) -> FlightFilterTabView.FilterOption {
+        switch option {
+        case .best:
+            return .best
+        case .cheapest:
+            return .cheapest
+        case .fastest:
+            return .fastest
+        default:
+            return .best
         }
-        
-        if let priceMin = request.priceMin, let priceMax = request.priceMax {
-            filterDescription += "Price: \(priceMin)-\(priceMax), "
-        }
-        
-        if let durationMax = request.durationMax {
-            filterDescription += "Max duration: \(durationMax/60)h \(durationMax%60)m, "
-        }
-        
-        if let airlines = request.iataCodesInclude, !airlines.isEmpty {
-            filterDescription += "Airlines: \(airlines.joined(separator: ", ")), "
-        }
-        
-        print(filterDescription)
     }
 }
 
