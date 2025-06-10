@@ -6125,7 +6125,7 @@ struct ModernFlightCard: View {
                 .padding(.bottom) // Reduced from default to 6
             
             HStack {
-                Text(OutboundAirline)
+                Text(airlineDisplayText())
                     .font(.system(size: 14))
                     .foregroundColor(.gray)
                 
@@ -6147,6 +6147,22 @@ struct ModernFlightCard: View {
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+    }
+    
+    private func airlineDisplayText() -> String {
+        if !isRoundTrip {
+            // One-way flight, just show outbound airline
+            return OutboundAirline
+        } else {
+            // Round trip flight
+            if OutboundAirline == ReturnAirline {
+                // Same airline for both flights
+                return OutboundAirline
+            } else {
+                // Different airlines
+                return "\(OutboundAirline) & 1 other"
+            }
+        }
     }
 }
 
