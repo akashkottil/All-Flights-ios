@@ -8506,13 +8506,12 @@ struct FlightFilterSheet: View {
                             Text("Apply Filters")
                                 .fontWeight(.medium)
                             if isLoadingPreview {
-                                HStack {
+
                                     ProgressView()
                                         .scaleEffect(0.8)
-                                    Text("(Checking flights...)")
-                                        .font(.subheadline)
+
                                         .foregroundColor(.white)
-                                }
+
                             }
                             else if previewFlightCount > 0 && !isLoadingPreview {
                                 Text("(\(previewFlightCount))")
