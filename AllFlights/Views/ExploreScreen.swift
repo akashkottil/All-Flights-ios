@@ -8351,6 +8351,7 @@ struct FlightFilterSheet: View {
                     
                     Divider()
                     
+                   
                     // Price range section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Price Range")
@@ -8361,8 +8362,8 @@ struct FlightFilterSheet: View {
                         
                         RangeSliderView(
                             values: $priceRange,
-                            minValue: 0,
-                            maxValue: calculateDynamicMaxPrice(),
+                            minValue: getApiMinPrice(),
+                            maxValue: getApiMaxPrice(),
                             onChangeHandler: {
                                 hasPriceChanged = true
                                 triggerPreviewUpdate()
@@ -8370,13 +8371,13 @@ struct FlightFilterSheet: View {
                         )
                         
                         HStack {
-                            Text(formatPrice(priceRange[0]))
+                            Text(formatPrice(getApiMinPrice()))
                                 .font(.caption)
                                 .foregroundColor(.gray)
                             
                             Spacer()
                             
-                            Text(formatPrice(priceRange[1]))
+                            Text(formatPrice(getApiMaxPrice()))
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -8497,23 +8498,6 @@ struct FlightFilterSheet: View {
             }
             .safeAreaInset(edge: .bottom) {
                 // Enhanced Apply button with live count
-                VStack(spacing: 12) {
-                    // Live preview count
-                    if isLoadingPreview {
-                        HStack {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Checking flights...")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
-                        .padding(.horizontal)
-                    } else if previewFlightCount > 0 {
-                        Text("\(previewFlightCount) flights found with current filters")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                            .padding(.horizontal)
-                    }
                     
                     Button(action: {
                         applyFilters()
@@ -8521,8 +8505,16 @@ struct FlightFilterSheet: View {
                         HStack {
                             Text("Apply Filters")
                                 .fontWeight(.medium)
-                            
-                            if previewFlightCount > 0 && !isLoadingPreview {
+                            if isLoadingPreview {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("(Checking flights...)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            else if previewFlightCount > 0 && !isLoadingPreview {
                                 Text("(\(previewFlightCount))")
                                     .fontWeight(.medium)
                             }
@@ -8534,8 +8526,7 @@ struct FlightFilterSheet: View {
                         .cornerRadius(8)
                         .padding()
                     }
-                }
-                .background(Color(.systemBackground))
+              
             }
         }
         .onAppear {
@@ -8641,6 +8632,24 @@ struct FlightFilterSheet: View {
     }
     
     // MARK: - Live Preview Methods
+    
+    // MARK: - Price Range Helper Methods
+
+    private func getApiMinPrice() -> Double {
+        if let pollResponse = viewModel.lastPollResponse {
+            return pollResponse.minPrice
+        } else {
+            return 0.0 // Fallback
+        }
+    }
+
+    private func getApiMaxPrice() -> Double {
+        if let pollResponse = viewModel.lastPollResponse {
+            return pollResponse.maxPrice
+        } else {
+            return 5000.0 // Fallback
+        }
+    }
     
     private func triggerPreviewUpdate() {
         // Cancel existing timer
@@ -8796,19 +8805,7 @@ struct FlightFilterSheet: View {
     
     // MARK: - Helper Methods
     
-    private func calculateDynamicMaxPrice() -> Double {
-        // Get the max price from the API response if available
-        if let pollResponse = viewModel.lastPollResponse {
-            let apiMaxPrice = pollResponse.maxPrice
-            // Use the larger of: API max price * 1.5 or current slider max + 50%
-            let dynamicMax = max(apiMaxPrice * 1.5, priceRange[1] * 1.5)
-            // Ensure minimum of ₹5000 for reasonable range
-            return max(5000, dynamicMax)
-        } else {
-            // Fallback: use current range + 50% or minimum ₹5000
-            return max(5000, priceRange[1] * 1.5)
-        }
-    }
+  
     
     private func formatTime(hours: Int) -> String {
         let hour = hours % 12 == 0 ? 12 : hours % 12
@@ -8877,17 +8874,15 @@ struct FlightFilterSheet: View {
             
             // Only update if we have valid prices and haven't been modified by user
             if minPrice > 0 && maxPrice >= minPrice && !hasPriceChanged {
-                // Set initial range with some padding
-                let paddedMin = max(0, minPrice * 0.9) // 10% below min
-                let paddedMax = maxPrice * 1.1 // 10% above max
-                priceRange = [paddedMin, paddedMax]
-                print("📊 Initialized price range: ₹\(Int(paddedMin)) - ₹\(Int(paddedMax))")
+                // Set initial range to full API range
+                priceRange = [minPrice, maxPrice]
+                print("📊 Initialized price range from API: ₹\(Int(minPrice)) - ₹\(Int(maxPrice))")
             }
         } else {
-            // Fallback default range
+            // Fallback default range only if no API data
             if !hasPriceChanged {
-                priceRange = [0.0, 3000.0]
-                print("📊 Using fallback price range: ₹0 - ₹3000")
+                priceRange = [0.0, 5000.0]
+                print("📊 Using fallback price range: ₹0 - ₹5000")
             }
         }
     }
