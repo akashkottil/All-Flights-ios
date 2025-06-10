@@ -4340,42 +4340,32 @@ struct APIDestinationCard: View {
         }) {
             HStack(spacing: 12) {
                 // OPTIMIZED AsyncImage with better caching and immediate placeholders
-                AsyncImage(url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 80, height: 80)
-                            .clipped()
-                            .cornerRadius(8)
-                            .transition(.opacity.animation(.easeIn(duration: 0.2))) // Smooth transition
-                    
-                    case .failure(_), .empty:
-                        // Immediate placeholder - no loading delay
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.15))
-                                .frame(width: 80, height: 80)
-                            
-                            VStack(spacing: 3) {
-                                Image(systemName: viewModel.showingCities ? "building.2" : "globe")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.gray.opacity(0.7))
-                                
-                                Text(String(item.location.name.prefix(3)).uppercased())
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.gray.opacity(0.8))
-                            }
-                        }
-                    
-                    @unknown default:
-                        Color.gray.opacity(0.15)
-                            .frame(width: 80, height: 80)
-                            .cornerRadius(8)
-                    }
-                }
-                
+                CachedAsyncImage(
+                                    url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")
+                                ) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 80, height: 80)
+                                        .clipped()
+                                        .cornerRadius(8)
+                                                                        } placeholder: {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.gray.opacity(0.15))
+                                            .frame(width: 80, height: 80)
+                                        
+                                        VStack(spacing: 3) {
+                                            Image(systemName: viewModel.showingCities ? "building.2" : "globe")
+                                                .font(.system(size: 22))
+                                                .foregroundColor(.gray.opacity(0.7))
+                                            
+                                            Text(String(item.location.name.prefix(3)).uppercased())
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .foregroundColor(.gray.opacity(0.8))
+                                        }
+                                    }
+                                }
                 // Content text
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Flights from")
@@ -4411,6 +4401,215 @@ struct APIDestinationCard: View {
                 isPressed = pressing
             }
         }, perform: {})
+    }
+}
+
+class ImageCacheManager: ObservableObject {
+    static let shared = ImageCacheManager()
+    
+    private let memoryCache = NSCache<NSString, UIImage>()
+    private let fileManager = FileManager.default
+    private let cacheDirectory: URL
+    
+    private init() {
+        // Configure memory cache
+        memoryCache.countLimit = 100 // Max 100 images in memory
+        memoryCache.totalCostLimit = 50 * 1024 * 1024 // 50MB memory limit
+        
+        // Set up disk cache directory
+        let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        cacheDirectory = cachesDirectory.appendingPathComponent("ImageCache")
+        
+        // Create cache directory if it doesn't exist
+        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        
+        // Clean old cache on startup
+        cleanOldCache()
+    }
+    
+    private func cacheKey(for url: URL) -> String {
+        return url.absoluteString.data(using: .utf8)?.base64EncodedString() ?? url.absoluteString
+    }
+    
+    private func diskCacheURL(for key: String) -> URL {
+        return cacheDirectory.appendingPathComponent(key)
+    }
+    
+    // MARK: - Cache Operations
+    
+    func cachedImage(for url: URL) -> UIImage? {
+        let key = cacheKey(for: url)
+        
+        // Check memory cache first
+        if let memoryImage = memoryCache.object(forKey: NSString(string: key)) {
+            return memoryImage
+        }
+        
+        // Check disk cache
+        let diskURL = diskCacheURL(for: key)
+        if fileManager.fileExists(atPath: diskURL.path),
+           let data = try? Data(contentsOf: diskURL),
+           let image = UIImage(data: data) {
+            
+            // Store in memory cache for next time
+            memoryCache.setObject(image, forKey: NSString(string: key))
+            return image
+        }
+        
+        return nil
+    }
+    
+    func cache(image: UIImage, for url: URL) {
+        let key = cacheKey(for: url)
+        
+        // Store in memory cache
+        memoryCache.setObject(image, forKey: NSString(string: key))
+        
+        // Store in disk cache
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            guard let self = self,
+                  let data = image.jpegData(compressionQuality: 0.8) else { return }
+            
+            let diskURL = self.diskCacheURL(for: key)
+            try? data.write(to: diskURL)
+        }
+    }
+    
+    func loadImage(from url: URL) -> AnyPublisher<UIImage, Error> {
+        // Check cache first
+        if let cachedImage = cachedImage(for: url) {
+            return Just(cachedImage)
+                .setFailureType(to: Error.self)
+                .eraseToAnyPublisher()
+        }
+        
+        // Download and cache
+        return URLSession.shared.dataTaskPublisher(for: url)
+            .map(\.data)
+            .tryMap { data -> UIImage in
+                guard let image = UIImage(data: data) else {
+                    throw URLError(.badServerResponse)
+                }
+                return image
+            }
+            .handleEvents(receiveOutput: { [weak self] image in
+                self?.cache(image: image, for: url)
+            })
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+    
+    // MARK: - Cache Management
+    
+    private func cleanOldCache() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            
+            let oneWeekAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+            
+            do {
+                let contents = try self.fileManager.contentsOfDirectory(at: self.cacheDirectory, includingPropertiesForKeys: [.contentModificationDateKey])
+                
+                for fileURL in contents {
+                    let attributes = try self.fileManager.attributesOfItem(atPath: fileURL.path)
+                    if let modificationDate = attributes[.modificationDate] as? Date,
+                       modificationDate < oneWeekAgo {
+                        try self.fileManager.removeItem(at: fileURL)
+                    }
+                }
+            } catch {
+                print("Error cleaning cache: \(error)")
+            }
+        }
+    }
+    
+    func clearCache() {
+        memoryCache.removeAllObjects()
+        
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            try? self.fileManager.removeItem(at: self.cacheDirectory)
+            try? self.fileManager.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
+        }
+    }
+}
+
+// MARK: - Cached AsyncImage View
+struct CachedAsyncImage<Content: View, Placeholder: View>: View {
+    let url: URL?
+    let content: (Image) -> Content
+    let placeholder: () -> Placeholder
+    
+    @StateObject private var cacheManager = ImageCacheManager.shared
+    @State private var image: UIImage?
+    @State private var isLoading = false
+    @State private var cancellable: AnyCancellable?
+    
+    init(
+        url: URL?,
+        @ViewBuilder content: @escaping (Image) -> Content,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.url = url
+        self.content = content
+        self.placeholder = placeholder
+    }
+    
+    var body: some View {
+        Group {
+            if let uiImage = image {
+                content(Image(uiImage: uiImage))
+            } else {
+                placeholder()
+                    .onAppear {
+                        loadImage()
+                    }
+            }
+        }
+    }
+    
+    private func loadImage() {
+        guard let url = url, !isLoading else { return }
+        
+        // Check if already cached
+        if let cachedImage = cacheManager.cachedImage(for: url) {
+            self.image = cachedImage
+            return
+        }
+        
+        isLoading = true
+        
+        cancellable = cacheManager.loadImage(from: url)
+            .sink(
+                receiveCompletion: { _ in
+                    isLoading = false
+                },
+                receiveValue: { downloadedImage in
+                    image = downloadedImage
+                    isLoading = false
+                }
+            )
+    }
+}
+
+// MARK: - Convenience Initializers
+extension CachedAsyncImage where Content == Image, Placeholder == Color {
+    init(url: URL?) {
+        self.init(
+            url: url,
+            content: { image in image },
+            placeholder: { Color.gray.opacity(0.15) }
+        )
+    }
+}
+
+extension CachedAsyncImage where Placeholder == Color {
+    init(url: URL?, @ViewBuilder content: @escaping (Image) -> Content) {
+        self.init(
+            url: url,
+            content: content,
+            placeholder: { Color.gray.opacity(0.15) }
+        )
     }
 }
 
