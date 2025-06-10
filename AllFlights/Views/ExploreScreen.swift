@@ -5929,9 +5929,14 @@ struct DetailedFlightCardWrapper: View {
                         returnStops: returnLeg!.stopCount,
                         
                         // Airline and price - Updated with airline details
-                        airline: outboundSegment.airlineName,
-                        airlineCode: outboundSegment.airlineIata,
-                        airlineLogo: outboundSegment.airlineLogo,
+                        OutboundAirline: outboundSegment.airlineName,
+                        OutboundAirlineCode: outboundSegment.airlineIata,
+                        OutboundAirlineLogo: outboundSegment.airlineLogo,
+                        
+                        ReturnAirline: returnSegment!.airlineName,
+                        ReturnAirlineCode: returnSegment!.airlineIata,
+                        ReturnAirlineLogo: returnSegment!.airlineLogo,
+                        
                         price: "₹\(Int(result.minPrice))",
                         priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
                         
@@ -5957,9 +5962,14 @@ struct DetailedFlightCardWrapper: View {
                         outboundStops: outboundLeg.stopCount,
                         
                         // Airline and price - Updated with airline details
-                        airline: outboundSegment.airlineName,
-                        airlineCode: outboundSegment.airlineIata,
-                        airlineLogo: outboundSegment.airlineLogo,
+                        OutboundAirline: outboundSegment.airlineName,
+                        OutboundAirlineCode: outboundSegment.airlineIata,
+                        OutboundAirlineLogo: outboundSegment.airlineLogo,
+                        
+                        ReturnAirline: returnSegment!.airlineName,
+                        ReturnAirlineCode: returnSegment!.airlineIata,
+                        ReturnAirlineLogo: returnSegment!.airlineLogo,
+                        
                         price: "₹\(Int(result.minPrice))",
                         priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
                         
@@ -6027,9 +6037,14 @@ struct ModernFlightCard: View {
     var returnStops: Int? = nil
     
     // Airline and price
-    let airline: String
-    let airlineCode: String
-    let airlineLogo: String
+    let OutboundAirline: String
+    let OutboundAirlineCode: String
+    let OutboundAirlineLogo: String
+    
+    let ReturnAirline: String
+    let ReturnAirlineCode: String
+    let ReturnAirlineLogo: String
+    
     let price: String
     let priceDetail: String
     
@@ -6067,9 +6082,9 @@ struct ModernFlightCard: View {
                 duration: outboundDuration,
                 isDirect: isOutboundDirect,
                 stops: outboundStops,
-                airlineName: airline,
-                airlineCode: airlineCode,
-                airlineLogo: airlineLogo
+                airlineName: OutboundAirline,
+                airlineCode: OutboundAirlineCode,
+                airlineLogo: OutboundAirlineLogo
             )
             .padding(.horizontal, 12) // Reduced from 16 to 12
             .padding(.vertical, 8) // Reduced from default to 8
@@ -6096,9 +6111,9 @@ struct ModernFlightCard: View {
                     duration: retDuration,
                     isDirect: retDirect,
                     stops: retStops,
-                    airlineName: airline,
-                    airlineCode: airlineCode,
-                    airlineLogo: airlineLogo
+                    airlineName: ReturnAirline,
+                    airlineCode: ReturnAirlineCode,
+                    airlineLogo: ReturnAirlineLogo
                 )
                 .padding(.horizontal, 12) // Reduced from 16 to 12
                 .padding(.vertical, 6) // Reduced from 8 to 6
@@ -6110,7 +6125,7 @@ struct ModernFlightCard: View {
                 .padding(.bottom) // Reduced from default to 6
             
             HStack {
-                Text(airline)
+                Text(OutboundAirline)
                     .font(.system(size: 14))
                     .foregroundColor(.gray)
                 
