@@ -5017,22 +5017,22 @@ struct MultiCityLocationSheet: View {
 // MARK: - Updated Loading Border View with Rotating Gradient Segments
 struct LoadingBorderView: View {
     @State private var rotationAngle: Double = 0
-    
+
     var body: some View {
         ZStack {
             // Base stroke
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.orange.opacity(0.3), lineWidth: 3.0)
-            
-            // Continuous rotating gradient border
+
+            // Reversed gradient stroke (tail to head)
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     AngularGradient(
                         gradient: Gradient(stops: [
-                            .init(color: Color.orange, location: 0.0),
-                            .init(color: Color.orange, location: 0.2),
-                            .init(color: Color.orange.opacity(0.1), location: 0.5),
-                            .init(color: Color.clear, location: 0.7)
+                            .init(color: Color.clear, location: 0.0),
+                            .init(color: Color.orange.opacity(0.1), location: 0.3),
+                            .init(color: Color.orange, location: 0.8),
+                            .init(color: Color.orange, location: 1.0)
                         ]),
                         center: .center,
                         startAngle: .degrees(rotationAngle),
@@ -5042,12 +5042,13 @@ struct LoadingBorderView: View {
                 )
         }
         .onAppear {
-            withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
+            withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
                 rotationAngle = 360
             }
         }
     }
 }
+
 
 
 
