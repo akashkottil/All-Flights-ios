@@ -9054,47 +9054,98 @@ struct RangeSliderView: View {
                     .fill(Color.gray.opacity(0.2))
                     .frame(height: 4)
                 
-                // Selected Range
+                // Selected Range - FIXED: Safe calculation with bounds checking
                 Rectangle()
                     .fill(Color.blue)
-                    .frame(width: CGFloat((values[1] - values[0]) / (maxValue - minValue)) * geometry.size.width,
-                           height: 4)
-                    .offset(x: CGFloat((values[0] - minValue) / (maxValue - minValue)) * geometry.size.width)
+                    .frame(
+                        width: calculateRangeWidth(geometry: geometry),
+                        height: 4
+                    )
+                    .offset(x: calculateRangeOffset(geometry: geometry))
                 
-                // Low Thumb
+                // Low Thumb - FIXED: Safe position calculation
                 Circle()
                     .fill(Color.white)
                     .frame(width: 20, height: 20)
                     .shadow(radius: 2)
-                    .offset(x: CGFloat((values[0] - minValue) / (maxValue - minValue)) * geometry.size.width - 10)
+                    .offset(x: calculateThumbPosition(for: values[0], geometry: geometry))
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                let ratio = gesture.location.x / geometry.size.width
-                                let newValue = min(values[1] - 0.5, max(minValue, minValue + ratio * (maxValue - minValue)))
-                                values[0] = newValue
+                                let newValue = calculateValueFromPosition(
+                                    position: gesture.location.x,
+                                    geometry: geometry
+                                )
+                                // Ensure low value doesn't exceed high value
+                                let clampedValue = min(values[1] - 0.1, max(minValue, newValue))
+                                values[0] = clampedValue
                                 onChangeHandler?()
                             }
                     )
                 
-                // High Thumb
+                // High Thumb - FIXED: Safe position calculation
                 Circle()
                     .fill(Color.white)
                     .frame(width: 20, height: 20)
                     .shadow(radius: 2)
-                    .offset(x: CGFloat((values[1] - minValue) / (maxValue - minValue)) * geometry.size.width - 10)
+                    .offset(x: calculateThumbPosition(for: values[1], geometry: geometry))
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                let ratio = gesture.location.x / geometry.size.width
-                                let newValue = max(values[0] + 0.5, min(maxValue, minValue + ratio * (maxValue - minValue)))
-                                values[1] = newValue
+                                let newValue = calculateValueFromPosition(
+                                    position: gesture.location.x,
+                                    geometry: geometry
+                                )
+                                // Ensure high value doesn't go below low value
+                                let clampedValue = max(values[0] + 0.1, min(maxValue, newValue))
+                                values[1] = clampedValue
                                 onChangeHandler?()
                             }
                     )
             }
         }
         .frame(height: 30)
+    }
+    
+    // MARK: - Safe Calculation Methods
+    
+    private func calculateRangeWidth(geometry: GeometryProxy) -> CGFloat {
+        guard maxValue > minValue else { return 0 }
+        
+        let range = values[1] - values[0]
+        let totalRange = maxValue - minValue
+        let ratio = range / totalRange
+        
+        // Clamp the width between 0 and geometry width
+        let calculatedWidth = CGFloat(ratio) * geometry.size.width
+        return max(0, min(calculatedWidth, geometry.size.width))
+    }
+    
+    private func calculateRangeOffset(geometry: GeometryProxy) -> CGFloat {
+        guard maxValue > minValue else { return 0 }
+        
+        let offsetRatio = (values[0] - minValue) / (maxValue - minValue)
+        let calculatedOffset = CGFloat(offsetRatio) * geometry.size.width
+        
+        // Clamp the offset between 0 and geometry width
+        return max(0, min(calculatedOffset, geometry.size.width))
+    }
+    
+    private func calculateThumbPosition(for value: Double, geometry: GeometryProxy) -> CGFloat {
+        guard maxValue > minValue else { return -10 } // Center the thumb
+        
+        let ratio = (value - minValue) / (maxValue - minValue)
+        let calculatedPosition = CGFloat(ratio) * geometry.size.width - 10 // -10 to center the thumb
+        
+        // Clamp position to keep thumb within bounds
+        return max(-10, min(calculatedPosition, geometry.size.width - 10))
+    }
+    
+    private func calculateValueFromPosition(position: CGFloat, geometry: GeometryProxy) -> Double {
+        guard maxValue > minValue, geometry.size.width > 0 else { return minValue }
+        
+        let ratio = max(0, min(1, position / geometry.size.width))
+        return minValue + Double(ratio) * (maxValue - minValue)
     }
 }
 
