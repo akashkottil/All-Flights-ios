@@ -3,7 +3,8 @@ import Combine
 import CoreLocation
 
 
-// MARK: - Updated SharedFlightSearchViewModel for HomeView with Last Search Persistence
+
+// MARK: - Updated SharedFlightSearchViewModel for HomeView with Last Search Persistence (Modified)
 class SharedFlightSearchViewModel: ObservableObject {
     @Published var fromLocation = "Departure?"
     @Published var toLocation = "Destination?"
@@ -37,24 +38,25 @@ class SharedFlightSearchViewModel: ObservableObject {
     
     // MARK: - Last Search Persistence Methods
     
-    // Load the last search state
+    // MODIFIED: Load the last search state but always use default dates
     func loadLastSearchState() {
         guard !hasLoadedLastSearch else { return }
         hasLoadedLastSearch = true
         
         guard let lastSearch = lastSearchManager.loadLastSearch() else {
             print("📭 No valid last search to restore")
+            setDefaultDates() // Set default dates even when no last search
             return
         }
         
         print("🔄 Restoring last search state...")
         
-        // Restore all search parameters
+        // Restore all search parameters EXCEPT dates
         fromLocation = lastSearch.fromLocation
         toLocation = lastSearch.toLocation
         fromIataCode = lastSearch.fromIataCode
         toIataCode = lastSearch.toIataCode
-        selectedDates = lastSearch.selectedDates
+        // selectedDates = lastSearch.selectedDates // REMOVED: Don't restore old dates
         isRoundTrip = lastSearch.isRoundTrip
         selectedTab = lastSearch.selectedTab
         adultsCount = lastSearch.adultsCount
@@ -64,8 +66,42 @@ class SharedFlightSearchViewModel: ObservableObject {
         multiCityTrips = lastSearch.multiCityTrips
         directFlightsOnly = lastSearch.directFlightsOnly
         
-        print("✅ Last search state restored successfully")
+        // ADDED: Always set default dates instead of restoring old ones
+        setDefaultDates()
+        
+        print("✅ Last search state restored successfully (with default dates)")
         print("🔍 Route: \(fromIataCode) → \(toIataCode)")
+    }
+    
+    // ADDED: Method to set default dates
+    private func setDefaultDates() {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        if isRoundTrip {
+            // For round trip: today + 1 day as departure, today + 8 days as return
+            let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+            let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
+            selectedDates = [departureDate, returnDate]
+        } else {
+            // For one-way: today + 1 day as departure
+            let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+            selectedDates = [departureDate]
+        }
+        
+        // Also update multi-city trips with default dates
+        updateMultiCityDatesWithDefaults()
+    }
+    
+    // ADDED: Method to update multi-city trips with default dates
+    private func updateMultiCityDatesWithDefaults() {
+        let calendar = Calendar.current
+        let baseDate = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        
+        for index in multiCityTrips.indices {
+            let tripDate = calendar.date(byAdding: .day, value: index + 1, to: baseDate) ?? baseDate
+            multiCityTrips[index].date = tripDate
+        }
     }
     
     // Save the current search state
@@ -85,6 +121,15 @@ class SharedFlightSearchViewModel: ObservableObject {
             multiCityTrips: multiCityTrips,
             directFlightsOnly: directFlightsOnly
         )
+    }
+    
+    // MODIFIED: When changing trip type, update dates accordingly
+    func updateTripType(newTab: Int, newIsRoundTrip: Bool) {
+        selectedTab = newTab
+        isRoundTrip = newIsRoundTrip
+        
+        // Always refresh dates when trip type changes
+        setDefaultDates()
     }
     
     // MARK: - Existing Methods (Updated)
@@ -131,7 +176,7 @@ class SharedFlightSearchViewModel: ObservableObject {
         return RecentSearchManager.shared
     }
    
-    // Initialize multi-city trips - UPDATED: Start with empty trips instead of pre-populated data
+    // MODIFIED: Initialize multi-city trips with default dates
     func initializeMultiCityTrips() {
         let calendar = Calendar.current
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
@@ -1069,35 +1114,38 @@ struct EnhancedSearchInput: View {
     }
 
     private func getDateDisplayText() -> String {
-        if searchViewModel.selectedDates.isEmpty {
-            // Set a default departure date (e.g., today's date)
+        // Since we now always ensure dates exist, this logic is simplified
+        if searchViewModel.selectedDates.count == 1 {
+            // One-way trip: Show the selected departure date
+            return formatDateForDisplay(searchViewModel.selectedDates[0])
+        } else if searchViewModel.selectedDates.count >= 2 {
+            // Round trip: Show both selected dates
+            let sortedDates = searchViewModel.selectedDates.sorted()
+            return "\(formatDateForDisplay(sortedDates[0])) - \(formatDateForDisplay(sortedDates[1]))"
+        } else {
+            // Fallback (should rarely happen now due to default date setting)
             let formatter = DateFormatter()
             formatter.dateFormat = "E, d MMM"
             
             if searchViewModel.isRoundTrip {
-                // For round trip, return two default dates (departure and return)
-                let returnDate = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date() // Default return date (7 days later)
-                return "\(formatter.string(from: Date())) - \(formatter.string(from: returnDate))"
+                let today = Date()
+                let calendar = Calendar.current
+                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
+                return "\(formatter.string(from: departureDate)) - \(formatter.string(from: returnDate))"
             } else {
-                // For one-way, return only the departure date
-                return formatter.string(from: Date()) // Default to today's date
+                let today = Date()
+                let calendar = Calendar.current
+                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                return formatter.string(from: departureDate)
             }
-        } else if searchViewModel.selectedDates.count == 1 {
-            // One-way trip: Show the selected departure date
-            return formatDateForDisplay(searchViewModel.selectedDates[0])
-        } else {
-            // Round trip: Show both selected dates
-            let sortedDates = searchViewModel.selectedDates.sorted()
-            return "\(formatDateForDisplay(sortedDates[0])) - \(formatDateForDisplay(sortedDates[1]))"
         }
     }
 
 
 
     private func getDateTextColor() -> Color {
-        if searchViewModel.selectedDates.isEmpty {
-            return .gray
-        }
+        // Since we always have dates now, always return primary color
         return .primary
     }
     
@@ -1176,28 +1224,31 @@ struct EnhancedSearchInput: View {
            }
        }
        
+    // MARK: - Updated performSearch method in EnhancedSearchInput
     private func performSearch() {
-        // Check if dates are not selected and set default dates
+        // MODIFIED: Ensure we always have dates by setting defaults if empty
         if searchViewModel.selectedDates.isEmpty {
             let today = Date()
             let calendar = Calendar.current
             
             if searchViewModel.isRoundTrip {
-                // For round trip: Use today as departure and today + 7 days as return
-                let returnDate = calendar.date(byAdding: .day, value: 7, to: today) ?? today
-                searchViewModel.selectedDates = [today, returnDate]
+                // For round trip: Use tomorrow as departure and tomorrow + 7 days as return
+                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
+                searchViewModel.selectedDates = [departureDate, returnDate]
             } else {
-                // For one-way: Use today as departure
-                searchViewModel.selectedDates = [today]
+                // For one-way: Use tomorrow as departure
+                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                searchViewModel.selectedDates = [departureDate]
             }
         }
         
         // NEW: Check for "anytime" or "anywhere" conditions
-        let isAnytimeSearch = searchViewModel.selectedDates.isEmpty
+        let isAnytimeSearch = searchViewModel.selectedDates.isEmpty // This should now be false due to above logic
         let isAnywhereSearch = searchViewModel.toLocation == "Anywhere" || searchViewModel.toLocation == "Destination?" || searchViewModel.toIataCode.isEmpty
         
-        // If anytime OR anywhere is selected, navigate to explore screen instead
-        if isAnytimeSearch || isAnywhereSearch {
+        // If anywhere is selected, navigate to explore screen instead
+        if isAnywhereSearch {
             // Clear any search state and navigate to explore mode
             SharedSearchDataStore.shared.isInSearchMode = false
             SharedSearchDataStore.shared.shouldNavigateToTab = 2 // Navigate to explore tab (index 1)
@@ -1209,16 +1260,15 @@ struct EnhancedSearchInput: View {
             return
         }
         
-        // Updated validation for required fields (only for regular searches)
+        // Updated validation for required fields (dates are now guaranteed to exist)
         let valid: Bool
         if searchViewModel.selectedTab == 2 {
             valid = searchViewModel.multiCityTrips.allSatisfy { trip in
                 !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
             }
         } else {
-            valid = !searchViewModel.fromIataCode.isEmpty &&
-                    !searchViewModel.toIataCode.isEmpty
-                    // Removed the selectedDates.isEmpty check since we now set default dates
+            valid = !searchViewModel.fromIataCode.isEmpty && !searchViewModel.toIataCode.isEmpty
+            // Removed selectedDates.isEmpty check since we now ensure default dates exist
         }
 
         if valid {
@@ -1290,6 +1340,7 @@ struct EnhancedSearchInput: View {
     
     // MARK: - Computed Views
     
+    // MARK: - Updated Trip Type Tabs in EnhancedSearchInput
     private var tripTypeTabs: some View {
         let titles = ["Return", "One way", "Multi city"]
         let totalWidth = UIScreen.main.bounds.width * 0.6
@@ -1314,17 +1365,13 @@ struct EnhancedSearchInput: View {
             HStack(spacing: 0) {
                 ForEach(0..<3, id: \.self) { index in
                     Button(action: {
-                        searchViewModel.selectedTab = index
-                        
+                        // MODIFIED: Use the new updateTripType method that handles dates
                         if index == 2 {
+                            searchViewModel.updateTripType(newTab: index, newIsRoundTrip: searchViewModel.isRoundTrip)
                             searchViewModel.initializeMultiCityTrips()
                         } else {
                             let newIsRoundTrip = (index == 0)
-                            searchViewModel.isRoundTrip = newIsRoundTrip
-                            
-                            if !newIsRoundTrip && searchViewModel.selectedDates.count > 1 {
-                                searchViewModel.selectedDates = Array(searchViewModel.selectedDates.prefix(1))
-                            }
+                            searchViewModel.updateTripType(newTab: index, newIsRoundTrip: newIsRoundTrip)
                         }
                     }) {
                         Text(titles[index])
@@ -2257,8 +2304,19 @@ struct HomeCollapsibleSearchInput: View {
             return "\(formatter.string(from: sortedDates[0])) - \(formatter.string(from: sortedDates[1]))"
         } else if searchViewModel.selectedDates.count == 1 {
             return formatter.string(from: searchViewModel.selectedDates[0])
+        } else {
+            // Fallback with default dates
+            let today = Date()
+            let calendar = Calendar.current
+            let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+            
+            if searchViewModel.isRoundTrip {
+                let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
+                return "\(formatter.string(from: departureDate)) - \(formatter.string(from: returnDate))"
+            } else {
+                return formatter.string(from: departureDate)
+            }
         }
-        return "Anytime"  // This will show when selectedDates is empty
     }
 }
 
