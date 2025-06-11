@@ -2976,25 +2976,57 @@ class ExploreViewModel: ObservableObject {
     }
     
     func goBackToFlightResults() {
-           print("goBackToFlightResults called")
-           // Clear selected flight first
-           selectedFlightId = nil
-           
-           // Reset all search-related states
-           if isDirectSearch {
-               print("Handling direct search back navigation - clearing form")
-               // Clear the search form completely for direct searches from HomeView
-               clearSearchFormAndReturnToExplore()
-           } else {
-               print("Handling explore flow back navigation")
-               // If this came from exploration, go back to flight results
-               showingDetailedFlightList = false
-               detailedFlightResults = []
-               detailedFlightError = nil
-               isLoadingDetailedFlights = false
-               // Keep hasSearchedFlights = true to stay on flight results page
-           }
-       }
+        print("goBackToFlightResults called")
+        // Clear selected flight first
+        selectedFlightId = nil
+        
+        // Reset all search-related states
+        if isDirectSearch {
+            print("Handling direct search back navigation - clearing form")
+            // Clear the search form completely for direct searches from HomeView
+            clearSearchFormAndReturnToExplore()
+        } else {
+            print("Handling explore flow back navigation")
+            // If this came from exploration, go back to flight results
+            showingDetailedFlightList = false
+            detailedFlightResults = []
+            detailedFlightError = nil
+            isLoadingDetailedFlights = false
+            // Keep hasSearchedFlights = true to stay on flight results page
+            
+            // FIXED: Automatically reload data when returning to flight results
+            // Check if we need to reload flight results data
+            if flightResults.isEmpty {
+                print("🔄 Flight results empty, automatically reloading data for current month")
+                
+                // If we have a selected city, fetch flight details for current month
+                if let city = selectedCity {
+                    print("🔄 Fetching flight details for city: \(city.location.name)")
+                    fetchFlightDetails(destination: city.location.iata)
+                }
+                // If we have destination code but no city, still fetch flight details
+                else if !toIataCode.isEmpty {
+                    print("🔄 Fetching flight details for destination: \(toIataCode)")
+                    fetchFlightDetails(destination: toIataCode)
+                }
+                // If we have search context with dates, trigger search
+                else if !fromIataCode.isEmpty && !toIataCode.isEmpty && !dates.isEmpty {
+                    print("🔄 Re-triggering search with existing dates")
+                    updateDatesAndRunSearch()
+                }
+                // Fallback: use current month selection to reload data
+                else if !availableMonths.isEmpty && selectedMonthIndex < availableMonths.count {
+                    print("🔄 Reloading data using current month selection: \(selectedMonthIndex)")
+                    selectMonth(at: selectedMonthIndex)
+                }
+                else {
+                    print("⚠️ Unable to determine reload strategy, staying on empty results")
+                }
+            } else {
+                print("✅ Flight results already available (\(flightResults.count) flights)")
+            }
+        }
+    }
     
     func clearSearchFormAndReturnToExplore() {
             // Clear all search-related flags
@@ -3362,7 +3394,8 @@ struct ExploreScreen: View {
                                 }
                             }
                             else {
-                                // Flight search results view
+                              
+                                // Flight search results view - FIXED VERSION
                                 VStack(alignment: .center, spacing: 16) {
                                     Text("Explore \(viewModel.toLocation)")
                                         .font(.system(size: 24, weight: .bold))
@@ -3393,9 +3426,40 @@ struct ExploreScreen: View {
                                                 .padding(.bottom, 8)
                                         }
                                     } else if viewModel.errorMessage != nil || viewModel.flightResults.isEmpty {
-                                        Text("No flights found")
-                                            .font(.subheadline)
-                                            .foregroundColor(.gray)
+                                        // FIXED: Check if we should auto-reload data before showing "No flights found"
+                                        if viewModel.flightResults.isEmpty && !viewModel.isLoadingFlights {
+                                            VStack {
+                                                Text("No flights found")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.gray)
+                                                
+                                                // Auto-reload trigger
+                                                Text("")
+                                                    .onAppear {
+                                                        // Automatically try to reload data if we have the necessary context
+                                                        if let city = viewModel.selectedCity {
+                                                            print("🔄 Auto-reloading flight data for city: \(city.location.name)")
+                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                                viewModel.fetchFlightDetails(destination: city.location.iata)
+                                                            }
+                                                        } else if !viewModel.toIataCode.isEmpty {
+                                                            print("🔄 Auto-reloading flight data for destination: \(viewModel.toIataCode)")
+                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                                viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
+                                                            }
+                                                        } else if viewModel.selectedMonthIndex < viewModel.availableMonths.count {
+                                                            print("🔄 Auto-reloading flight data using current month selection")
+                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                                viewModel.selectMonth(at: viewModel.selectedMonthIndex)
+                                                            }
+                                                        }
+                                                    }
+                                            }
+                                        } else {
+                                            Text("No flights found")
+                                                .font(.subheadline)
+                                                .foregroundColor(.gray)
+                                        }
                                     } else {
                                         if !viewModel.isAnytimeMode && !viewModel.flightResults.isEmpty {
                                             Text("Estimated cheapest price during \(getCurrentMonthName())")
