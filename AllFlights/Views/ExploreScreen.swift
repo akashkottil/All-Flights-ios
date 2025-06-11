@@ -4593,6 +4593,9 @@ struct FlightResultCard: View {
                     Spacer()
                     
                     Button(action: {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                        impactFeedback.impactOccurred()
+                                               
                         searchFlights()
                     }) {
                         Text("View these dates")
