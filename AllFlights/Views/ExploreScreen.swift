@@ -617,22 +617,18 @@ class ExploreAPIService {
         
         // Add body to request
         do {
-            if !requestDict.isEmpty {
-                request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
-                
-                // Debug log the complete request body
-                if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
-                    print("🔧 Final API request body: \(requestBody)")
-                }
-            } else {
-                // Empty request body for no filters
-                request.httpBody = try JSONSerialization.data(withJSONObject: [:])
-                print("🔧 Empty filter request (no filters applied)")
-            }
-        } catch {
-            print("❌ Error encoding filter request: \(error)")
-            return Fail(error: error).eraseToAnyPublisher()
-        }
+               // Always use the requestDict, which will be empty if no filters
+               request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+               
+               if requestDict.isEmpty {
+                   print("🔧 Empty filter request body (no filters applied)")
+               } else if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
+                   print("🔧 Final API request body: \(requestBody)")
+               }
+           } catch {
+               print("❌ Error encoding filter request: \(error)")
+               return Fail(error: error).eraseToAnyPublisher()
+           }
         
         print("🚀 Making API call to poll endpoint")
         print("   Search ID: \(searchId)")
@@ -1385,6 +1381,12 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
+    // Add this method to ExploreViewModel
+    func resetFilterSheetState() {
+        filterSheetState = FilterSheetState()
+        print("🧹 Filter sheet state reset to defaults")
+    }
+    
     func getFilterPreviewCount(filterRequest: FlightFilterRequest) -> AnyPublisher<Int, Error> {
         guard let searchId = currentSearchId else {
             return Fail(error: NSError(domain: "ExploreViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "No search ID available"]))
@@ -1420,6 +1422,10 @@ class ExploreViewModel: ObservableObject {
             selectedFlightId = nil
             isAnytimeMode = false
             directFlightsOnlyFromHome = false
+        
+        // IMPORTANT: Reset filters
+            _currentFilterRequest = nil
+            resetFilterSheetState()
             
             // Reset navigation states
             showingCities = false
@@ -1609,6 +1615,10 @@ class ExploreViewModel: ObservableObject {
         isLoadingMoreFlights = false
         isFirstLoad = true
         
+        // IMPORTANT: Reset filters for new search
+        _currentFilterRequest = nil
+        resetFilterSheetState()
+        
         // Store search parameters
         selectedOriginCode = origin
         selectedDestinationCode = destination
@@ -1636,12 +1646,12 @@ class ExploreViewModel: ObservableObject {
             print("🔍 Search successful, got searchId: \(searchResponse.searchId)")
             self.currentSearchId = searchResponse.searchId
             
-            // First poll with smaller limit (8) for faster initial display
+            // IMPORTANT: Use empty filter for initial poll
             return self.service.pollFlightResultsPaginated(
                 searchId: searchResponse.searchId,
                 page: 1,
                 limit: 8,
-                filterRequest: self._currentFilterRequest
+                filterRequest: nil // Explicitly pass nil for initial search
             )
         }
         .receive(on: DispatchQueue.main)
@@ -2980,6 +2990,10 @@ class ExploreViewModel: ObservableObject {
         // Clear selected flight first
         selectedFlightId = nil
         
+        // IMPORTANT: Reset filters when going back
+            _currentFilterRequest = nil
+            resetFilterSheetState()
+        
         // Reset all search-related states
         if isDirectSearch {
             print("Handling direct search back navigation - clearing form")
@@ -3040,6 +3054,10 @@ class ExploreViewModel: ObservableObject {
             flightSearchResponse = nil
             isAnytimeMode = false
             directFlightsOnlyFromHome = false // ADD: Clear direct flights preference
+        
+        // IMPORTANT: Reset filters completely
+           _currentFilterRequest = nil
+           resetFilterSheetState()
             
             // Clear search form data
             fromLocation = "Mumbai" // Reset to default
@@ -7642,7 +7660,7 @@ struct ModifiedDetailedFlightListView: View {
         }
         .onAppear {
             print("📱 ModifiedDetailedFlightListView appeared")
-            applyInitialDirectFilterIfNeeded()
+            
             initiateSearch()
             startRetryTimer()
         }
