@@ -4,7 +4,7 @@ import Combine
 // MARK: - Recent Location Search Model
 // MARK: - Recent Location Search Model
 struct RecentLocationSearch: Codable, Identifiable, Equatable {
-    let id = UUID()
+    var id = UUID()
     let iataCode: String
     let cityName: String
     let countryName: String

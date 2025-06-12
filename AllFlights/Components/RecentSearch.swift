@@ -6,7 +6,7 @@ import Combine
 
 // MARK: - Enhanced Recent Search Data Model
 struct RecentSearchItem: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()
     let fromLocation: String
     let toLocation: String
     let fromIataCode: String
