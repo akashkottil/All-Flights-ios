@@ -363,6 +363,7 @@ struct ExploreScreen: View {
                                 VStack(spacing: 12) {
                                     ForEach(0..<5, id: \.self) { _ in
                                         SkeletonDestinationCard()
+                                            .padding(.horizontal)
                                     }
                                 }
                                 .padding(.bottom, 16)

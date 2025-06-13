@@ -1579,7 +1579,7 @@ struct LoadingBorderView: View {
                 )
         }
         .onAppear {
-            withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
                 rotationAngle = 360
             }
         }
