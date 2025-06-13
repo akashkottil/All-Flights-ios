@@ -209,7 +209,8 @@ struct HomeView: View {
             }
     }
 
-    // MARK: - Header View
+
+    // MARK: - Header View (Updated section from HomeView)
     var headerView: some View {
         HStack {
             Image("logoHome")
@@ -225,13 +226,16 @@ struct HomeView: View {
 
             Spacer()
 
-            Image("homeProfile")
-                .resizable()
-                .frame(width: 36, height: 36)
-                .cornerRadius(6)
-                .onTapGesture {
-                    navigateToAccount = true
-                }
+            Button(action: {
+                // Set account navigation state before navigating
+                SharedSearchDataStore.shared.enterAccountNavigation()
+                navigateToAccount = true
+            }) {
+                Image("homeProfile")
+                    .resizable()
+                    .frame(width: 36, height: 36)
+                    .cornerRadius(6)
+            }
         }
         .padding(.horizontal, 25)
         .padding(.top, 20)

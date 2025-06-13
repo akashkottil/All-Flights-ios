@@ -1,5 +1,4 @@
 import SwiftUI
-import Foundation
 import Combine
 
 // MARK: - ViewModels
@@ -341,13 +340,19 @@ struct CountryRow: View {
     }
 }
 
-// MARK: - Main AccountView
+// MARK: - Main AccountView with Navigation State Management
 struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingCurrencySheet = false
     @State private var showingRegionSheet = false
     @State private var selectedCurrency: Currency?
     @State private var selectedCountry: Country?
+    
+    // ADD: Observe shared search data for navigation state
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    
+    // ADD: State for swipe gesture
+    @State private var dragAmount = CGSize.zero
     
     // Legal items data for reusability
     private let legalItems = [
@@ -364,7 +369,7 @@ struct AccountView: View {
                     // Header
                     HStack {
                         Button(action: {
-                            dismiss()
+                            handleDismiss()
                         }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 18, weight: .medium))
@@ -400,7 +405,6 @@ struct AccountView: View {
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .padding(.vertical, 10)
-                               
                                 .padding(.horizontal, 20)
                                 .background(Color.blue)
                                 .cornerRadius(10)
@@ -468,6 +472,9 @@ struct AccountView: View {
                 RegionSelectionSheet(selectedCountry: $selectedCountry)
             }
             .onAppear {
+                // Set navigation state to hide tab bar
+                sharedSearchData.enterAccountNavigation()
+                
                 // Set default values if none selected
                 if selectedCountry == nil {
                     selectedCountry = MockDataService.shared.findCountry(byCode: "IN")
@@ -476,7 +483,48 @@ struct AccountView: View {
                     selectedCurrency = MockDataService.shared.findCurrency(byCode: "INR")
                 }
             }
+            .onDisappear {
+                // Reset navigation state to show tab bar
+                sharedSearchData.exitAccountNavigation()
+            }
+            // ADD: Native-like edge swipe gesture for dismissing
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        // Only respond to swipes starting from the very left edge (like native iOS)
+                        if value.startLocation.x < 20 && value.translation.width > 0 {
+                            dragAmount = value.translation
+                        }
+                    }
+                    .onEnded { value in
+                        // Native-like behavior: shorter distance needed + velocity consideration
+                        let shouldDismiss = value.startLocation.x < 20 &&
+                                          (value.translation.width > 50 ||
+                                           (value.translation.width > 30 && value.predictedEndTranslation.width > 80))
+                        
+                        if shouldDismiss {
+                            // Add haptic feedback like native iOS
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            handleDismiss()
+                        }
+                        
+                        // Smooth spring animation back to original position
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            dragAmount = .zero
+                        }
+                    }
+            )
+            // ADD: More responsive visual feedback like native iOS
+            .offset(x: dragAmount.width > 0 ? min(dragAmount.width * 0.4, 80) : 0)
+            .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.86), value: dragAmount)
         }
+    }
+    
+    // ADD: Helper function to handle dismiss
+    private func handleDismiss() {
+        sharedSearchData.exitAccountNavigation()
+        dismiss()
     }
 }
 
