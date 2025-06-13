@@ -298,6 +298,7 @@ struct SearchCard: View {
             VStack(spacing: 8) {
                 Divider()
                     .padding(.horizontal,-16)
+                
                 // From row
                 HStack {
                     Button(action: {

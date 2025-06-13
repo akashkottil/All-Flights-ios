@@ -1641,6 +1641,9 @@ struct HomeCollapsibleSearchInput: View {
                     Text(formatDatesForCollapsed())
                         .font(.system(size: 14))
                         .foregroundColor(.primary)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Spacer()
 
                     
@@ -1683,27 +1686,51 @@ struct HomeCollapsibleSearchInput: View {
         return "Anytime"  // Changed from "Select dates"
     }
 
+    // UPDATED: formatDatesForCollapsed with new format
     private func formatDatesForCollapsed() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        
         if searchViewModel.selectedDates.count >= 2 {
             let sortedDates = searchViewModel.selectedDates.sorted()
-            return "\(formatter.string(from: sortedDates[0])) - \(formatter.string(from: sortedDates[1]))"
+            let startDate = sortedDates[0]
+            let endDate = sortedDates[1]
+            
+            let calendar = Calendar.current
+            let startMonth = calendar.component(.month, from: startDate)
+            let endMonth = calendar.component(.month, from: endDate)
+            let startYear = calendar.component(.year, from: startDate)
+            let endYear = calendar.component(.year, from: endDate)
+            
+            if startMonth == endMonth && startYear == endYear {
+                // Same month: "Jun 15-22"
+                let monthFormatter = DateFormatter()
+                monthFormatter.dateFormat = "MMM"
+                let month = monthFormatter.string(from: startDate)
+                
+                let dayFormatter = DateFormatter()
+                dayFormatter.dateFormat = "d"
+                let startDay = dayFormatter.string(from: startDate)
+                let endDay = dayFormatter.string(from: endDate)
+                
+                return "\(month) \(startDay)-\(endDay)"
+            } else {
+                // Different months: "Jun 15-Jul 22"
+                let startFormatter = DateFormatter()
+                startFormatter.dateFormat = "MMM d"
+                let startFormatted = startFormatter.string(from: startDate)
+                
+                let endFormatter = DateFormatter()
+                endFormatter.dateFormat = "MMM d"
+                let endFormatted = endFormatter.string(from: endDate)
+                
+                return "\(startFormatted)-\(endFormatted)"
+            }
         } else if searchViewModel.selectedDates.count == 1 {
+            // Single date: "Jun 15"
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d"
             return formatter.string(from: searchViewModel.selectedDates[0])
         } else {
-            // Fallback with default dates
-            let today = Date()
-            let calendar = Calendar.current
-            let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-            
-            if searchViewModel.isRoundTrip {
-                let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
-                return "\(formatter.string(from: departureDate)) - \(formatter.string(from: returnDate))"
-            } else {
-                return formatter.string(from: departureDate)
-            }
+            // No dates: "Anytime"
+            return "Anytime"
         }
     }
 }

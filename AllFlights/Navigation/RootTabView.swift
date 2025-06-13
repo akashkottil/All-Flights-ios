@@ -107,7 +107,7 @@ struct CustomTabBar: View {
             }
         }
         .padding(.vertical, 2)
-        .padding(.top, 10)
+        .padding(.top, 16)
         .background(Color(.systemBackground))
         .overlay(
             Rectangle()

@@ -59,7 +59,7 @@ struct CollapsibleSearchInput: View {
                         
                         Text("· \(viewModel.formatTripDate())")
                             .matchedGeometryEffect(id: "dateText", in: animation)
-                            .font(.system(size: 14))
+                            .font(.system(size: 10))
                             .foregroundColor(.gray)
                     }
                     .padding(.leading, 10)
