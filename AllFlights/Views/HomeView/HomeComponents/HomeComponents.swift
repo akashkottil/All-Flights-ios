@@ -488,7 +488,15 @@ struct EnhancedSearchInput: View {
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
     
+    // ENHANCED: Animation states for location swap
     @State private var swapRotationDegrees: Double = 0
+    @State private var fromLocationOffset: CGFloat = 0
+    @State private var toLocationOffset: CGFloat = 0
+    @State private var fromLocationOpacity: Double = 1.0
+    @State private var toLocationOpacity: Double = 1.0
+    @State private var fromLocationScale: CGFloat = 1.0
+    @State private var toLocationScale: CGFloat = 1.0
+    @State private var isSwapping: Bool = false
     
     @State private var showErrorMessage = false
     
@@ -581,31 +589,51 @@ struct EnhancedSearchInput: View {
         }
     }
 
-
-
     private func getDateTextColor() -> Color {
         // Since we always have dates now, always return primary color
         return .primary
     }
     
+    // MARK: - Native Contained Swap Animation
     private func animatedSwapLocations() {
-        // Haptic feedback
+        // Prevent multiple swaps during animation
+        guard !isSwapping else { return }
+        
+        // Set swapping state
+        isSwapping = true
+        
+        // Native iOS haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        // Enhanced rotation with elastic bounce
-        withAnimation(.interpolatingSpring(stiffness: 200, damping: 15)) {
-            swapRotationDegrees += 360
+        // Phase 1: Button scale with native spring (0.0-0.2s)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            swapButtonScale = 1.1
         }
         
-        // Add subtle scale effect during swap
-        withAnimation(.easeInOut(duration: 0.3)) {
-            swapButtonScale = 0.9
+        // Phase 2: Locations move towards center (0.1-0.4s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                // Both locations move slightly towards the center
+                fromLocationOffset = 25    // FROM moves down 25px
+                toLocationOffset = -25     // TO moves up 25px
+                fromLocationOpacity = 0.7
+                toLocationOpacity = 0.7
+                fromLocationScale = 0.95
+                toLocationScale = 0.95
+            }
         }
-
-        // Delay swap logic to align with animation duration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            // Perform swap halfway through animation for smoothness
+        
+        // Phase 3: Button rotation (0.2-0.6s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                swapRotationDegrees += 180  // Half rotation for subtlety
+            }
+        }
+        
+        // Phase 4: Data swap at the meeting point (0.35s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            // Perform the location swap
             let tempLocation = searchViewModel.fromLocation
             let tempCode = searchViewModel.fromIataCode
             
@@ -614,14 +642,46 @@ struct EnhancedSearchInput: View {
             
             searchViewModel.toLocation = tempLocation
             searchViewModel.toIataCode = tempCode
-            
-            // Return to normal scale
+        }
+        
+        // Phase 5: Locations cross and settle (0.4-0.7s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                swapButtonScale = 1.0
+                // Complete the crossing motion
+                fromLocationOffset = 0     // FROM (now swapped) settles to TO position
+                toLocationOffset = 0       // TO (now swapped) settles to FROM position
+                fromLocationOpacity = 1.0
+                toLocationOpacity = 1.0
+                fromLocationScale = 1.02   // Slight emphasis
+                toLocationScale = 1.02
             }
         }
+        
+        // Phase 6: Button returns to normal (0.5-0.7s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                swapButtonScale = 1.0
+                swapRotationDegrees += 180  // Complete full rotation
+            }
+        }
+        
+        // Phase 7: Final scale normalization (0.6-0.8s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                fromLocationScale = 1.0
+                toLocationScale = 1.0
+            }
+        }
+        
+        // Phase 8: Complete animation (0.8s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            isSwapping = false
+            
+            // Native selection haptic
+            let selectionFeedback = UISelectionFeedbackGenerator()
+            selectionFeedback.selectionChanged()
+        }
     }
-
 
        
     // MARK: - Updated performSearch method in EnhancedSearchInput
@@ -905,15 +965,34 @@ struct EnhancedSearchInput: View {
     
     private var regularInterface: some View {
         VStack(spacing: 5) {
+            // ENHANCED: From location button with animation
             fromLocationButton
+                .offset(y: fromLocationOffset)
+                .opacity(fromLocationOpacity)
+                .scaleEffect(fromLocationScale)
+                .animation(.easeInOut(duration: 0.3), value: fromLocationOffset)
+                .animation(.easeInOut(duration: 0.25), value: fromLocationOpacity)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: fromLocationScale)
+                
             ZStack {
                 Divider()
                     .padding(.leading,40)
                     .padding(.trailing,-20)
                     .padding(.vertical,1)
-                swapButton
+                
+                // ENHANCED: Swap button with improved animations
+                enhancedSwapButton
             }
+            
+            // ENHANCED: To location button with animation
             toLocationButton
+                .offset(y: toLocationOffset)
+                .opacity(toLocationOpacity)
+                .scaleEffect(toLocationScale)
+                .animation(.easeInOut(duration: 0.3), value: toLocationOffset)
+                .animation(.easeInOut(duration: 0.25), value: toLocationOpacity)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: toLocationScale)
+                
             Divider()
                 .padding(.leading,40)
                 .padding(.trailing,-20)
@@ -959,7 +1038,9 @@ struct EnhancedSearchInput: View {
             .padding(.horizontal, 12)
         }
     }
-    private var swapButton: some View {
+    
+    // ENHANCED: New swap button component
+    private var enhancedSwapButton: some View {
         HStack {
             Spacer()
             Button(action: {
@@ -970,17 +1051,21 @@ struct EnhancedSearchInput: View {
                         .fill(Color.white)
                         .frame(width: 48, height: 48)
                         .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        .scaleEffect(swapButtonScale)
                     
                     Image("swap")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                        .foregroundColor(Color.blue)
+                        .foregroundColor(isSwapping ? Color.blue.opacity(0.8) : Color.blue)
                         .rotationEffect(.degrees(swapRotationDegrees))
-                        .animation(.easeInOut(duration: 0.3), value: swapRotationDegrees)
+                        .scaleEffect(isSwapping ? 1.1 : 1.0)
+                        .animation(.interpolatingSpring(stiffness: 200, damping: 15), value: swapRotationDegrees)
+                        .animation(.easeInOut(duration: 0.2), value: isSwapping)
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .disabled(isSwapping) // Prevent multiple taps during animation
         }
         .padding(.horizontal)
     }
@@ -1267,9 +1352,6 @@ struct EnhancedSearchInput: View {
                searchViewModel.multiCityTrips.remove(at: index)
            }
        }
-    
-    
-
 }
 
 
