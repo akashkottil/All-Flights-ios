@@ -333,7 +333,7 @@ struct RecentSearchCard: View {
             
             onTap()
         }) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 // ORIGINAL: Route display
                 Text(search.displayRoute)
                     .font(.system(size: 16))
@@ -358,13 +358,14 @@ struct RecentSearchCard: View {
                 }
             }
             .padding()
+            .padding(.vertical,5)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isPressed ? Color.blue : Color.gray.opacity(0.5), lineWidth: 2)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isPressed ? Color.blue : Color.gray.opacity(0.2), lineWidth: 2)
             )
-            .cornerRadius(10)
+            .cornerRadius(16)
             .scaleEffect(isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: isPressed)
         }

@@ -181,6 +181,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 4) {
                 Text("Cheapest Fares From ")
+                    .fontWeight(.bold)
                 + Text(cheapFlightsViewModel.fromLocationName)
                     .foregroundColor(.blue)
 

@@ -8,11 +8,12 @@ struct FeatureCards: View {
             // Explore Card
             HStack {
                 VStack(alignment: .leading) {
-                    Image("exploreFlight")
+                    Image("trackFlight")
                     Text("Explore")
                         .font(.system(size: 16))
                         .fontWeight(.bold)
                         .foregroundColor(Color("AppPrimaryColor"))
+                        .padding(.top,4)
                     Text("Destinations")
                         .font(.system(size: 16))
                         .fontWeight(.medium)
@@ -21,7 +22,7 @@ struct FeatureCards: View {
                 .padding(.leading, 30)
                 Spacer()
             }
-            .frame(width: 180, height: 118)
+            .frame(width: 180, height: 136)
             .background(Color.blue.opacity(0.06))
             .cornerRadius(30)
             .overlay(
@@ -38,11 +39,12 @@ struct FeatureCards: View {
             // Track Flight Card
             HStack {
                 VStack(alignment: .leading) {
-                    Image("trackFlight")
+                    Image("exploreFlight")
                     Text("Track")
                         .font(.system(size: 16))
                         .fontWeight(.bold)
                         .foregroundColor(Color("AppPrimaryColor"))
+                        .padding(.top,4)
                     Text("your Flights") // Fixed typo
                         .font(.system(size: 16))
                         .fontWeight(.medium)
@@ -51,12 +53,12 @@ struct FeatureCards: View {
                 .padding(.leading, 30)
                 Spacer()
             }
-            .frame(width: 180, height: 118)
-            .background(Color.blue.opacity(0.06))
+            .frame(width: 180, height: 136)
+            .background(Color.purple.opacity(0.06))
             .cornerRadius(30)
             .overlay(
                 RoundedRectangle(cornerRadius: 30)
-                    .stroke(Color("AppPrimaryColor"), lineWidth: 1)
+                    .stroke(Color(.purple), lineWidth: 1)
             )
             .onTapGesture {
                 // Navigate to Flight Tracker tab (tag 3)

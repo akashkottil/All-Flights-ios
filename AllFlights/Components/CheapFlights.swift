@@ -213,7 +213,7 @@ struct CheapFlightSkeletonCard: View {
     @State private var isAnimating = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             // Placeholder image with FIXED dimensions
             Rectangle()
                 .fill(Color(UIColor.systemGray5))
@@ -272,7 +272,7 @@ struct CheapFlights: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
                 ForEach(0..<5, id: \.self) { _ in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Image("cityImage")
                             .resizable()
                             .scaledToFit()
@@ -297,7 +297,7 @@ struct CheapFlights: View {
                     }
                     .background(Color.white)
                     .cornerRadius(20)
-                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
                     .scrollTransition { content, phase in
                         content
                             .scaleEffect(phase.isIdentity ? 1.0 : 0.95)
