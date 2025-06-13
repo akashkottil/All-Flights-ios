@@ -827,133 +827,120 @@ struct EnhancedSearchInput: View {
 
 
 
-    
-    // MARK: - Updated Multi-City Interface with Enhanced Animations
-       private var updatedMultiCityInterface: some View {
-           VStack(spacing: 16) {
-               // Flight segments with enhanced animations
-               VStack(spacing: 12) {
-                   ForEach(searchViewModel.multiCityTrips.indices, id: \.self) { index in
-                       HomeMultiCitySegmentView(
-                        searchViewModel: searchViewModel, trip: searchViewModel.multiCityTrips[index],
-                           index: index,
-                           canRemove: searchViewModel.multiCityTrips.count > 2,
-                           isLastRow: false,
-                           onFromTap: {
-                               editingTripIndex = index
-                               editingFromOrTo = .from
-                               showingFromLocationSheet = true
-                           },
-                           onToTap: {
-                               editingTripIndex = index
-                               editingFromOrTo = .to
-                               showingToLocationSheet = true
-                           },
-                           onDateTap: {
-                               editingTripIndex = index
-                               showingCalendar = true
-                           },
-                           onRemove: {
-                               removeTrip(at: index)
-                           }
-                       )
-                       .matchedGeometryEffect(id: "trip-\(searchViewModel.multiCityTrips[index].id)", in: tripAnimation)
-                       .transition(.asymmetric(
-                           insertion: .move(edge: .bottom)
-                               .combined(with: .opacity)
-                               .combined(with: .scale(scale: 0.8)),
-                           removal: .move(edge: .trailing)
-                               .combined(with: .opacity)
-                               .combined(with: .scale(scale: 0.6))
-                       ))
-                   }
-               }
-               .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.3), value: searchViewModel.multiCityTrips.count)
-               
-               VStack(spacing: 0) {
-                   Divider()
-                       .padding(.horizontal, -20)
-                   
-                   HStack(spacing: 0) {
-                       // Passenger selection button
-                       Button(action: {
-                           showingPassengersSheet = true
-                       }) {
-                           HStack(spacing: 12) {
-                               Image(systemName: "person.fill")
-                                   .foregroundColor(.primary)
-                                   .frame(width: 20, height: 20)
+    // MARK: - Fixed Multi-City Interface with Always Visible Add Flight Button
+    private var updatedMultiCityInterface: some View {
+        VStack(spacing: 16) {
+            // Flight segments with enhanced animations
+            VStack(spacing: 12) {
+                ForEach(searchViewModel.multiCityTrips.indices, id: \.self) { index in
+                    HomeMultiCitySegmentView(
+                        searchViewModel: searchViewModel,
+                        trip: searchViewModel.multiCityTrips[index],
+                        index: index,
+                        canRemove: searchViewModel.multiCityTrips.count > 2,
+                        isLastRow: false,
+                        onFromTap: {
+                            editingTripIndex = index
+                            editingFromOrTo = .from
+                            showingFromLocationSheet = true
+                        },
+                        onToTap: {
+                            editingTripIndex = index
+                            editingFromOrTo = .to
+                            showingToLocationSheet = true
+                        },
+                        onDateTap: {
+                            editingTripIndex = index
+                            showingCalendar = true
+                        },
+                        onRemove: {
+                            removeTrip(at: index)
+                        }
+                    )
+                    .matchedGeometryEffect(id: "trip-\(searchViewModel.multiCityTrips[index].id)", in: tripAnimation)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.8)),
+                        removal: .move(edge: .trailing)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.6))
+                    ))
+                }
+            }
+            .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.3), value: searchViewModel.multiCityTrips.count)
+            
+            VStack(spacing: 0) {
+                Divider()
+                    .padding(.horizontal, -20)
+                
+                HStack(spacing: 0) {
+                    // Passenger selection button
+                    Button(action: {
+                        showingPassengersSheet = true
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.primary)
+                                .frame(width: 20, height: 20)
 
-                               Text(passengerDisplayText)
-                                   .font(.system(size: 16, weight: .medium))
-                                   .foregroundColor(.primary)
+                            Text(passengerDisplayText)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.primary)
 
-                               Spacer()
-                           }
-                           .padding(.vertical, 16)
-                           .padding(.leading, 10)
-                       }
-                       .frame(maxHeight: .infinity)
+                            Spacer()
+                        }
+                        .padding(.vertical, 16)
+                        .padding(.leading, 10)
+                    }
+                    .frame(maxHeight: .infinity)
 
-                       // Vertical Divider and Add Flight Button with Animation
-                       if searchViewModel.multiCityTrips.count < 4 {
-                           Rectangle()
-                               .frame(width: 1)
-                               .foregroundColor(Color.gray.opacity(0.3))
-                               .frame(maxHeight: .infinity)
-                               .transition(.opacity.combined(with: .scale(scale: 0.1, anchor: .center)))
+                    // FIXED: Always show vertical divider and add flight button when under limit
+                    if searchViewModel.multiCityTrips.count < 4 {
+                        Rectangle()
+                            .frame(width: 1)
+                            .foregroundColor(Color.gray.opacity(0.3))
+                            .frame(maxHeight: .infinity)
 
-                           Spacer()
+                        Spacer()
 
-                           if canAddTrip {
-                               Button(action: addTrip) {
-                                   HStack(spacing: 8) {
-                                       Image(systemName: "plus")
-                                           .foregroundColor(.blue)
-                                           .font(.system(size: 16, weight: .semibold))
+                        // FIXED: Always show Add Flight button, but disable when needed
+                        Button(action: addTrip) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus")
+                                    .foregroundColor(canAddTrip ? .blue : .gray)
+                                    .font(.system(size: 16, weight: .semibold))
 
-                                       Text("Add flight")
-                                           .font(.system(size: 16, weight: .semibold))
-                                           .foregroundColor(.blue)
-                                   }
-                                   .padding(.vertical, 16)
-                                   .padding(.trailing, 12)
-                                   .background(
-                                       RoundedRectangle(cornerRadius: 8)
-                                           .fill(Color.blue.opacity(0.1))
-                                           .opacity(0)
-                                   )
-                               }
-                               .frame(maxHeight: .infinity)
-                               .scaleEffect(searchViewModel.multiCityTrips.count >= 4 ? 0.95 : 1.0)
-                               .transition(.asymmetric(
-                                   insertion: .move(edge: .trailing).combined(with: .opacity),
-                                   removal: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.1))
-                               ))
+                                Text("Add flight")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(canAddTrip ? .blue : .gray)
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.trailing, 12)
+                        }
+                        .disabled(!canAddTrip)
+                        .frame(maxHeight: .infinity)
+                    }
+                }
+                .background(Color.white)
+                .frame(minHeight: 64)
+                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: searchViewModel.multiCityTrips.count)
+                
+                if searchViewModel.multiCityTrips.count < 5 {
+                    Divider()
+                        .padding(.horizontal, -20)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: searchViewModel.multiCityTrips.count < 5)
 
-                           }
-                           
-                                                  }
-                   }
-                   .background(Color.white)
-                   .frame(minHeight: 64)
-                   .animation(.spring(response: 0.5, dampingFraction: 0.7), value: searchViewModel.multiCityTrips.count)
-                   
-                   if searchViewModel.multiCityTrips.count < 5 {
-                       Divider()
-                           .padding(.horizontal, -20)
-                           .transition(.opacity.combined(with: .move(edge: .bottom)))
-                   }
-               }
-               .animation(.easeInOut(duration: 0.3), value: searchViewModel.multiCityTrips.count < 5)
-
-               // Search button
-               searchButton
-               
-               // Direct flights toggle
-               directFlightsToggle
-           }
-       }
+            // Search button
+            searchButton
+            
+            // Direct flights toggle
+            directFlightsToggle
+        }
+    }
     
     private var regularInterface: some View {
         VStack(spacing: 5) {
@@ -1324,7 +1311,8 @@ struct EnhancedSearchInput: View {
 
 }
 
-// MARK: - Home Multi-City Segment View
+
+// MARK: - Fixed Home Multi-City Segment View
 struct HomeMultiCitySegmentView: View {
     
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1376,7 +1364,6 @@ struct HomeMultiCitySegmentView: View {
             
             HStack(spacing: 0) {
                 // From Location Column
-                // From Location Column
                 Button(action: onFromTap) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(trip.fromIataCode.isEmpty ? "" : trip.fromIataCode)
@@ -1390,15 +1377,13 @@ struct HomeMultiCitySegmentView: View {
                     }
                     .padding(.horizontal, 8)
                 }
-              
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Divider()
                     .frame(width: 1, height: 76)
                     .background(Color.gray.opacity(0.3))
-                    .padding(.top,10)
+                    .padding(.top, 10)
                 
-                // To Location Column
                 // To Location Column
                 Button(action: onToTap) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -1413,14 +1398,12 @@ struct HomeMultiCitySegmentView: View {
                     }
                     .padding(.horizontal, 8)
                 }
-                
-
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Divider()
                     .frame(width: 1, height: 76)
                     .background(Color.gray.opacity(0.3))
-                    .padding(.top,10)
+                    .padding(.top, 10)
                 
                 // Date Column
                 Button(action: onDateTap) {
@@ -1431,28 +1414,24 @@ struct HomeMultiCitySegmentView: View {
                         .frame(maxWidth: 100, alignment: .leading)
                 }
                 
-                
-                Divider()
-                    .frame(width: 1, height: 76)
-                    .background(Color.gray.opacity(0.3))
-                    .padding(.top,10)
-                
-                // Remove Button Column
+                // FIXED: Only show the right divider when there's a delete button
                 if canRemove {
+                    Divider()
+                        .frame(width: 1, height: 76)
+                        .background(Color.gray.opacity(0.3))
+                        .padding(.top, 10)
+                    
+                    // Remove Button Column - only when canRemove is true
                     Button(action: onRemove) {
                         Image(systemName: "trash")
                             .font(.system(size: 16))
                             .foregroundColor(.red)
                             .padding(.horizontal, 12)
                     }
-                } else {
-                    Spacer().frame(width: 40)
                 }
             }
             .frame(height: 48)
-            
         }
-        
     }
 }
 
