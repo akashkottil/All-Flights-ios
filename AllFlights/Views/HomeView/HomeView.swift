@@ -181,7 +181,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 4) {
                 Text("Cheapest Fares From ")
-                    .fontWeight(.bold)
+                    .fontWeight(.medium)
                 + Text(cheapFlightsViewModel.fromLocationName)
                     .foregroundColor(.blue)
 
@@ -219,7 +219,7 @@ struct HomeView: View {
                 .padding(.trailing, 4)
 
             Text("All Flights")
-                .font(.title)
+                .font(.system(size: 22))
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
 
@@ -229,7 +229,6 @@ struct HomeView: View {
                 .resizable()
                 .frame(width: 36, height: 36)
                 .cornerRadius(6)
-                .padding(.trailing, 4)
                 .onTapGesture {
                     navigateToAccount = true
                 }

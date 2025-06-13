@@ -56,7 +56,7 @@ struct RecentLocationSearchView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 12)
+               
                
                 
                 // Content in ScrollView

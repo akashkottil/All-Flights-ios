@@ -956,25 +956,30 @@ struct EnhancedSearchInput: View {
        }
     
     private var regularInterface: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             fromLocationButton
             ZStack {
                 Divider()
                     .padding(.leading,40)
                     .padding(.trailing,-20)
+                    .padding(.vertical,1)
                 swapButton
             }
             toLocationButton
             Divider()
                 .padding(.leading,40)
                 .padding(.trailing,-20)
+                .padding(.vertical,6)
             dateButton
             Divider()
                 .padding(.leading,40)
                 .padding(.trailing,-20)
+                .padding(.vertical,6)
             passengerButton
+           
             searchButton
             directFlightsToggle
+                .padding(.top,4)
         }
     }
     
@@ -1124,9 +1129,9 @@ struct EnhancedSearchInput: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Color.orange)
-                    .cornerRadius(8)
+                    .frame(height: 52)
+                    .background(Color("buttonColor"))
+                    .cornerRadius(14)
                     .scaleEffect(searchButtonScale)
             }
 
@@ -1141,17 +1146,19 @@ struct EnhancedSearchInput: View {
     }
     
     private var directFlightsToggle: some View {
-            HStack(spacing: 8) {
-                Text("Direct flights only")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
+        HStack(spacing: 8) {
+            Text("Direct flights only")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
 
-                // UPDATED: Use searchViewModel.directFlightsOnly instead of local state
-                Toggle("", isOn: $searchViewModel.directFlightsOnly)
-                    .toggleStyle(SwitchToggleStyle(tint: .blue))
-            }
-            .padding(.horizontal, 4)
+            Toggle("", isOn: $searchViewModel.directFlightsOnly)
+                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                .labelsHidden() // Hide the label of the toggle itself
         }
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, alignment: .leading) // Align left
+    }
+
 
     
     private var addFlightButton: some View {
