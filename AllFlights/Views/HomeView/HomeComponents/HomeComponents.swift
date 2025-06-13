@@ -630,7 +630,7 @@ struct EnhancedSearchInput: View {
                        .font(.system(size: 16, weight: .semibold))
                        .foregroundColor(.white)
                        .frame(maxWidth: .infinity)
-                       .frame(height: 50)
+                       .frame(height: 56)
                        .background(Color.orange)
                        .cornerRadius(8)
                }
@@ -1023,7 +1023,7 @@ struct EnhancedSearchInput: View {
                         .frame(width: 48, height: 48)
                         .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                     
-                    Image(systemName: "arrow.up.arrow.down")
+                    Image("swap")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
