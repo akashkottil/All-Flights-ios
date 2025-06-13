@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "ic_baseline-flight-takeoff.pdf",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

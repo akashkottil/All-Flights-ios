@@ -622,46 +622,7 @@ struct EnhancedSearchInput: View {
         }
     }
 
-    
-    private var updatedSearchButton: some View {
-           VStack(spacing: 4) {
-               Button(action: performSearch) {
-                   Text("Search Flights")
-                       .font(.system(size: 16, weight: .semibold))
-                       .foregroundColor(.white)
-                       .frame(maxWidth: .infinity)
-                       .frame(height: 56)
-                       .background(Color.orange)
-                       .cornerRadius(8)
-               }
-               .onTapGesture {
-                   // Haptic feedback
-                   let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                   impactFeedback.impactOccurred()
-                   
-                   // Button press animation
-                   withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                       searchInputScale = 0.95
-                   }
-                   
-                   DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                       withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                           searchInputScale = 1.0
-                       }
-                   }
-                   
-                   performSearch()
-               }
 
-               if showErrorMessage {
-                   Label("Select location to search flight", systemImage: "exclamationmark.triangle")
-                       .foregroundColor(.red)
-                       .font(.system(size: 14))
-                       .padding(.top, 4)
-                       .transition(.opacity)
-               }
-           }
-       }
        
     // MARK: - Updated performSearch method in EnhancedSearchInput
     private func performSearch() {
@@ -880,7 +841,7 @@ struct EnhancedSearchInput: View {
                         showingPassengersSheet = true
                     }) {
                         HStack(spacing: 12) {
-                            Image(systemName: "person.fill")
+                            Image("cardpassenger")
                                 .foregroundColor(.primary)
                                 .frame(width: 20, height: 20)
 
@@ -977,7 +938,7 @@ struct EnhancedSearchInput: View {
             showingFromLocationSheet = true
         }) {
             HStack(spacing: 12) {
-                Image(systemName: "airplane.departure")
+                Image("carddeparture")
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
@@ -1030,7 +991,7 @@ struct EnhancedSearchInput: View {
             showingToLocationSheet = true
         }) {
             HStack(spacing: 12) {
-                Image(systemName: "airplane.arrival")
+                Image("carddestination")
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
@@ -1057,7 +1018,7 @@ struct EnhancedSearchInput: View {
             showingCalendar = true
         }) {
             HStack(spacing: 12) {
-                Image(systemName: "calendar")
+                Image("cardcalendar")
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 
@@ -1077,7 +1038,7 @@ struct EnhancedSearchInput: View {
             showingPassengersSheet = true
         }) {
             HStack(spacing: 12) {
-                Image(systemName: "person.fill")
+                Image("cardpassenger")
                     .foregroundColor(.primary)
                     .frame(width: 20, height: 20)
                 

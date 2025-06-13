@@ -190,7 +190,7 @@ struct CollapsedSearchCard: View {
                             .frame(width: 4, height: 4)
                         
                         HStack {
-                            Image(systemName: "person.fill")
+                            Image("cardpassenger")
                                 .foregroundColor(.black)
                             Text(getPassengerDisplayText())
                                 .foregroundColor(.primary)
@@ -304,7 +304,7 @@ struct SearchCard: View {
                         initialFocus = .origin
                         showingSearchSheet = true
                     }) {
-                        Image(systemName: "airplane.departure")
+                        Image("carddeparture")
                             .foregroundColor(.primary)
                         Text(getFromLocationDisplayText())
                             .font(.system(size: 14, weight: .medium))
@@ -338,7 +338,7 @@ struct SearchCard: View {
                         showingSearchSheet = true
                     }) {
                         HStack {
-                            Image(systemName: "airplane.arrival")
+                            Image("carddestination")
                                 .foregroundColor(.primary)
                             
                             Text(getToLocationDisplayText())
@@ -362,7 +362,7 @@ struct SearchCard: View {
                             showingCalendar = true
                         }
                     }){
-                        Image(systemName: "calendar")
+                        Image("cardcalendar")
                             .foregroundColor(.primary)
                       
                         Text(getDateDisplayText())
@@ -377,7 +377,7 @@ struct SearchCard: View {
                         viewModel.showingPassengersSheet = true
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "person.fill")
+                            Image("cardpassenger")
                                 .foregroundColor(.black)
                             
                             Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
@@ -1347,7 +1347,7 @@ struct MultiCitySearchCard: View {
                         // Handle passenger selection
                     }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "person.fill")
+                            Image("cardpassenger")
                                 .foregroundColor(.primary)
                                 .font(.system(size: 16))
                             
