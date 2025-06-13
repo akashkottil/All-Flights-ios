@@ -295,7 +295,7 @@ struct SearchCard: View {
             MultiCitySearchCard(viewModel: viewModel)
         } else {
             // Regular interface for return/one-way trips
-            VStack(spacing: 5) {
+            VStack(spacing: 8) {
                 Divider()
                     .padding(.horizontal,-16)
                 // From row
@@ -320,11 +320,11 @@ struct SearchCard: View {
                         ZStack {
                             Circle()
                                 .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                                .frame(width: 20, height: 20)
-                            Image(systemName: "arrow.left.arrow.right")
+                                .frame(width: 26, height: 26)
+                            Image("swapexplore")
                                 .fontWeight(.bold)
                                 .foregroundColor(.blue)
-                                .font(.system(size: 8))
+                                .font(.system(size: 14))
                                 .rotationEffect(.degrees(swapRotationDegrees))
                                 .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
                         }
@@ -353,7 +353,7 @@ struct SearchCard: View {
                     .padding(.horizontal,-16)
                 
                 // Date and passengers row
-                HStack {
+                HStack(alignment:.top) {
                     Button(action: {
                         // Only show calendar if destination is not "Anywhere"
                         if viewModel.toLocation == "Anywhere" {
@@ -386,6 +386,7 @@ struct SearchCard: View {
                         }
                     }
                 }
+                .padding(.leading,8)
                 .padding(.vertical, 4)
                 .padding(.horizontal,4)
             }
