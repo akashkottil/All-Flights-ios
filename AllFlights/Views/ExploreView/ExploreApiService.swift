@@ -23,207 +23,207 @@ class ExploreAPIService {
     // Replace the existing pollFlightResultsPaginated method in ExploreAPIService
 
     func pollFlightResultsPaginated(searchId: String, page: Int = 1, limit: Int = 20, filterRequest: FlightFilterRequest? = nil) -> AnyPublisher<FlightPollResponse, Error> {
-        let baseURL = "https://staging.plane.lascade.com/api/poll/"
-        
-        // Build query parameters
+            let baseURL = "https://staging.plane.lascade.com/api/poll/"
+            
+            // Build query parameters
         let parameters: [String: String] = [
-            "search_id": searchId,
-            "page": String(page),
-            "limit": String(limit)
-        ]
-        
-        var urlComponents = URLComponents(string: baseURL)!
-        urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
-        
-        // Create request
-        var request = URLRequest(url: urlComponents.url!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("IN", forHTTPHeaderField: "country")
-        
-        // Build request body from filter request
-        var requestDict: [String: Any] = [:]
-        
-        if let filterRequest = filterRequest {
-            print("🔧 Building filter request body:")
+                "search_id": searchId,
+                "page": String(page),
+                "limit": String(limit)
+            ]
             
-            // Only add fields that have meaningful values
-            if let durationMax = filterRequest.durationMax, durationMax > 0 {
-                requestDict["duration_max"] = durationMax
-                print("   Duration max: \(durationMax) minutes")
-            }
+            var urlComponents = URLComponents(string: baseURL)!
+            urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
             
-            if let stopCountMax = filterRequest.stopCountMax {
-                requestDict["stop_count_max"] = stopCountMax
-                print("   Stop count max: \(stopCountMax)")
-            }
+            // Create request
+            var request = URLRequest(url: urlComponents.url!)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("IN", forHTTPHeaderField: "country")
             
-            if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
-                var rangesArray: [[String: Any]] = []
+            // Build request body from filter request
+            var requestDict: [String: Any] = [:]
+            
+            if let filterRequest = filterRequest {
+                print("🔧 Building filter request body:")
                 
-                for range in ranges {
-                    var rangeDict: [String: Any] = [:]
+                // Only add fields that have meaningful values
+                if let durationMax = filterRequest.durationMax, durationMax > 0 {
+                    requestDict["duration_max"] = durationMax
+                    print("   Duration max: \(durationMax) minutes")
+                }
+                
+                if let stopCountMax = filterRequest.stopCountMax {
+                    requestDict["stop_count_max"] = stopCountMax
+                    print("   Stop count max: \(stopCountMax)")
+                }
+                
+                if let ranges = filterRequest.arrivalDepartureRanges, !ranges.isEmpty {
+                    var rangesArray: [[String: Any]] = []
                     
-                    if let arrival = range.arrival {
-                        var arrivalDict: [String: Any] = [:]
-                        if let min = arrival.min {
-                            arrivalDict["min"] = min
+                    for range in ranges {
+                        var rangeDict: [String: Any] = [:]
+                        
+                        if let arrival = range.arrival {
+                            var arrivalDict: [String: Any] = [:]
+                            if let min = arrival.min {
+                                arrivalDict["min"] = min
+                            }
+                            if let max = arrival.max {
+                                arrivalDict["max"] = max
+                            }
+                            if !arrivalDict.isEmpty {
+                                rangeDict["arrival"] = arrivalDict
+                            }
                         }
-                        if let max = arrival.max {
-                            arrivalDict["max"] = max
+                        
+                        if let departure = range.departure {
+                            var departureDict: [String: Any] = [:]
+                            if let min = departure.min {
+                                departureDict["min"] = min
+                            }
+                            if let max = departure.max {
+                                departureDict["max"] = max
+                            }
+                            if !departureDict.isEmpty {
+                                rangeDict["departure"] = departureDict
+                            }
                         }
-                        if !arrivalDict.isEmpty {
-                            rangeDict["arrival"] = arrivalDict
+                        
+                        if !rangeDict.isEmpty {
+                            rangesArray.append(rangeDict)
                         }
                     }
                     
-                    if let departure = range.departure {
-                        var departureDict: [String: Any] = [:]
-                        if let min = departure.min {
-                            departureDict["min"] = min
-                        }
-                        if let max = departure.max {
-                            departureDict["max"] = max
-                        }
-                        if !departureDict.isEmpty {
-                            rangeDict["departure"] = departureDict
-                        }
-                    }
-                    
-                    if !rangeDict.isEmpty {
-                        rangesArray.append(rangeDict)
+                    if !rangesArray.isEmpty {
+                        requestDict["arrival_departure_ranges"] = rangesArray
+                        print("   Time ranges: \(rangesArray.count) ranges")
                     }
                 }
                 
-                if !rangesArray.isEmpty {
-                    requestDict["arrival_departure_ranges"] = rangesArray
-                    print("   Time ranges: \(rangesArray.count) ranges")
+                // Only add non-empty arrays
+                if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
+                    requestDict["iata_codes_exclude"] = exclude
+                    print("   Exclude airlines: \(exclude)")
                 }
-            }
-            
-            // Only add non-empty arrays
-            if let exclude = filterRequest.iataCodesExclude, !exclude.isEmpty {
-                requestDict["iata_codes_exclude"] = exclude
-                print("   Exclude airlines: \(exclude)")
-            }
-            
-            if let include = filterRequest.iataCodesInclude, !include.isEmpty {
-                requestDict["iata_codes_include"] = include
-                print("   Include airlines: \(include)")
-            }
-            
-            // Only add sorting if it's specified AND it's a valid value
-            if let sortBy = filterRequest.sortBy, !sortBy.isEmpty {
-                // Only use valid sort values
-                let validSortValues = ["price", "duration", "departure", "arrival"]
-                if validSortValues.contains(sortBy) {
-                    requestDict["sort_by"] = sortBy
-                    print("   Sort by: \(sortBy)")
-                    
-                    // Add sort_order if needed
-                    if let sortOrder = filterRequest.sortOrder, !sortOrder.isEmpty {
-                        requestDict["sort_order"] = sortOrder
-                        print("   Sort order: \(sortOrder)")
+                
+                if let include = filterRequest.iataCodesInclude, !include.isEmpty {
+                    requestDict["iata_codes_include"] = include
+                    print("   Include airlines: \(include)")
+                }
+                
+                // Only add sorting if it's specified AND it's a valid value
+                if let sortBy = filterRequest.sortBy, !sortBy.isEmpty {
+                    // Only use valid sort values
+                    let validSortValues = ["price", "duration", "departure", "arrival"]
+                    if validSortValues.contains(sortBy) {
+                        requestDict["sort_by"] = sortBy
+                        print("   Sort by: \(sortBy)")
+                        
+                        // Add sort_order if needed
+                        if let sortOrder = filterRequest.sortOrder, !sortOrder.isEmpty {
+                            requestDict["sort_order"] = sortOrder
+                            print("   Sort order: \(sortOrder)")
+                        } else {
+                            // Default sort order is ascending
+                            requestDict["sort_order"] = "asc"
+                            print("   Sort order: asc (default)")
+                        }
                     } else {
-                        // Default sort order is ascending
-                        requestDict["sort_order"] = "asc"
-                        print("   Sort order: asc (default)")
+                        print("   ⚠️ Invalid sort value ignored: \(sortBy)")
                     }
-                } else {
-                    print("   ⚠️ Invalid sort value ignored: \(sortBy)")
+                }
+                
+                // Only add non-empty arrays
+                if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
+                    requestDict["agency_exclude"] = agencyExclude
+                    print("   Exclude agencies: \(agencyExclude)")
+                }
+                
+                if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
+                    requestDict["agency_include"] = agencyInclude
+                    print("   Include agencies: \(agencyInclude)")
+                }
+                
+                // Only add price constraints if they're meaningful
+                if let priceMin = filterRequest.priceMin, priceMin > 0 {
+                    requestDict["price_min"] = priceMin
+                    print("   Price min: ₹\(priceMin)")
+                }
+                
+                if let priceMax = filterRequest.priceMax, priceMax > 0 {
+                    requestDict["price_max"] = priceMax
+                    print("   Price max: ₹\(priceMax)")
                 }
             }
             
-            // Only add non-empty arrays
-            if let agencyExclude = filterRequest.agencyExclude, !agencyExclude.isEmpty {
-                requestDict["agency_exclude"] = agencyExclude
-                print("   Exclude agencies: \(agencyExclude)")
-            }
-            
-            if let agencyInclude = filterRequest.agencyInclude, !agencyInclude.isEmpty {
-                requestDict["agency_include"] = agencyInclude
-                print("   Include agencies: \(agencyInclude)")
-            }
-            
-            // Only add price constraints if they're meaningful
-            if let priceMin = filterRequest.priceMin, priceMin > 0 {
-                requestDict["price_min"] = priceMin
-                print("   Price min: ₹\(priceMin)")
-            }
-            
-            if let priceMax = filterRequest.priceMax, priceMax > 0 {
-                requestDict["price_max"] = priceMax
-                print("   Price max: ₹\(priceMax)")
-            }
-        }
-        
-        // Add body to request
-        do {
-               // Always use the requestDict, which will be empty if no filters
-               request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
-               
-               if requestDict.isEmpty {
-                   print("🔧 Empty filter request body (no filters applied)")
-               } else if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
-                   print("🔧 Final API request body: \(requestBody)")
+            // Add body to request
+            do {
+                   // Always use the requestDict, which will be empty if no filters
+                   request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+                   
+                   if requestDict.isEmpty {
+                       print("🔧 Empty filter request body (no filters applied)")
+                   } else if let requestBody = String(data: request.httpBody ?? Data(), encoding: .utf8) {
+                       print("🔧 Final API request body: \(requestBody)")
+                   }
+               } catch {
+                   print("❌ Error encoding filter request: \(error)")
+                   return Fail(error: error).eraseToAnyPublisher()
                }
-           } catch {
-               print("❌ Error encoding filter request: \(error)")
-               return Fail(error: error).eraseToAnyPublisher()
-           }
-        
-        print("🚀 Making API call to poll endpoint")
-        print("   Search ID: \(searchId)")
-        print("   Page: \(page)")
-        print("   Limit: \(limit)")
-        
-        // Return a publisher that will emit results
-        return Future<FlightPollResponse, Error> { promise in
-            AF.request(request)
-                .validate()
-                .responseData { [weak self] response in
-                    // Log response details
-                    print("📡 Poll API Response:")
-                    print("   Status Code: \(response.response?.statusCode ?? 0)")
-                    
-                    switch response.result {
-                    case .success(let data):
-                        do {
-                            let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
-                            
-                            // Store response in viewModel
-                            self?.viewModelReference?.lastPollResponse = pollResponse
-                            
-                            // Update the total count
-                            self?.viewModelReference?.totalFlightCount = pollResponse.count
-                            
-                            // Update cache status
-                            self?.viewModelReference?.isDataCached = pollResponse.cache
-                            
-                            print("✅ Poll response decoded successfully:")
-                            print("   Results: \(pollResponse.results.count)")
-                            print("   Total: \(pollResponse.count)")
-                            print("   Cached: \(pollResponse.cache)")
-                            print("   Has Next: \(pollResponse.next != nil)")
-                            
-                            promise(.success(pollResponse))
-                        } catch {
-                            print("❌ Poll response decoding error: \(error)")
-                            if let responseStr = String(data: data, encoding: .utf8) {
-                                print("   Response data: \(responseStr.prefix(500))")
+            
+            print("🚀 Making API call to poll endpoint")
+            print("   Search ID: \(searchId)")
+            print("   Page: \(page)")
+            print("   Limit: \(limit)")
+            
+            // Return a publisher that will emit results
+            return Future<FlightPollResponse, Error> { promise in
+                AF.request(request)
+                    .validate()
+                    .responseData { [weak self] response in
+                        // Log response details
+                        print("📡 Poll API Response:")
+                        print("   Status Code: \(response.response?.statusCode ?? 0)")
+                        
+                        switch response.result {
+                        case .success(let data):
+                            do {
+                                let pollResponse = try JSONDecoder().decode(FlightPollResponse.self, from: data)
+                                
+                                // Store response in viewModel
+                                self?.viewModelReference?.lastPollResponse = pollResponse
+                                
+                                // Update the total count
+                                self?.viewModelReference?.totalFlightCount = pollResponse.count
+                                
+                                // Update cache status
+                                self?.viewModelReference?.isDataCached = pollResponse.cache
+                                
+                                print("✅ Poll response decoded successfully:")
+                                print("   Results: \(pollResponse.results.count)")
+                                print("   Total: \(pollResponse.count)")
+                                print("   Cached: \(pollResponse.cache)")
+                                print("   Has Next: \(pollResponse.next != nil)")
+                                
+                                promise(.success(pollResponse))
+                            } catch {
+                                print("❌ Poll response decoding error: \(error)")
+                                if let responseStr = String(data: data, encoding: .utf8) {
+                                    print("   Response data: \(responseStr.prefix(500))")
+                                }
+                                promise(.failure(error))
+                            }
+                        case .failure(let error):
+                            print("❌ Poll API request failed: \(error)")
+                            if let data = response.data, let responseStr = String(data: data, encoding: .utf8) {
+                                print("   Error response: \(responseStr.prefix(500))")
                             }
                             promise(.failure(error))
                         }
-                    case .failure(let error):
-                        print("❌ Poll API request failed: \(error)")
-                        if let data = response.data, let responseStr = String(data: data, encoding: .utf8) {
-                            print("   Error response: \(responseStr.prefix(500))")
-                        }
-                        promise(.failure(error))
                     }
-                }
-        }.eraseToAnyPublisher()
-    }
+            }.eraseToAnyPublisher()
+        }
 
 
     

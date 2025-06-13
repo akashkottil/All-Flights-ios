@@ -5848,21 +5848,25 @@ struct ScrollViewFooter: View {
     let viewModel: ExploreViewModel
     var loadMore: () -> Void
     
-    // SIMPLIFIED: Only check if we should load more based on hasMoreFlights
+    // Computed properties for better logic
     private var shouldLoadMore: Bool {
-        return viewModel.hasMoreFlights &&
-               !viewModel.isLoadingMoreFlights &&
-               !viewModel.isLoadingDetailedFlights
+        return viewModel.hasMoreFlights && !viewModel.isLoadingMoreFlights && !viewModel.isLoadingDetailedFlights
     }
     
     private var isLoading: Bool {
         return viewModel.isLoadingMoreFlights
     }
     
-    // SIMPLIFIED: Show "all flights loaded" only when hasMoreFlights is false
     private var hasAllFlights: Bool {
-        return !viewModel.hasMoreFlights &&
-               viewModel.actualLoadedCount > 0
+        // FIXED: Only show "all flights loaded" when we truly have all flights
+        return viewModel.isDataCached &&
+               viewModel.actualLoadedCount >= viewModel.totalFlightCount &&
+               viewModel.totalFlightCount > 0
+    }
+    
+    private var isWaitingForBackend: Bool {
+        // Backend is still processing data
+        return !viewModel.isDataCached && viewModel.totalFlightCount > 0
     }
     
     var body: some View {
@@ -5892,20 +5896,49 @@ struct ScrollViewFooter: View {
                     Spacer()
                 }
                 .frame(height: 60)
+            } else if isWaitingForBackend {
+                // FIXED: Show waiting message when backend is still processing
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Searching for more flights...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text("(\(viewModel.actualLoadedCount) of \(viewModel.totalFlightCount)+ flights)")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                }
+                .frame(height: 80)
+                .onAppear {
+                    // Automatically try to load more after a delay when waiting for backend
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        if self.isWaitingForBackend {
+                            print("🔄 Auto-retry for backend data")
+                            loadMore()
+                        }
+                    }
+                }
             } else if hasAllFlights {
-                // Show "all flights loaded" when hasMoreFlights is false
+                // FIXED: Only show this when we genuinely have all flights
                 HStack {
                     Spacer()
                     VStack(spacing: 4) {
                         Text("All flights loaded")
                             .font(.caption)
                             .foregroundColor(.gray)
+                        Text("(\(viewModel.actualLoadedCount) flights)")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
                     }
                     Spacer()
                 }
                 .frame(height: 60)
             } else {
-                // Default state when no flights or other edge cases
+                // FIXED: Show appropriate message for other states
                 HStack {
                     Spacer()
                     Text("No more flights available")
