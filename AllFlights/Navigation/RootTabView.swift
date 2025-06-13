@@ -78,10 +78,10 @@ struct CustomTabBar: View {
     @Binding var selectedTab: Int
     
     private let tabItems = [
-        ("Home", "house", 0),
-        ("Alert", "bell.badge.fill", 1),
-        ("Explore", "globe", 2),
-        ("Track Flight", "paperplane.circle.fill", 3)
+        ("Home", "home", 0, "homeblue"), // You should provide the selected icon names for each tab
+        ("Alert", "alert", 1, "alertblue"),
+        ("Explore", "explore", 2, "exploreblue"),  // Replace 'explore' with 'exploreblue' for selected state
+        ("Track Flight", "flighttracker", 3, "flighttrackerblue")
     ]
     
     var body: some View {
@@ -91,18 +91,19 @@ struct CustomTabBar: View {
                     selectedTab = item.2
                 }) {
                     VStack(spacing: 4) {
-                        Image(systemName: item.1)
+                        Image(selectedTab == item.2 ? "\(item.3)" : "\(item.1)") // Change icon based on selection
                             .font(.system(size: 20))
                         Text(item.0)
                             .font(.caption)
+                            .fontWeight(selectedTab == item.2 ? .bold : .regular) // Bold if selected
                     }
-                    .foregroundColor(selectedTab == item.2 ? .blue : .gray)
+                    .foregroundColor(selectedTab == item.2 ? .blue : .gray) // Change text color for selected tab
                     .frame(maxWidth: .infinity)
                 }
             }
         }
         .padding(.vertical, 2)
-        .padding(.top,10)
+        .padding(.top, 10)
         .background(Color(.systemBackground))
         .overlay(
             Rectangle()
@@ -112,3 +113,7 @@ struct CustomTabBar: View {
         )
     }
 }
+
+
+
+
