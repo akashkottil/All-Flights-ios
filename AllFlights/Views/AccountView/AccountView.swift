@@ -400,6 +400,7 @@ struct AccountView: View {
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .padding(.vertical, 10)
+                               
                                 .padding(.horizontal, 20)
                                 .background(Color.blue)
                                 .cornerRadius(10)
@@ -407,6 +408,7 @@ struct AccountView: View {
                         
                         // App Settings section
                         SectionTitle(text: "App Settings")
+                            .padding(.top,16)
                         
                         SettingCard(
                             title: "Region",
@@ -516,7 +518,8 @@ struct SettingCard: View {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.black)
+                    .fontWeight(.bold)
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 20)
@@ -546,8 +549,10 @@ struct LegalInfoItem: View {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.black)
+                    .fontWeight(.bold)
             }
+            .padding(.vertical,5)
         }
         .buttonStyle(PlainButtonStyle())
     }
