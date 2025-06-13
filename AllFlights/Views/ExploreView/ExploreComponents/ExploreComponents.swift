@@ -644,8 +644,22 @@ struct FlightResultCard: View {
     let tripDuration: String
     @ObservedObject var viewModel: ExploreViewModel
     
-    // Helper function to check if we should hide the card
-    private var shouldHideCard: Bool {
+    // FIXED: More robust validation that prevents glitching
+    private var isValidCard: Bool {
+        // Basic validation - don't show if essential data is missing or invalid
+        guard !departureDate.isEmpty,
+              !origin.isEmpty,
+              !destination.isEmpty,
+              !price.isEmpty,
+              price != "₹0",
+              departureDate != "No date" else {
+            return false
+        }
+        return true
+    }
+    
+    // Helper function to check if we should hide the card based on time
+    private var shouldHideBasedOnTime: Bool {
         let currentDate = Date()
         let calendar = Calendar.current
         let currentHour = calendar.component(.hour, from: currentDate)
@@ -664,132 +678,132 @@ struct FlightResultCard: View {
     }
     
     var body: some View {
-        // If we should hide the card, return empty view
-        if shouldHideCard {
-            EmptyView()
-        } else {
-            VStack(spacing: 0) {
-                // Departure section
+        // FIXED: Only render if valid, use stable rendering approach
+        if isValidCard && !shouldHideBasedOnTime {
+            cardContent
+                .id("\(origin)-\(destination)-\(departureDate)-\(price)") // Stable ID to prevent re-renders
+        }
+    }
+    
+    @ViewBuilder
+    private var cardContent: some View {
+        VStack(spacing: 0) {
+            // Departure section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Departure")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                HStack {
+                    Text(String(departureDate.dropLast(5)))
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        Text(origin)
+                            .font(.headline)
+                        
+                        Image(systemName: "arrow.right")
+                            .font(.caption)
+                        
+                        Text(destination)
+                            .font(.headline)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(isOutDirect ? "Direct" : "Connecting")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            
+            // Return section - only show for round trips with valid return data
+            if viewModel.isRoundTrip && !returnDate.isEmpty && returnDate != "No return" {
+                Divider()
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Departure")
+                    Text("Return")
                         .font(.subheadline)
                         .foregroundColor(.gray)
                     
                     HStack {
-                        Text(departureDate.dropLast(5))
+                        Text(String(returnDate.dropLast(5)))
                             .font(.headline)
                         
                         Spacer()
                         
                         HStack(spacing: 4) {
-                            Text(origin)
+                            Text(destination)
                                 .font(.headline)
                             
                             Image(systemName: "arrow.right")
                                 .font(.caption)
                             
-                            Text(destination)
+                            Text(origin)
                                 .font(.headline)
                         }
                         
                         Spacer()
                         
-                        Text(isOutDirect ? "Direct" : "Connecting")
+                        Text(isInDirect ? "Direct" : "Connecting")
                             .font(.subheadline)
-                            .fontWeight(.bold)
                             .foregroundColor(.green)
+                            .fontWeight(.bold)
                     }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
-                
-                // Return section
-                if viewModel.isRoundTrip {
-                    Divider()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Return")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        
-                        HStack {
-                            Text(returnDate.dropLast(5))
-                                .font(.headline)
-                            
-                            Spacer()
-                            
-                            HStack(spacing: 4) {
-                                Text(destination)
-                                    .font(.headline)
-                                
-                                Image(systemName: "arrow.right")
-                                    .font(.caption)
-                                
-                                Text(origin)
-                                    .font(.headline)
-                            }
-                            
-                            Spacer()
-                            
-                            Text(isInDirect ? "Direct" : "Connecting")
-                                .font(.subheadline)
-                                .foregroundColor(.green)
-                                .fontWeight(.bold)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
-                }
-                
-                Divider()
-                
-                // Price section
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Flights from")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        
-                        Text(price)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text(viewModel.isRoundTrip ? tripDuration : "One way trip")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                        impactFeedback.impactOccurred()
-                                               
-                        searchFlights()
-                    }) {
-                        Text("View these dates")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 16)
-                            .background(Color.orange)
-                            .cornerRadius(8)
-                    }
-                }
-                .padding()
             }
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-            .padding(.horizontal)
+            
+            Divider()
+            
+            // Price section
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Flights from")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    
+                    Text(price)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text(viewModel.isRoundTrip ? tripDuration : "One way trip")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                                           
+                    searchFlights()
+                }) {
+                    Text("View these dates")
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 16)
+                        .background(Color.orange)
+                        .cornerRadius(8)
+                }
+            }
+            .padding()
         }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .padding(.horizontal)
     }
     
     private func searchFlights() {
         // Use the formatted dates from the view model if available, otherwise fallback to card dates
-        let _: String
-        let _: String
-        
-        // First, convert the card dates to API format
         let formattedCardDepartureDate = viewModel.formatDateForAPI(from: self.departureDate) ?? "2025-11-25"
         let formattedCardReturnDate = viewModel.formatDateForAPI(from: self.returnDate) ?? "2025-11-27"
         

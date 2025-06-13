@@ -78,6 +78,28 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
+    func handleFlightResults(_ results: [FlightResult]) {
+            // Filter out invalid results before setting
+            let validResults = results.filter { result in
+                // Ensure we have valid data
+                !result.outbound.origin.iata.isEmpty &&
+                !result.outbound.destination.iata.isEmpty &&
+                result.price > 0 &&
+                result.outbound.departure != nil
+            }
+            
+            DispatchQueue.main.async {
+                self.flightResults = validResults
+                self.isLoadingFlights = false
+                
+                if validResults.isEmpty {
+                    self.errorMessage = "No flights found for this route"
+                } else {
+                    self.errorMessage = nil
+                }
+            }
+        }
+    
     // Add this method to ExploreViewModel
     func resetFilterSheetState() {
         filterSheetState = FilterSheetState()
@@ -766,62 +788,71 @@ class ExploreViewModel: ObservableObject {
         }
     
     func handleAnytimeResults(_ results: [FlightResult]) {
-        // Set anytime mode flag
-           self.isAnytimeMode = true
-        // Reset all detailed view flags to ensure they don't activate
-        self.detailedFlightResults = []
-        self.showingDetailedFlightList = false
-        self.isLoadingDetailedFlights = false
-        self.detailedFlightError = nil
-        self.isDirectSearch = false
-        
-        // Set up the flight results display
-        self.flightResults = results
-        self.hasSearchedFlights = true
-        self.isLoadingFlights = false
-        
-        // If we got results, update the to/from location display
-        if let firstResult = results.first {
-            self.fromLocation = firstResult.outbound.origin.name
-            self.toLocation = firstResult.outbound.destination.name
+            // Filter valid results
+            let validResults = results.filter { result in
+                !result.outbound.origin.iata.isEmpty &&
+                !result.outbound.destination.iata.isEmpty &&
+                result.price > 0 &&
+                result.outbound.departure != nil
+            }
             
-            self.fromIataCode = firstResult.outbound.origin.iata
-            self.toIataCode = firstResult.outbound.destination.iata
+            // Set anytime mode flag
+            self.isAnytimeMode = true
             
-            // Save search details for later use
-            self.selectedOriginCode = firstResult.outbound.origin.iata
-            self.selectedDestinationCode = firstResult.outbound.destination.iata
+            // Reset all detailed view flags to ensure they don't activate
+            self.detailedFlightResults = []
+            self.showingDetailedFlightList = false
+            self.isLoadingDetailedFlights = false
+            self.detailedFlightError = nil
+            self.isDirectSearch = false
             
-            if let outboundDeparture = firstResult.outbound.departure {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                let departureDate = Date(timeIntervalSince1970: TimeInterval(outboundDeparture))
-                self.selectedDepartureDatee = formatter.string(from: departureDate)
+            // Set up the flight results display
+            self.flightResults = validResults
+            self.hasSearchedFlights = true
+            self.isLoadingFlights = false
+            
+            // If we got results, update the to/from location display
+            if let firstResult = validResults.first {
+                self.fromLocation = firstResult.outbound.origin.name
+                self.toLocation = firstResult.outbound.destination.name
                 
-                if let inboundDeparture = firstResult.inbound?.departure {
-                    let returnDate = Date(timeIntervalSince1970: TimeInterval(inboundDeparture))
-                    self.selectedReturnDatee = formatter.string(from: returnDate)
+                self.fromIataCode = firstResult.outbound.origin.iata
+                self.toIataCode = firstResult.outbound.destination.iata
+                
+                // Save search details for later use
+                self.selectedOriginCode = firstResult.outbound.origin.iata
+                self.selectedDestinationCode = firstResult.outbound.destination.iata
+                
+                if let outboundDeparture = firstResult.outbound.departure {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    let departureDate = Date(timeIntervalSince1970: TimeInterval(outboundDeparture))
+                    self.selectedDepartureDatee = formatter.string(from: departureDate)
+                    
+                    if let inboundDeparture = firstResult.inbound?.departure {
+                        let returnDate = Date(timeIntervalSince1970: TimeInterval(inboundDeparture))
+                        self.selectedReturnDatee = formatter.string(from: returnDate)
+                    }
                 }
             }
+            
+            // Clear these to ensure we're in the right state
+            self.selectedCity = nil
+            self.showingCities = false
+            
+            // Set dates array to empty to show "Anytime" in the date field
+            self.dates = []
+            
+            // Update error message based on results
+            if validResults.isEmpty {
+                self.errorMessage = "No flights found for this route"
+            } else {
+                self.errorMessage = nil
+            }
+            
+            // Force an update to ensure changes are processed
+            self.objectWillChange.send()
         }
-        
-        // Clear these to ensure we're in the right state
-        self.selectedCity = nil
-        self.showingCities = false
-        
-        // Set dates array to empty to show "Anytime" in the date field
-        self.dates = []
-        
-        // Update error message based on results
-        if results.isEmpty {
-            self.errorMessage = "No flights found for this route"
-        } else {
-            self.errorMessage = nil
-        }
-        
-        // Force an update to ensure changes are processed
-        self.objectWillChange.send()
-    }
     
     // Helper method to format price with the correct currency symbol
         func formatPrice(_ price: Int) -> String {

@@ -276,42 +276,61 @@ struct ExploreScreen: View {
                                             SkeletonFlightResultCard()
                                                 .padding(.bottom, 8)
                                         }
-                                    } else if viewModel.errorMessage != nil || viewModel.flightResults.isEmpty {
-                                        // FIXED: Check if we should auto-reload data before showing "No flights found"
-                                        if viewModel.flightResults.isEmpty && !viewModel.isLoadingFlights {
-                                            VStack {
+                                    } else if viewModel.flightResults.isEmpty {
+                                        // FIXED: Keep your auto-reload logic but prevent glitching with better state management
+                                        VStack(spacing: 12) {
+                                            if viewModel.errorMessage != nil {
+                                                // Show error state
+                                                Image(systemName: "airplane.circle")
+                                                    .font(.system(size: 48))
+                                                    .foregroundColor(.gray.opacity(0.6))
+                                                
                                                 Text("No flights found")
                                                     .font(.subheadline)
                                                     .foregroundColor(.gray)
                                                 
-                                                // Auto-reload trigger
-                                                Text("")
-                                                    .onAppear {
-                                                        // Automatically try to reload data if we have the necessary context
-                                                        if let city = viewModel.selectedCity {
-                                                            print("🔄 Auto-reloading flight data for city: \(city.location.name)")
-                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                                                viewModel.fetchFlightDetails(destination: city.location.iata)
-                                                            }
-                                                        } else if !viewModel.toIataCode.isEmpty {
-                                                            print("🔄 Auto-reloading flight data for destination: \(viewModel.toIataCode)")
-                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                                                viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
-                                                            }
-                                                        } else if viewModel.selectedMonthIndex < viewModel.availableMonths.count {
-                                                            print("🔄 Auto-reloading flight data using current month selection")
-                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                                                viewModel.selectMonth(at: viewModel.selectedMonthIndex)
-                                                            }
+                                                Text("Try adjusting your search or check back later")
+                                                    .font(.caption)
+                                                    .foregroundColor(.gray)
+                                                    .multilineTextAlignment(.center)
+                                            } else {
+                                                // Show loading state during auto-reload
+                                                ProgressView()
+                                                    .scaleEffect(1.2)
+                                                    .padding(.bottom, 8)
+                                                
+                                                Text("Loading flights...")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.gray)
+                                            }
+                                            
+                                            // Auto-reload trigger (keep your existing logic)
+                                            Text("")
+                                                .onAppear {
+                                                    // Only trigger auto-reload if we don't have an explicit error
+                                                    guard viewModel.errorMessage == nil else { return }
+                                                    
+                                                    // Automatically try to reload data if we have the necessary context
+                                                    if let city = viewModel.selectedCity {
+                                                        print("🔄 Auto-reloading flight data for city: \(city.location.name)")
+                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                            viewModel.fetchFlightDetails(destination: city.location.iata)
+                                                        }
+                                                    } else if !viewModel.toIataCode.isEmpty {
+                                                        print("🔄 Auto-reloading flight data for destination: \(viewModel.toIataCode)")
+                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                            viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
+                                                        }
+                                                    } else if viewModel.selectedMonthIndex < viewModel.availableMonths.count {
+                                                        print("🔄 Auto-reloading flight data using current month selection")
+                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                            viewModel.selectMonth(at: viewModel.selectedMonthIndex)
                                                         }
                                                     }
-                                            }
-                                        } else {
-                                            Text("No flights found")
-                                                .font(.subheadline)
-                                                .foregroundColor(.gray)
+                                                }
                                         }
-                                    } else {
+                                        .padding(.vertical, 40)
+                                    }else {
                                         if !viewModel.isAnytimeMode && !viewModel.flightResults.isEmpty {
                                             Text("Estimated cheapest price during \(getCurrentMonthName())")
                                                 .font(.subheadline)
