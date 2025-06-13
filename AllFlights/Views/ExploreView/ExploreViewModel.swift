@@ -365,12 +365,11 @@ class ExploreViewModel: ObservableObject {
             print("🔍 Search successful, got searchId: \(searchResponse.searchId)")
             self.currentSearchId = searchResponse.searchId
             
-            // IMPORTANT: Use empty filter for initial poll
             return self.service.pollFlightResultsPaginated(
                 searchId: searchResponse.searchId,
                 page: 1,
                 limit: 8,
-                filterRequest: nil // Explicitly pass nil for initial search
+                filterRequest: nil
             )
         }
         .receive(on: DispatchQueue.main)
@@ -383,7 +382,6 @@ class ExploreViewModel: ObservableObject {
                     self.detailedFlightError = error.localizedDescription
                 }
                 
-                // Turn off loading state when done
                 self.isLoadingDetailedFlights = false
             },
             receiveValue: { [weak self] pollResponse in
@@ -393,16 +391,19 @@ class ExploreViewModel: ObservableObject {
                 self.totalFlightCount = pollResponse.count
                 self.isDataCached = pollResponse.cache
                 self.actualLoadedCount = pollResponse.results.count
-                self.hasMoreFlights = self.shouldContinueLoadingMore()
+                
+                // SIMPLIFIED: Only use 'next' field to determine if more flights are available
+                self.hasMoreFlights = pollResponse.next != nil
+                
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-                print("✅ Initial search completed: \(pollResponse.results.count) flights, total: \(pollResponse.count), cached: \(pollResponse.cache)")
-                
-                // If not cached (still being processed on backend), try fetching more data after a delay
-                if !pollResponse.cache {
-                    self.scheduleRetryAfterDelay()
-                }
+                print("✅ Initial search completed:")
+                print("   - Flights loaded: \(pollResponse.results.count)")
+                print("   - API total count: \(pollResponse.count)")
+                print("   - Cached: \(pollResponse.cache)")
+                print("   - Has next page: \(pollResponse.next != nil)")
+                print("   - Will allow more loading: \(self.hasMoreFlights)")
             }
         )
         .store(in: &cancellables)
@@ -506,14 +507,7 @@ class ExploreViewModel: ObservableObject {
               !isLoadingMoreFlights,
               !isLoadingDetailedFlights,
               hasMoreFlights else {
-            print("🚫 Cannot load more flights")
-            return
-        }
-        
-        // Check if we should continue loading
-        if !shouldContinueLoadingMore() {
-            print("🛑 All available flights loaded: \(actualLoadedCount)/\(totalFlightCount)")
-            hasMoreFlights = false
+            print("🚫 Cannot load more flights - hasMoreFlights: \(hasMoreFlights)")
             return
         }
         
@@ -540,7 +534,7 @@ class ExploreViewModel: ObservableObject {
             receiveValue: { [weak self] pollResponse in
                 guard let self = self else { return }
                 
-                // Update cache status from response
+                // Update cache status and total count from response
                 self.isDataCached = pollResponse.cache
                 self.totalFlightCount = pollResponse.count
                 self.currentPage = nextPage
@@ -555,35 +549,25 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults.append(contentsOf: newResults)
                 self.actualLoadedCount = self.detailedFlightResults.count
                 
-                // Determine if we should continue loading more
-                self.hasMoreFlights = self.shouldContinueLoadingMore()
+                // SIMPLIFIED: Only use the 'next' field to determine if more flights are available
+                self.hasMoreFlights = pollResponse.next != nil
                 self.isLoadingMoreFlights = false
                 
-                // If not cached and there are potentially more results, try again after delay
-                if !pollResponse.cache && pollResponse.count > self.actualLoadedCount {
-                    self.scheduleRetryAfterDelay()
-                }
+                print("📊 Load more completed:")
+                print("   - New unique flights: \(newResults.count)")
+                print("   - Total loaded: \(self.actualLoadedCount)")
+                print("   - API total count: \(pollResponse.count)")
+                print("   - Has next page: \(pollResponse.next != nil)")
+                print("   - Will continue loading: \(self.hasMoreFlights)")
             }
         )
         .store(in: &cancellables)
     }
     
     private func shouldContinueLoadingMore() -> Bool {
-        // If data is not cached (still loading in backend), we should keep trying
-        if !isDataCached {
-            print("🔄 Backend still loading data (cache: false)")
-            return true
-        }
-        
-        // If data is cached, check if we have all available flights
-        if actualLoadedCount < totalFlightCount {
-            print("📊 Need more flights: \(actualLoadedCount)/\(totalFlightCount)")
-            return true
-        }
-        
-        // We have all available flights
-        print("✅ All flights loaded: \(actualLoadedCount)/\(totalFlightCount)")
-        return false
+        // SIMPLIFIED: Only check if we have more pages available from API
+        // Don't check cache status or count comparisons
+        return hasMoreFlights
     }
         
 
@@ -974,7 +958,6 @@ class ExploreViewModel: ObservableObject {
         }
         
         print("🔍 Applying filters via API - searchId: \(searchId)")
-        print("🔍 Filter request: \(filterRequest)")
         
         // Store the filter request for future use
         self._currentFilterRequest = filterRequest
@@ -995,7 +978,7 @@ class ExploreViewModel: ObservableObject {
         service.pollFlightResultsPaginated(
             searchId: searchId,
             page: 1,
-            limit: 20, // Use larger limit for filtered results
+            limit: 20,
             filterRequest: filterRequest
         )
         .receive(on: DispatchQueue.main)
@@ -1008,11 +991,10 @@ class ExploreViewModel: ObservableObject {
                 if case .failure(let error) = completion {
                     print("❌ Filter application failed: \(error.localizedDescription)")
                     self.detailedFlightError = error.localizedDescription
-                    
-                    // Don't revert to old results on error, keep empty state
                     self.detailedFlightResults = []
                     self.totalFlightCount = 0
                     self.actualLoadedCount = 0
+                    self.hasMoreFlights = false
                 }
             },
             receiveValue: { [weak self] response in
@@ -1022,6 +1004,7 @@ class ExploreViewModel: ObservableObject {
                 print("   - Results count: \(response.results.count)")
                 print("   - Total available: \(response.count)")
                 print("   - Cached: \(response.cache)")
+                print("   - Has next page: \(response.next != nil)")
                 
                 // Apply client-side filtering for exact stop counts
                 let clientFilteredResults = self.applyClientSideStopFiltering(
@@ -1030,27 +1013,22 @@ class ExploreViewModel: ObservableObject {
                 )
                 
                 // Update all tracking variables from API response
-                self.totalFlightCount = clientFilteredResults.count // Use client-filtered count
+                self.totalFlightCount = response.count // Use API count, not client-filtered count
                 self.isDataCached = response.cache
                 self.actualLoadedCount = clientFilteredResults.count
-                self.hasMoreFlights = self.shouldContinueLoadingMore()
+                
+                // SIMPLIFIED: Only use 'next' field to determine if more flights are available
+                self.hasMoreFlights = response.next != nil
+                
                 self.isLoadingDetailedFlights = false
                 self.detailedFlightError = nil
-                
-                // Update results with client-filtered data
                 self.detailedFlightResults = clientFilteredResults
-                
-                // Update the last poll response for airline data etc.
                 self.lastPollResponse = response
                 
                 print("📊 Filter application complete:")
                 print("   - API results: \(response.results.count)")
                 print("   - Client filtered: \(clientFilteredResults.count)")
-                print("   - Total count: \(self.totalFlightCount)")
-                print("   - Has more: \(self.hasMoreFlights)")
-                
-                // Force UI update
-                self.objectWillChange.send()
+                print("   - Will allow more loading: \(self.hasMoreFlights)")
             }
         )
         .store(in: &cancellables)
