@@ -777,27 +777,25 @@ struct EnhancedSearchInput: View {
         
     }
     
-    // MARK: - Computed Views
     
     // MARK: - Updated Trip Type Tabs in EnhancedSearchInput
     private var tripTypeTabs: some View {
         let titles = ["Return", "One way", "Multi city"]
-        let totalWidth = UIScreen.main.bounds.width * 0.6
+        let totalWidth = UIScreen.main.bounds.width * 0.65
         let tabWidth = totalWidth / 3
-        let rightShift: CGFloat = 5
+        let padding: CGFloat = 6 // Consistent padding for all sides
         
         return ZStack(alignment: .leading) {
-            // Background capsule
+            // Background capsule (gray background, height remains the same)
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .padding(.horizontal, -5)
-                .padding(.vertical, -5)
-            
-            // Sliding white background for selected tab
+                .frame(height: 44)  // Keep the gray background height at 44
+                
+            // Sliding white background for selected tab (height slightly increased)
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - 10)
-                .offset(x: (CGFloat(searchViewModel.selectedTab) * tabWidth) + rightShift)
+                .frame(width: tabWidth - (padding * 2), height: 34)  // Slightly increased height of the white background
+                .offset(x: (CGFloat(searchViewModel.selectedTab) * tabWidth) + padding)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: searchViewModel.selectedTab)
             
             // Tab buttons
@@ -826,6 +824,8 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal, 4)
         .padding(.bottom, 8)
     }
+
+
 
     
     // MARK: - Updated Multi-City Interface with Enhanced Animations
@@ -956,7 +956,7 @@ struct EnhancedSearchInput: View {
        }
     
     private var regularInterface: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 5) {
             fromLocationButton
             ZStack {
                 Divider()
@@ -971,11 +971,13 @@ struct EnhancedSearchInput: View {
                 .padding(.trailing,-20)
                 .padding(.vertical,6)
             dateButton
+                .padding(.vertical,4)
             Divider()
                 .padding(.leading,40)
                 .padding(.trailing,-20)
                 .padding(.vertical,6)
             passengerButton
+                .padding(.bottom,4)
            
             searchButton
             directFlightsToggle
@@ -1005,7 +1007,7 @@ struct EnhancedSearchInput: View {
                 
                 Spacer()
             }
-            .padding(.top, 12)
+            .padding(.top, 8)
             .padding(.horizontal, 12)
         }
     }
