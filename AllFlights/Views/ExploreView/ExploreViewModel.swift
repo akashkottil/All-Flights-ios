@@ -300,21 +300,28 @@ class ExploreViewModel: ObservableObject {
                             }
                         },
                         receiveValue: { pollResponse in
-                            // FIXED: Set pagination state based on backend response
+                            // FIXED: Always check cache status first
                             self.totalFlightCount = pollResponse.count
                             self.isDataCached = pollResponse.cache
                             self.actualLoadedCount = pollResponse.results.count
                             self.detailedFlightResults = pollResponse.results
                             
-                            // FIXED: Set hasMoreFlights based on backend rules
+                            // CRITICAL: Always check cache status for multi-city
                             if pollResponse.cache {
-                                // Backend finished - use next field
-                                self.hasMoreFlights = pollResponse.next != nil
-                                print("✅ Multi-city search complete (cached): \(pollResponse.results.count) flights, hasMore: \(self.hasMoreFlights)")
+                                // Backend finished processing multi-city search
+                                if pollResponse.count == 0 {
+                                    self.detailedFlightError = "No flights found for your multi-city route"
+                                    self.hasMoreFlights = false
+                                } else {
+                                    self.detailedFlightError = nil
+                                    self.hasMoreFlights = pollResponse.next != nil
+                                }
+                                print("✅ Multi-city search complete (cached): \(pollResponse.results.count)/\(pollResponse.count) flights, hasMore: \(self.hasMoreFlights)")
                             } else {
-                                // Backend still processing - assume more data will come
+                                // Backend still processing multi-city
+                                self.detailedFlightError = nil
                                 self.hasMoreFlights = true
-                                print("🔄 Multi-city search complete (processing): \(pollResponse.results.count) flights, backend still processing")
+                                print("🔄 Multi-city search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
                             }
                             
                             self.isLoadingDetailedFlights = false
@@ -402,24 +409,27 @@ class ExploreViewModel: ObservableObject {
             receiveValue: { [weak self] pollResponse in
                 guard let self = self else { return }
                 
-                // FIXED: Set pagination state based on backend response
+                // FIXED: Always check cache status first
                 self.totalFlightCount = pollResponse.count
                 self.isDataCached = pollResponse.cache
                 self.actualLoadedCount = pollResponse.results.count
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-                // FIXED: Set hasMoreFlights based on backend rules
+                // CRITICAL: Always check cache status for proper handling
                 if pollResponse.cache {
-                    // Backend finished - use next field
-                    self.hasMoreFlights = pollResponse.next != nil
-                    print("✅ Initial search complete (cached): \(pollResponse.results.count) flights, hasMore: \(self.hasMoreFlights)")
+                    // Backend finished processing - final results
+                    if pollResponse.count == 0 {
+                        self.detailedFlightError = "No flights found for this route and date"
+                        self.hasMoreFlights = false
+                    } else {
+                        self.hasMoreFlights = pollResponse.next != nil
+                    }
+                    print("✅ Initial search complete (cached): \(pollResponse.results.count)/\(pollResponse.count) flights, hasMore: \(self.hasMoreFlights)")
                 } else {
-                    // Backend still processing - assume more data will come
+                    // Backend still processing - continue loading
                     self.hasMoreFlights = true
-                    print("🔄 Initial search complete (processing): \(pollResponse.results.count) flights, backend still processing")
-                    
-                    // Schedule retry for more data
+                    print("🔄 Initial search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
                     self.scheduleRetryAfterDelay()
                 }
             }
@@ -452,7 +462,7 @@ class ExploreViewModel: ObservableObject {
                 receiveValue: { [weak self] pollResponse in
                     guard let self = self else { return }
                     
-                    // FIXED: Update state based on response
+                    // Always update cache status
                     self.isDataCached = pollResponse.cache
                     self.totalFlightCount = pollResponse.count
                     
@@ -467,15 +477,22 @@ class ExploreViewModel: ObservableObject {
                     print("✅ Retry fetched \(newResults.count) new results, total now: \(self.detailedFlightResults.count)")
                     print("📊 Cache status: \(pollResponse.cache)")
                     
-                    // FIXED: Update pagination state
+                    // CRITICAL: Always check cache status to decide next action
                     if pollResponse.cache {
-                        // Backend finished - use next field for pagination
-                        self.hasMoreFlights = pollResponse.next != nil
+                        // Backend finished - check final state
+                        if self.detailedFlightResults.isEmpty && pollResponse.count == 0 {
+                            self.detailedFlightError = "No flights found for this route and date"
+                            self.hasMoreFlights = false
+                        } else {
+                            self.hasMoreFlights = pollResponse.next != nil
+                            self.detailedFlightError = nil
+                        }
                         print("✅ Backend finished after retry - hasMoreFlights: \(self.hasMoreFlights)")
                     } else {
                         // Still processing - schedule another retry
                         self.hasMoreFlights = true
                         self.scheduleRetryAfterDelay()
+                        print("🔄 Backend still processing - scheduling another retry")
                     }
                 }
             )
@@ -519,21 +536,28 @@ class ExploreViewModel: ObservableObject {
             receiveValue: { [weak self] pollResponse in
                 guard let self = self else { return }
                 
-                // FIXED: Update state based on backend response
+                // FIXED: Always check cache status first
                 self.totalFlightCount = pollResponse.count
                 self.isDataCached = pollResponse.cache
                 self.actualLoadedCount = pollResponse.results.count
                 self.detailedFlightResults = pollResponse.results
                 
-                // FIXED: Set pagination state based on backend rules
+                // CRITICAL: Always check cache status for filters
                 if pollResponse.cache {
-                    // Backend finished processing filtered results
-                    self.hasMoreFlights = pollResponse.next != nil
-                    print("✅ Filters applied (cached): \(pollResponse.results.count) flights, hasMore: \(self.hasMoreFlights)")
+                    // Backend finished processing filters - final results
+                    if pollResponse.count == 0 {
+                        self.detailedFlightError = "No flights found matching your filters"
+                        self.hasMoreFlights = false
+                    } else {
+                        self.detailedFlightError = nil
+                        self.hasMoreFlights = pollResponse.next != nil
+                    }
+                    print("✅ Filters applied (cached): \(pollResponse.results.count)/\(pollResponse.count) flights, hasMore: \(self.hasMoreFlights)")
                 } else {
-                    // Backend still processing filtered results
+                    // Backend still processing filters
+                    self.detailedFlightError = nil
                     self.hasMoreFlights = true
-                    print("🔄 Filters applied (processing): \(pollResponse.results.count) flights, backend still processing")
+                    print("🔄 Filters applied (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
                 }
                 
                 self.isLoadingDetailedFlights = false
@@ -588,7 +612,7 @@ class ExploreViewModel: ObservableObject {
             receiveValue: { [weak self] pollResponse in
                 guard let self = self else { return }
                 
-                // FIXED: Update pagination state based on backend response
+                // Always update cache status first
                 self.totalFlightCount = pollResponse.count
                 self.isDataCached = pollResponse.cache
                 self.currentPage = nextPage
@@ -604,7 +628,7 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults.append(contentsOf: newResults)
                 self.actualLoadedCount = self.detailedFlightResults.count
                 
-                // FIXED: Determine pagination continuation based on backend rules
+                // CRITICAL: Always determine pagination based on cache status
                 if pollResponse.cache {
                     // Backend finished processing - use next field for pagination
                     self.hasMoreFlights = pollResponse.next != nil
