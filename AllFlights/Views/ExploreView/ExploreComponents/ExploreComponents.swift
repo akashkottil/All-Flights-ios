@@ -407,8 +407,9 @@ struct SearchCard: View {
                                         .foregroundColor(.black)
                                         .lineLimit(1)
                                 }
+                                .padding(.trailing,56)
                             }
-                            .frame(alignment: .trailing) // Align to right side
+                            // Align to right side
                             .zIndex(1) // Above the line
                         }
                         .padding(.vertical, 4)
