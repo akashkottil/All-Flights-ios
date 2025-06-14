@@ -204,7 +204,7 @@ struct ExploreScreen: View {
                                 Text(getExploreTitle())
                                     .font(.system(size: 24, weight: .bold))
                                     .padding(.horizontal)
-                                    .padding(.top, 16)
+                                    .padding(.top, 10)
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 12) {

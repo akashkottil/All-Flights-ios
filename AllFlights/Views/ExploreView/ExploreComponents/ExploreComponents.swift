@@ -877,54 +877,65 @@ struct APIDestinationCard: View {
                 onTap()
             }
         }) {
-            HStack(spacing: 12) {
-                // OPTIMIZED AsyncImage with better caching and immediate placeholders
+            HStack(spacing: 0) { // Remove spacing to eliminate gap between image and content
+                // OPTIMIZED AsyncImage with full height and left alignment
                 CachedAsyncImage(
-                                    url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")
-                                ) { image in
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 80, height: 80)
-                                        .clipped()
-                                        .cornerRadius(8)
-                                                                        } placeholder: {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(Color.gray.opacity(0.15))
-                                            .frame(width: 80, height: 80)
-                                        
-                                        VStack(spacing: 3) {
-                                            Image(systemName: viewModel.showingCities ? "building.2" : "globe")
-                                                .font(.system(size: 22))
-                                                .foregroundColor(.gray.opacity(0.7))
-                                            
-                                            Text(String(item.location.name.prefix(3)).uppercased())
-                                                .font(.system(size: 10, weight: .semibold))
-                                                .foregroundColor(.gray.opacity(0.8))
-                                        }
-                                    }
-                                }
-                // Content text
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Flights from")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-                    
-                    Text(item.location.name)
-                        .font(.system(size: 18, weight: .bold))
-                    
-                    Text(item.is_direct ? "Direct" : "Connecting")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                    url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")
+                ) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 88, height: 88)
+                        .clipped()
+                        .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners to match container
+                } placeholder: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 88, height: 88)
+                            .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners
+                        
+                        VStack(spacing: 3) {
+                            Image(systemName: viewModel.showingCities ? "building.2" : "globe")
+                                .font(.system(size: 22))
+                                .foregroundColor(.gray.opacity(0.7))
+                            
+                            Text(String(item.location.name.prefix(3)).uppercased())
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.gray.opacity(0.8))
+                        }
+                    }
                 }
                 
-                Spacer()
-                
-                Text(viewModel.formatPrice(item.price))
-                    .font(.system(size: 20, weight: .bold))
+                // Content text with padding only on the right side
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        
+                        
+                        Text(item.location.name)
+                            .font(.system(size: 18, weight: .semibold))
+                            .padding(.bottom,2)
+                        
+                        Text(item.is_direct ? "Direct" : "Connecting")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack{
+                        Text("Starting from")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                            .padding(.bottom,2)
+                        Text(viewModel.formatPrice(item.price))
+                            .font(.system(size: 20, weight: .bold))
+                    }
+                }
+                .padding(.leading, 12) // Add padding only on the left of text content
+                .padding(.trailing, 12) // Add padding only on the right
+                .padding(.vertical, 12) // Keep vertical padding
             }
-            .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.white)
@@ -940,6 +951,27 @@ struct APIDestinationCard: View {
                 isPressed = pressing
             }
         }, perform: {})
+    }
+}
+
+// Extension to add selective corner radius
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 

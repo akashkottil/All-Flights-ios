@@ -50,10 +50,10 @@ struct EnhancedSkeletonDestinationCard: View {
     @State private var cardAppeared = false  // Keep animation for skeleton
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Enhanced image placeholder with gradient
+        HStack(spacing: 0) { // Remove spacing to eliminate gap between image and content
+            // Enhanced image placeholder with gradient - full height and left aligned
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
+                Rectangle()
                     .fill(
                         LinearGradient(
                             colors: [
@@ -65,7 +65,7 @@ struct EnhancedSkeletonDestinationCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 80, height: 80)
+                    .frame(width: 88, height: 90)
                     .shimmer(duration: 1.5)
                 
                 // Floating icon animation
@@ -74,59 +74,64 @@ struct EnhancedSkeletonDestinationCard: View {
                     .foregroundColor(.gray.opacity(0.4))
                     .scaleEffect(breatheScale)
             }
+            .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners
             
-            // Enhanced text placeholders
-            VStack(alignment: .leading, spacing: 8) {
-                // "Flights from" placeholder
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray5))
-                    .frame(width: 80, height: 12)
-                    .shimmer(duration: 1.8)
-                
-                // Location name placeholder
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(.systemGray4), Color(.systemGray5)],
-                            startPoint: .leading,
-                            endPoint: .trailing
+            // Enhanced text placeholders with padding only on the right side
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    // "Flights from" placeholder
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(width: 80, height: 12)
+                        .shimmer(duration: 1.8)
+                    
+                    // Location name placeholder
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(.systemGray4), Color(.systemGray5)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                    )
-                    .frame(width: 140, height: 20)
-                    .shimmer(duration: 1.6)
+                        .frame(width: 140, height: 20)
+                        .shimmer(duration: 1.6)
+                    
+                    // Direct/Connecting placeholder
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(width: 60, height: 12)
+                        .shimmer(duration: 2.0)
+                }
                 
-                // Direct/Connecting placeholder
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray5))
-                    .frame(width: 60, height: 12)
-                    .shimmer(duration: 2.0)
-            }
-            
-            Spacer()
-            
-            // Enhanced price placeholder
-            VStack(alignment: .trailing, spacing: 4) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(.systemGray4),
-                                Color(.systemGray3),
-                                Color(.systemGray4)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                Spacer()
+                
+                // Enhanced price placeholder
+                VStack(alignment: .trailing, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(.systemGray4),
+                                    Color(.systemGray3),
+                                    Color(.systemGray4)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                    )
-                    .frame(width: 80, height: 24)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(.systemGray3).opacity(glowOpacity), lineWidth: 1)
-                    )
-                    .shimmer(duration: 1.4)
+                        .frame(width: 80, height: 24)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(.systemGray3).opacity(glowOpacity), lineWidth: 1)
+                        )
+                        .shimmer(duration: 1.4)
+                }
             }
+            .padding(.leading, 12) // Add padding only on the left of text content
+            .padding(.trailing, 12) // Add padding only on the right
+            .padding(.vertical, 12) // Keep vertical padding
         }
-        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white)
@@ -160,6 +165,8 @@ struct EnhancedSkeletonDestinationCard: View {
         }
     }
 }
+
+
 
 // MARK: - Enhanced Skeleton Flight Result Card
 struct EnhancedSkeletonFlightResultCard: View {
