@@ -178,7 +178,7 @@ struct ExploreScreen: View {
                             }
                             .padding(.horizontal)
                         }
-                        .padding(.bottom, 8)
+                        .padding(.bottom, 5)
                     }
                     .frame(maxWidth: .infinity)
                     .transition(.asymmetric(
@@ -200,6 +200,7 @@ struct ExploreScreen: View {
                                 .padding(.bottom, 8)
                             Spacer()
                         }
+                        .padding(.bottom,10)
                         
                         // Conditional Content based on anytime mode
                         if !viewModel.isAnytimeMode {
@@ -212,6 +213,7 @@ struct ExploreScreen: View {
                                 }
                             )
                             .padding(.horizontal)
+                            .padding(.bottom,5)
                         } else {
                             // Anytime Mode Message
                             Text("Best prices for the next 3 months")
