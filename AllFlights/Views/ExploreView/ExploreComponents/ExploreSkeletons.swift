@@ -245,9 +245,9 @@ struct EnhancedSkeletonFlightResultCard: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.orange.opacity(0.3),
-                                    Color.orange.opacity(0.2),
-                                    Color.orange.opacity(0.3)
+                                    Color.gray.opacity(0.3),
+                                    Color.gray.opacity(0.2),
+                                    Color.gray.opacity(0.3)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -256,7 +256,7 @@ struct EnhancedSkeletonFlightResultCard: View {
                         .frame(width: 140, height: 44)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                         )
                         .shimmer(duration: 1.6)
                     
