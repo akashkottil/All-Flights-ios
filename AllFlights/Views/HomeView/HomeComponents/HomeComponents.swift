@@ -1408,7 +1408,7 @@ struct HomeMultiCitySegmentView: View {
             HStack(spacing: 0) {
                 // From Location Column
                 Button(action: onFromTap) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    HStack( spacing: 2) {
                         Text(trip.fromIataCode.isEmpty ? "" : trip.fromIataCode)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(getFromLocationTextColor())
@@ -1429,7 +1429,7 @@ struct HomeMultiCitySegmentView: View {
                 
                 // To Location Column
                 Button(action: onToTap) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    HStack( spacing: 2) {
                         Text(trip.toIataCode.isEmpty ? "" : trip.toIataCode)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(getToLocationTextColor())
