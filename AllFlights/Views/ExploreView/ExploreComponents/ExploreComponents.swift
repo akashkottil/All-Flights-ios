@@ -47,7 +47,7 @@ struct ExpandedSearchCard: View {
                     
                     // Centered trip type tabs with more balanced width
                     TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
-                        .frame(width: UIScreen.main.bounds.width * 0.55)
+                        
                         .matchedGeometryEffect(id: "tripTabs", in: searchCardNamespace)
                     
                     Spacer()
@@ -289,151 +289,160 @@ struct SearchCard: View {
     }
     
     var body: some View {
-        // Conditionally show multi-city or regular interface
-        if shouldShowMultiCity {
-            // Multi-city search card - only show when came from direct multi-city search
-            MultiCitySearchCard(viewModel: viewModel)
-        } else {
-            // Regular interface for return/one-way trips
-            VStack(spacing: 8) {
-                Divider()
-                    .padding(.horizontal,-16)
-                
-                // From row
-                HStack {
-                    Button(action: {
-                        initialFocus = .origin
-                        showingSearchSheet = true
-                    }) {
-                        Image("carddeparture")
-                            .foregroundColor(.primary)
-                        Text(getFromLocationDisplayText())
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(getFromLocationTextColor())
-                    }
+            // Conditionally show multi-city or regular interface
+            if shouldShowMultiCity {
+                // Multi-city search card - only show when came from direct multi-city search
+                MultiCitySearchCard(viewModel: viewModel)
+            } else {
+                // Regular interface for return/one-way trips
+                VStack(spacing: 8) {
+                    Divider()
+                        .padding(.horizontal,-16)
                     
-                    Spacer()
-                    
-                    // Animated swap button
-                    Button(action: {
-                        animatedSwapLocations()
-                    }) {
-                        ZStack {
-                            Circle()
-                                .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                                .frame(width: 26, height: 26)
-                            Image("swapexplore")
-                                .fontWeight(.bold)
-                                .foregroundColor(.blue)
-                                .font(.system(size: 14))
-                                .rotationEffect(.degrees(swapRotationDegrees))
-                                .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        initialFocus = .destination
-                        showingSearchSheet = true
-                    }) {
-                        HStack {
-                            Image("carddestination")
+                    // From row
+                    HStack {
+                        Button(action: {
+                            initialFocus = .origin
+                            showingSearchSheet = true
+                        }) {
+                            Image("carddeparture")
                                 .foregroundColor(.primary)
-                            
-                            Text(getToLocationDisplayText())
+                            Text(getFromLocationDisplayText())
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(getToLocationTextColor())
+                                .foregroundColor(getFromLocationTextColor())
                         }
-                    }
-                }
-                .padding(4)
-                
-                Divider()
-                    .padding(.horizontal,-16)
-                
-                // Date and passengers row
-                HStack(alignment:.top) {
-                    Button(action: {
-                        // Only show calendar if destination is not "Anywhere"
-                        if viewModel.toLocation == "Anywhere" {
-                            handleAnywhereDestination()
-                        } else {
-                            showingCalendar = true
-                        }
-                    }){
-                        Image("cardcalendar")
-                            .foregroundColor(.primary)
-                      
-                        Text(getDateDisplayText())
-                            .foregroundColor(getDateTextColor())
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    
-                    Spacer()
-                    
-                    // Passenger selection button
-                    Button(action: {
-                        viewModel.showingPassengersSheet = true
-                    }) {
-                        HStack(spacing: 4) {
-                            Image("cardpassenger")
-                                .foregroundColor(.black)
+                        
+                        Spacer()
+                        
+                        // Animated swap button with line behind it
+                        ZStack {
+                            // Background vertical line
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 1, height: 40)
                             
-                            Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.black)
+                            // Swap button
+                            Button(action: {
+                                animatedSwapLocations()
+                            }) {
+                                ZStack {
+                                    Circle()
+                                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                                        .frame(width: 26, height: 26)
+                                        .background(Circle().fill(Color.white)) // Add white background to cover the line
+                                    Image("swapexplore")
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.blue)
+                                        .font(.system(size: 14))
+                                        .rotationEffect(.degrees(swapRotationDegrees))
+                                        .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            initialFocus = .destination
+                            showingSearchSheet = true
+                        }) {
+                            HStack {
+                                Image("carddestination")
+                                    .foregroundColor(.primary)
+                                
+                                Text(getToLocationDisplayText())
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(getToLocationTextColor())
+                            }
                         }
                     }
+                    .padding(4)
+                    
+                    Divider()
+                        .padding(.horizontal,-16)
+                    
+                    // Date and passengers row
+                    HStack(alignment:.top) {
+                        Button(action: {
+                            // Only show calendar if destination is not "Anywhere"
+                            if viewModel.toLocation == "Anywhere" {
+                                handleAnywhereDestination()
+                            } else {
+                                showingCalendar = true
+                            }
+                        }){
+                            Image("cardcalendar")
+                                .foregroundColor(.primary)
+                          
+                            Text(getDateDisplayText())
+                                .foregroundColor(getDateTextColor())
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        
+                        Spacer()
+                        
+                        // Passenger selection button
+                        Button(action: {
+                            viewModel.showingPassengersSheet = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image("cardpassenger")
+                                    .foregroundColor(.black)
+                                
+                                Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.black)
+                            }
+                        }
+                    }
+                    .padding(.leading,8)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal,4)
                 }
-                .padding(.leading,8)
-                .padding(.vertical, 4)
-                .padding(.horizontal,4)
-            }
-            .sheet(isPresented: $showingSearchSheet) {
-                LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
-                    .presentationDetents([.large])
-            }
-            .sheet(isPresented: $showingCalendar, onDismiss: {
-                // When calendar is dismissed, check if dates were selected and trigger search
-                if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
-                    viewModel.updateDatesAndRunSearch()
+                .sheet(isPresented: $showingSearchSheet) {
+                    LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
+                        .presentationDetents([.large])
                 }
-            }) {
-                CalendarView(
-                    fromiatacode: $viewModel.fromIataCode,
-                    toiatacode: $viewModel.toIataCode,
-                    parentSelectedDates: $viewModel.dates,
-                    onAnytimeSelection: { results in
-                        viewModel.handleAnytimeResults(results)
-                    },
-                    onTripTypeChange: { newIsRoundTrip in
-                        isRoundTrip = newIsRoundTrip
-                        viewModel.isRoundTrip = newIsRoundTrip
-                    },
-                    isRoundTrip: isRoundTrip
-                )
-            }
-            .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
-                triggerSearchAfterPassengerChange()
-            }) {
-                PassengersAndClassSelector(
-                    adultsCount: $viewModel.adultsCount,
-                    childrenCount: $viewModel.childrenCount,
-                    selectedClass: $viewModel.selectedCabinClass,
-                    childrenAges: $viewModel.childrenAges
-                )
-            }
-            .onAppear {
-                viewModel.isRoundTrip = isRoundTrip
-            }
-            .onChange(of: isRoundTrip) { newValue in
-                viewModel.isRoundTrip = newValue
-                viewModel.handleTripTypeChange()
+                .sheet(isPresented: $showingCalendar, onDismiss: {
+                    // When calendar is dismissed, check if dates were selected and trigger search
+                    if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                        viewModel.updateDatesAndRunSearch()
+                    }
+                }) {
+                    CalendarView(
+                        fromiatacode: $viewModel.fromIataCode,
+                        toiatacode: $viewModel.toIataCode,
+                        parentSelectedDates: $viewModel.dates,
+                        onAnytimeSelection: { results in
+                            viewModel.handleAnytimeResults(results)
+                        },
+                        onTripTypeChange: { newIsRoundTrip in
+                            isRoundTrip = newIsRoundTrip
+                            viewModel.isRoundTrip = newIsRoundTrip
+                        },
+                        isRoundTrip: isRoundTrip
+                    )
+                }
+                .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
+                    triggerSearchAfterPassengerChange()
+                }) {
+                    PassengersAndClassSelector(
+                        adultsCount: $viewModel.adultsCount,
+                        childrenCount: $viewModel.childrenCount,
+                        selectedClass: $viewModel.selectedCabinClass,
+                        childrenAges: $viewModel.childrenAges
+                    )
+                }
+                .onAppear {
+                    viewModel.isRoundTrip = isRoundTrip
+                }
+                .onChange(of: isRoundTrip) { newValue in
+                    viewModel.isRoundTrip = newValue
+                    viewModel.handleTripTypeChange()
+                }
             }
         }
-    }
     
     // MARK: - Helper Methods
     
@@ -1224,17 +1233,17 @@ struct TripTypeTabView: View {
         }
     }
     
-    // Calculate dimensions based on available tabs
+    // Calculate dimensions based on available tabs - Updated to match tripTypeTabs UI
     private var totalWidth: CGFloat {
-        return UIScreen.main.bounds.width * 0.6
+        return UIScreen.main.bounds.width * 0.65
     }
     
     private var tabWidth: CGFloat {
         return totalWidth / CGFloat(availableTabs.count)
     }
     
-    private var rightShift: CGFloat {
-        return 5
+    private var padding: CGFloat {
+        return 6 // Consistent padding for all sides
     }
     
     // MARK: - Targeted Loading State Check
@@ -1246,17 +1255,16 @@ struct TripTypeTabView: View {
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Background capsule
+            // Background capsule (gray background, height remains the same)
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .padding(.horizontal, -5)
-                .padding(.vertical, -5)
-            
-            // Sliding white background with adjustment for right shift
+                .frame(height: 44)  // Keep the gray background height at 44
+                
+            // Sliding white background for selected tab (height slightly increased)
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - 10)
-                .offset(x: (CGFloat(selectedTab) * tabWidth) + rightShift)
+                .frame(width: tabWidth - (padding * 2), height: 34)  // Slightly increased height of the white background
+                .offset(x: (CGFloat(selectedTab) * tabWidth) + padding)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
             
             // Tab buttons row with conditional tabs
@@ -1292,7 +1300,7 @@ struct TripTypeTabView: View {
                         Text(availableTabs[index])
                             .font(.system(size: 13, weight: selectedTab == index ? .semibold : .regular))
                             .foregroundColor(
-                                isLoadingInDetailedView ? .gray.opacity(0.5) : (selectedTab == index ? .blue : .black)
+                                isLoadingInDetailedView ? .gray.opacity(0.5) : (selectedTab == index ? .blue : .primary)
                             )
                             .frame(width: tabWidth)
                             .padding(.vertical, 8)
@@ -1309,6 +1317,7 @@ struct TripTypeTabView: View {
         }
         .frame(width: totalWidth, height: 36)
         .padding(.horizontal, 4)
+        .padding(.bottom, 8)
         .opacity(isLoadingInDetailedView ? 0.6 : 1.0)
         .onReceive(sharedSearchData.$isInSearchMode) { _ in
             // Reset selectedTab when search mode changes and multi-city is not available
