@@ -403,6 +403,7 @@ struct SearchCard: View {
                                         .foregroundColor(.black)
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading) 
                             .zIndex(1) // Above the line
                         }
                         .padding(.vertical, 4)
