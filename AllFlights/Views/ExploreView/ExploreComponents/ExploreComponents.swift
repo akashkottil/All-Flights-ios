@@ -5780,14 +5780,7 @@ struct FlightDetailsView: View {
                         ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
                             let leg = selectedFlight.legs[legIndex]
                             
-                            HStack {
-                                Text("Flight \(legIndex + 1): \(leg.originCode) → \(leg.destinationCode)")
-                                    .font(.headline)
-                                    .padding(.bottom, 4)
-                                Spacer()
-                            }
-                            .padding(.horizontal)
-                            .padding(.top, legIndex > 0 ? 16 : 0)
+
                             
                             if leg.stopCount == 0 && !leg.segments.isEmpty {
                                 let segment = leg.segments.first!
@@ -5796,11 +5789,7 @@ struct FlightDetailsView: View {
                                 displayConnectingFlight(leg: leg)
                             }
                             
-                            if legIndex < selectedFlight.legs.count - 1 {
-                                Divider()
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 8)
-                            }
+
                         }
                     } else {
                         // Regular flights display
