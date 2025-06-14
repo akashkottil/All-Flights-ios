@@ -11,12 +11,10 @@ struct ExpandedSearchCard: View {
     let searchCardNamespace: Namespace.ID
     let handleBackNavigation: () -> Void
     let shouldShowBackButton: Bool
-    let onDragCollapse: () -> Void  // ADD: Closure to handle drag collapse
+    let onDragCollapse: () -> Void
     
-    // ADD: Drag gesture state
     @GestureState private var dragOffset: CGFloat = 0
     
-    // ADD: Drag Gesture defined locally
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .updating($dragOffset) { value, state, _ in
@@ -32,41 +30,32 @@ struct ExpandedSearchCard: View {
     var body: some View {
         VStack {
             VStack(spacing: 0) {
-                HStack {
-                    // Back button
-                    if shouldShowBackButton{
-                        Button(action: handleBackNavigation) {
-                            Image(systemName: "chevron.left")
-                                .foregroundColor(.primary)
-                                .font(.system(size: 18, weight: .semibold))
-                        }
-                        .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
-                    }
-                    
-                    Spacer()
-                    
-                    // Centered trip type tabs with more balanced width
+                // FIXED: Use ZStack for proper centering
+                ZStack {
+                    // Centered trip type tabs - always perfectly centered
                     TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
-                        
                         .matchedGeometryEffect(id: "tripTabs", in: searchCardNamespace)
                     
-                    Spacer()
-                    
-                    // ADD: Invisible spacer to balance layout when back button is hidden
-                    if !shouldShowBackButton {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.clear)
-                            .font(.system(size: 18, weight: .semibold))
+                    // Back button positioned absolutely on the left
+                    HStack {
+                        if shouldShowBackButton {
+                            Button(action: handleBackNavigation) {
+                                Image(systemName: "chevron.left")
+                                    .foregroundColor(.primary)
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
+                        }
+                        Spacer()
                     }
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 8)
-                .padding(.top, 5)
+                .padding(.top, 15)
                 
                 // Search card with dynamic values
                 SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
                     .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 4)
                     .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
             }
             .background(
@@ -77,7 +66,6 @@ struct ExpandedSearchCard: View {
                         .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
                     
                     // Animated or static stroke based on loading state
-                    // In your search card components, update the loading border condition:
                     if viewModel.isLoading ||
                        viewModel.isLoadingFlights ||
                        viewModel.isLoadingDetailedFlights ||
@@ -88,10 +76,11 @@ struct ExpandedSearchCard: View {
                             .stroke(Color.orange, lineWidth: 2)
                     }
                 }
+                // FIXED: Move shadow to only the background/border
+                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             )
-            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             .padding()
-            .gesture(dragGesture)  // MOVED: Apply drag gesture to entire search card area
+            .gesture(dragGesture)
         }
         .background(
             GeometryReader { geo in
@@ -289,73 +278,87 @@ struct SearchCard: View {
     }
     
     var body: some View {
-            // Conditionally show multi-city or regular interface
-            if shouldShowMultiCity {
-                // Multi-city search card - only show when came from direct multi-city search
-                MultiCitySearchCard(viewModel: viewModel)
-            } else {
-                // Regular interface for return/one-way trips
-                VStack(spacing: 8) {
+        // Conditionally show multi-city or regular interface
+        if shouldShowMultiCity {
+            // Multi-city search card - only show when came from direct multi-city search
+            MultiCitySearchCard(viewModel: viewModel)
+        } else {
+            // Regular interface for return/one-way trips
+            ZStack {
+                // Extended vertical line that goes behind everything except the swap button
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 1, height: 88)
+                    .offset(y: 5)
+                    .zIndex(0) // Ensure it's behind other content
+                
+                VStack(alignment:.leading,spacing: 5) {
                     Divider()
                         .padding(.horizontal,-16)
                     
-                    // From row
-                    HStack {
-                        Button(action: {
-                            initialFocus = .origin
-                            showingSearchSheet = true
-                        }) {
-                            Image("carddeparture")
-                                .foregroundColor(.primary)
-                            Text(getFromLocationDisplayText())
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(getFromLocationTextColor())
-                        }
-                        
-                        Spacer()
-                        
-                        // Animated swap button with line behind it
-                        ZStack {
-                            // Background vertical line
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 1, height: 40)
-                            
-                            // Swap button
+                    // From row with fixed swap button position
+                    ZStack {
+                        HStack {
+                            // From button - takes available space on left
                             Button(action: {
-                                animatedSwapLocations()
+                                initialFocus = .origin
+                                showingSearchSheet = true
                             }) {
-                                ZStack {
-                                    Circle()
-                                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                                        .frame(width: 26, height: 26)
-                                        .background(Circle().fill(Color.white)) // Add white background to cover the line
-                                    Image("swapexplore")
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.blue)
-                                        .font(.system(size: 14))
-                                        .rotationEffect(.degrees(swapRotationDegrees))
-                                        .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
+                                HStack {
+                                    Image("carddeparture")
+                                        .foregroundColor(.primary)
+                                    Text(getFromLocationDisplayText())
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(getFromLocationTextColor())
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
                                 }
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .zIndex(1) // Above the line
+                            
+                            Spacer()
+                                .frame(width: 60) // Fixed space for swap button area
+                            
+                            // To button - takes available space on right
+                            Button(action: {
+                                initialFocus = .destination
+                                showingSearchSheet = true
+                            }) {
+                                HStack {
+                                    Image("carddestination")
+                                        .foregroundColor(.primary)
+                                    
+                                    Text(getToLocationDisplayText())
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(getToLocationTextColor())
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .zIndex(1) // Above the line
                         }
                         
-                        Spacer()
-                        
+                        // Swap button - absolutely centered
                         Button(action: {
-                            initialFocus = .destination
-                            showingSearchSheet = true
+                            animatedSwapLocations()
                         }) {
-                            HStack {
-                                Image("carddestination")
-                                    .foregroundColor(.primary)
-                                
-                                Text(getToLocationDisplayText())
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(getToLocationTextColor())
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                                    .frame(width: 26, height: 26)
+                                    .background(Circle().fill(Color.white)) // White background to cover the line
+                                Image("swapexplore")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 14))
+                                    .rotationEffect(.degrees(swapRotationDegrees))
+                                    .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
                             }
                         }
+                        .buttonStyle(PlainButtonStyle())
+                        .zIndex(2) // Above everything else
                     }
                     .padding(4)
                     
@@ -363,7 +366,7 @@ struct SearchCard: View {
                         .padding(.horizontal,-16)
                     
                     // Date and passengers row
-                    HStack(alignment:.top) {
+                    HStack{
                         Button(action: {
                             // Only show calendar if destination is not "Anywhere"
                             if viewModel.toLocation == "Anywhere" {
@@ -379,6 +382,7 @@ struct SearchCard: View {
                                 .foregroundColor(getDateTextColor())
                                 .font(.system(size: 14, weight: .medium))
                         }
+                        .zIndex(1) // Above the line
                         
                         Spacer()
                         
@@ -395,54 +399,57 @@ struct SearchCard: View {
                                     .foregroundColor(.black)
                             }
                         }
+                        .zIndex(1) // Above the line
                     }
                     .padding(.leading,8)
                     .padding(.vertical, 4)
                     .padding(.horizontal,4)
                 }
-                .sheet(isPresented: $showingSearchSheet) {
-                    LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
-                        .presentationDetents([.large])
+                .zIndex(1) // Ensure VStack content is above the background line
+            }
+            .sheet(isPresented: $showingSearchSheet) {
+                LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
+                    .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showingCalendar, onDismiss: {
+                // When calendar is dismissed, check if dates were selected and trigger search
+                if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                    viewModel.updateDatesAndRunSearch()
                 }
-                .sheet(isPresented: $showingCalendar, onDismiss: {
-                    // When calendar is dismissed, check if dates were selected and trigger search
-                    if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
-                        viewModel.updateDatesAndRunSearch()
-                    }
-                }) {
-                    CalendarView(
-                        fromiatacode: $viewModel.fromIataCode,
-                        toiatacode: $viewModel.toIataCode,
-                        parentSelectedDates: $viewModel.dates,
-                        onAnytimeSelection: { results in
-                            viewModel.handleAnytimeResults(results)
-                        },
-                        onTripTypeChange: { newIsRoundTrip in
-                            isRoundTrip = newIsRoundTrip
-                            viewModel.isRoundTrip = newIsRoundTrip
-                        },
-                        isRoundTrip: isRoundTrip
-                    )
-                }
-                .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
-                    triggerSearchAfterPassengerChange()
-                }) {
-                    PassengersAndClassSelector(
-                        adultsCount: $viewModel.adultsCount,
-                        childrenCount: $viewModel.childrenCount,
-                        selectedClass: $viewModel.selectedCabinClass,
-                        childrenAges: $viewModel.childrenAges
-                    )
-                }
-                .onAppear {
-                    viewModel.isRoundTrip = isRoundTrip
-                }
-                .onChange(of: isRoundTrip) { newValue in
-                    viewModel.isRoundTrip = newValue
-                    viewModel.handleTripTypeChange()
-                }
+            }) {
+                CalendarView(
+                    fromiatacode: $viewModel.fromIataCode,
+                    toiatacode: $viewModel.toIataCode,
+                    parentSelectedDates: $viewModel.dates,
+                    onAnytimeSelection: { results in
+                        viewModel.handleAnytimeResults(results)
+                    },
+                    onTripTypeChange: { newIsRoundTrip in
+                        isRoundTrip = newIsRoundTrip
+                        viewModel.isRoundTrip = newIsRoundTrip
+                    },
+                    isRoundTrip: isRoundTrip
+                )
+            }
+            .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
+                triggerSearchAfterPassengerChange()
+            }) {
+                PassengersAndClassSelector(
+                    adultsCount: $viewModel.adultsCount,
+                    childrenCount: $viewModel.childrenCount,
+                    selectedClass: $viewModel.selectedCabinClass,
+                    childrenAges: $viewModel.childrenAges
+                )
+            }
+            .onAppear {
+                viewModel.isRoundTrip = isRoundTrip
+            }
+            .onChange(of: isRoundTrip) { newValue in
+                viewModel.isRoundTrip = newValue
+                viewModel.handleTripTypeChange()
             }
         }
+    }
     
     // MARK: - Helper Methods
     

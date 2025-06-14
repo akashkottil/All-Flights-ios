@@ -852,7 +852,7 @@ struct EnhancedSearchInput: View {
     private var updatedMultiCityInterface: some View {
         VStack(spacing: 16) {
             // Flight segments with enhanced animations
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 ForEach(searchViewModel.multiCityTrips.indices, id: \.self) { index in
                     HomeMultiCitySegmentView(
                         searchViewModel: searchViewModel,
