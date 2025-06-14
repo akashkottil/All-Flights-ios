@@ -402,12 +402,13 @@ struct SearchCard: View {
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(.black)
                                 }
+                                .padding(.leading,12)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading) 
                             .zIndex(1) // Above the line
                         }
                         .padding(.vertical, 4)
-                        .padding(.horizontal,4)
+                      
                     }
                     .zIndex(1) // Ensure VStack content is above the background line
                 }
