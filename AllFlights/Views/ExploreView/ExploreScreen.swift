@@ -276,6 +276,7 @@ struct ExploreScreen: View {
                                             SkeletonFlightResultCard()
                                                 .padding(.bottom, 8)
                                         }
+                                        .padding(.top, 30)
                                     } else if viewModel.flightResults.isEmpty {
                                         // FIXED: Keep your auto-reload logic but prevent glitching with better state management
                                         VStack(spacing: 12) {
