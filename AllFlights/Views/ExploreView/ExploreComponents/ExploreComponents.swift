@@ -2242,92 +2242,102 @@ struct DetailedFlightCardWrapper: View {
     var body: some View {
         if let outboundLeg = result.legs.first, !outboundLeg.segments.isEmpty {
             let outboundSegment = outboundLeg.segments.first!
-            let returnLeg = viewModel.isRoundTrip && result.legs.count >= 2 ? result.legs.last : nil
-            let returnSegment = returnLeg?.segments.first
-            
-            // Format time and dates
-            let outboundDepartureTime = formatTime(from: outboundSegment.departureTimeAirport)
-            let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
             
             Button(action: onTap) {
-                if viewModel.isRoundTrip && returnLeg != nil && returnSegment != nil {
-                    // Round trip flight card
-                    ModernFlightCard(
-                        // Tags
-                        isBest: result.isBest,
-                        isCheapest: result.isCheapest,
-                        isFastest: result.isFastest,
-                        
-                        // Outbound flight
-                        outboundDepartureTime: outboundDepartureTime,
-                        outboundDepartureCode: outboundSegment.originCode,
-                        outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
-                        outboundArrivalTime: outboundArrivalTime,
-                        outboundArrivalCode: outboundSegment.destinationCode,
-                        outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
-                        outboundDuration: formatDuration(minutes: outboundLeg.duration),
-                        isOutboundDirect: outboundLeg.stopCount == 0,
-                        outboundStops: outboundLeg.stopCount,
-                        
-                        // Return flight
-                        returnDepartureTime: formatTime(from: returnSegment!.departureTimeAirport),
-                        returnDepartureCode: returnSegment!.originCode,
-                        returnDepartureDate: formatDateShort(from: returnSegment!.departureTimeAirport),
-                        returnArrivalTime: formatTime(from: returnSegment!.arriveTimeAirport),
-                        returnArrivalCode: returnSegment!.destinationCode,
-                        returnArrivalDate: formatDateShort(from: returnSegment!.arriveTimeAirport),
-                        returnDuration: formatDuration(minutes: returnLeg!.duration),
-                        isReturnDirect: returnLeg!.stopCount == 0,
-                        returnStops: returnLeg!.stopCount,
-                        
-                        // Airline and price - Updated with airline details
-                        OutboundAirline: outboundSegment.airlineName,
-                        OutboundAirlineCode: outboundSegment.airlineIata,
-                        OutboundAirlineLogo: outboundSegment.airlineLogo,
-                        
-                        ReturnAirline: returnSegment!.airlineName,
-                        ReturnAirlineCode: returnSegment!.airlineIata,
-                        ReturnAirlineLogo: returnSegment!.airlineLogo,
-                        
-                        price: "₹\(Int(result.minPrice))",
-                        priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
-                        
-                        isRoundTrip: true
+                // Check if this is a multi-city trip (more than 2 legs)
+                if result.legs.count > 2 {
+                    // Multi-city trip - show all legs in one card
+                    MultiCityModernFlightCard(
+                        result: result,
+                        viewModel: viewModel
                     )
                 } else {
-                    // One way flight card
-                    ModernFlightCard(
-                        // Tags
-                        isBest: result.isBest,
-                        isCheapest: result.isCheapest,
-                        isFastest: result.isFastest,
-                        
-                        // Outbound flight
-                        outboundDepartureTime: outboundDepartureTime,
-                        outboundDepartureCode: outboundSegment.originCode,
-                        outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
-                        outboundArrivalTime: outboundArrivalTime,
-                        outboundArrivalCode: outboundSegment.destinationCode,
-                        outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
-                        outboundDuration: formatDuration(minutes: outboundLeg.duration),
-                        isOutboundDirect: outboundLeg.stopCount == 0,
-                        outboundStops: outboundLeg.stopCount,
-                        
-                        // FIXED: For one-way trips, use outbound airline data for both OutboundAirline and ReturnAirline
-                        // (even though return data won't be displayed for one-way trips)
-                        OutboundAirline: outboundSegment.airlineName,
-                        OutboundAirlineCode: outboundSegment.airlineIata,
-                        OutboundAirlineLogo: outboundSegment.airlineLogo,
-                        
-                        ReturnAirline: outboundSegment.airlineName,
-                        ReturnAirlineCode: outboundSegment.airlineIata,
-                        ReturnAirlineLogo: outboundSegment.airlineLogo,
-                        
-                        price: "₹\(Int(result.minPrice))",
-                        priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
-                        
-                        isRoundTrip: false
-                    )
+                    // Regular trip (return or one-way) - use existing logic
+                    let returnLeg = viewModel.isRoundTrip && result.legs.count >= 2 ? result.legs.last : nil
+                    let returnSegment = returnLeg?.segments.first
+                    
+                    // Format time and dates
+                    let outboundDepartureTime = formatTime(from: outboundSegment.departureTimeAirport)
+                    let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
+                    
+                    if viewModel.isRoundTrip && returnLeg != nil && returnSegment != nil {
+                        // Round trip flight card (2 rows)
+                        ModernFlightCard(
+                            // Tags
+                            isBest: result.isBest,
+                            isCheapest: result.isCheapest,
+                            isFastest: result.isFastest,
+                            
+                            // Outbound flight
+                            outboundDepartureTime: outboundDepartureTime,
+                            outboundDepartureCode: outboundSegment.originCode,
+                            outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
+                            outboundArrivalTime: outboundArrivalTime,
+                            outboundArrivalCode: outboundSegment.destinationCode,
+                            outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
+                            outboundDuration: formatDuration(minutes: outboundLeg.duration),
+                            isOutboundDirect: outboundLeg.stopCount == 0,
+                            outboundStops: outboundLeg.stopCount,
+                            
+                            // Return flight
+                            returnDepartureTime: formatTime(from: returnSegment!.departureTimeAirport),
+                            returnDepartureCode: returnSegment!.originCode,
+                            returnDepartureDate: formatDateShort(from: returnSegment!.departureTimeAirport),
+                            returnArrivalTime: formatTime(from: returnSegment!.arriveTimeAirport),
+                            returnArrivalCode: returnSegment!.destinationCode,
+                            returnArrivalDate: formatDateShort(from: returnSegment!.arriveTimeAirport),
+                            returnDuration: formatDuration(minutes: returnLeg!.duration),
+                            isReturnDirect: returnLeg!.stopCount == 0,
+                            returnStops: returnLeg!.stopCount,
+                            
+                            // Airline and price
+                            OutboundAirline: outboundSegment.airlineName,
+                            OutboundAirlineCode: outboundSegment.airlineIata,
+                            OutboundAirlineLogo: outboundSegment.airlineLogo,
+                            
+                            ReturnAirline: returnSegment!.airlineName,
+                            ReturnAirlineCode: returnSegment!.airlineIata,
+                            ReturnAirlineLogo: returnSegment!.airlineLogo,
+                            
+                            price: "₹\(Int(result.minPrice))",
+                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
+                            
+                            isRoundTrip: true
+                        )
+                    } else {
+                        // One way flight card (1 row)
+                        ModernFlightCard(
+                            // Tags
+                            isBest: result.isBest,
+                            isCheapest: result.isCheapest,
+                            isFastest: result.isFastest,
+                            
+                            // Outbound flight
+                            outboundDepartureTime: outboundDepartureTime,
+                            outboundDepartureCode: outboundSegment.originCode,
+                            outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
+                            outboundArrivalTime: outboundArrivalTime,
+                            outboundArrivalCode: outboundSegment.destinationCode,
+                            outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
+                            outboundDuration: formatDuration(minutes: outboundLeg.duration),
+                            isOutboundDirect: outboundLeg.stopCount == 0,
+                            outboundStops: outboundLeg.stopCount,
+                            
+                            // For one-way trips, use outbound airline data for both parameters
+                            OutboundAirline: outboundSegment.airlineName,
+                            OutboundAirlineCode: outboundSegment.airlineIata,
+                            OutboundAirlineLogo: outboundSegment.airlineLogo,
+                            
+                            ReturnAirline: outboundSegment.airlineName,
+                            ReturnAirlineCode: outboundSegment.airlineIata,
+                            ReturnAirlineLogo: outboundSegment.airlineLogo,
+                            
+                            price: "₹\(Int(result.minPrice))",
+                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
+                            
+                            isRoundTrip: false
+                        )
+                    }
                 }
             }
             .buttonStyle(PlainButtonStyle())
@@ -2360,128 +2370,103 @@ struct DetailedFlightCardWrapper: View {
     }
 }
 
+// REPLACE the MultiCityModernFlightCard in ExploreComponents.swift with this corrected version:
+
 struct MultiCityModernFlightCard: View {
     let result: FlightDetailResult
     @ObservedObject var viewModel: ExploreViewModel
     
     var body: some View {
         VStack(spacing: 0) {
-            // Tags at the top
+            // Tags at the top (same style as ModernFlightCard)
             if result.isBest || result.isCheapest || result.isFastest {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     if result.isBest {
-                        TagView(text: "Best", color: .blue)
+                        TagView(text: "Best", color: Color("best"))
                     }
                     if result.isCheapest {
-                        TagView(text: "Cheapest", color: .green)
+                        TagView(text: "Cheapest", color: Color("cheap"))
                     }
                     if result.isFastest {
-                        TagView(text: "Fastest", color: .purple)
+                        TagView(text: "Fastest", color: Color("fast"))
                     }
                     Spacer()
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
                 .padding(.top, 12)
-                .padding(.bottom, 8)
+                .padding(.bottom, 4)
             }
             
-            // Display each leg with modern styling
+            // Display each leg (3-4 rows for multi-city) - NO DIVIDERS BETWEEN ROWS
             ForEach(0..<result.legs.count, id: \.self) { index in
                 let leg = result.legs[index]
                 
-                if index > 0 {
-                    Divider()
-                        .padding(.horizontal, 16)
-                }
-                
                 if let segment = leg.segments.first {
-                    HStack(alignment: .top, spacing: 0) {
-                        // Departure
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(formatTime(from: segment.departureTimeAirport))
-                                .font(.system(size: 18, weight: .bold))
-                            Text(segment.originCode)
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                            Text(formatDateShort(from: segment.departureTimeAirport))
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                        }
-                        .frame(width: 70, alignment: .leading)
-                        
-                        // Flight path
-                        VStack(spacing: 2) {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.gray)
-                                
-                                Rectangle()
-                                    .frame(height: 1)
-                                    .foregroundColor(.gray)
-                                
-                                Circle()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Text(formatDuration(minutes: leg.duration))
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                            
-                            Text(leg.stopCount == 0 ? "Direct" : "\(leg.stopCount) Stop\(leg.stopCount > 1 ? "s" : "")")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(leg.stopCount == 0 ? .green : .primary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        // Arrival
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(formatTime(from: segment.arriveTimeAirport))
-                                .font(.system(size: 18, weight: .bold))
-                            Text(segment.destinationCode)
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                            Text(formatDateShort(from: segment.arriveTimeAirport))
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                        }
-                        .frame(width: 70, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    // Use the same FlightRowView style as ModernFlightCard
+                    FlightRowView(
+                        departureTime: formatTime(from: segment.departureTimeAirport),
+                        departureCode: segment.originCode,
+                        departureDate: formatDateShort(from: segment.departureTimeAirport),
+                        arrivalTime: formatTime(from: segment.arriveTimeAirport),
+                        arrivalCode: segment.destinationCode,
+                        arrivalDate: formatDateShort(from: segment.arriveTimeAirport),
+                        duration: formatDuration(minutes: leg.duration),
+                        isDirect: leg.stopCount == 0,
+                        stops: leg.stopCount,
+                        airlineName: segment.airlineName,
+                        airlineCode: segment.airlineIata,
+                        airlineLogo: segment.airlineLogo
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                 }
             }
             
-            // Price section
+            // ONLY ONE DIVIDER - Above the price section
             Divider()
-                .padding(.horizontal, 16)
+                .padding()
             
+            // Bottom section with price (same style as ModernFlightCard)
             HStack {
-                Text("Multi-city Trip")
-                    .font(.system(size: 14))
+                Text(getAirlineDisplayText())
+                    .font(.system(size: 12))
                     .foregroundColor(.gray)
                 
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("₹\(Int(result.minPrice))")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.primary)
                     
                     Text("For \(viewModel.adultsCount + viewModel.childrenCount) People")
-                        .font(.system(size: 12))
+                        .font(.system(size: 10))
                         .foregroundColor(.gray)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
         .background(Color.white)
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
     }
     
-    // Helper functions
+    // Helper function to display airline info for multi-city
+    private func getAirlineDisplayText() -> String {
+        let airlines = result.legs.compactMap { $0.segments.first?.airlineName }
+        let uniqueAirlines = Array(Set(airlines))
+        
+        if uniqueAirlines.count == 1 {
+            return uniqueAirlines.first ?? "Multi-city Trip"
+        } else if uniqueAirlines.count == 2 {
+            return "\(uniqueAirlines[0]) & 1 other"
+        } else {
+            return "\(uniqueAirlines.first ?? "") & \(uniqueAirlines.count - 1) others"
+        }
+    }
+    
+    // Helper functions (same as DetailedFlightCardWrapper)
     private func formatTime(from timestamp: Int) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let formatter = DateFormatter()
@@ -2503,21 +2488,23 @@ struct MultiCityModernFlightCard: View {
     }
 }
 
-// TagView helper (if not already defined)
+// ADD TagView if it doesn't exist:
 struct TagView: View {
     let text: String
     let color: Color
     
     var body: some View {
         Text(text)
-            .font(.system(size: 10, weight: .semibold))
+            .font(.system(size: 8, weight: .bold))
             .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
             .background(color)
             .cornerRadius(4)
     }
 }
+
+
 
 // Updated ModernFlightCard with reduced padding to match sample UI
 struct ModernFlightCard: View {
