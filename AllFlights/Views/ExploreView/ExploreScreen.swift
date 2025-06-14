@@ -284,9 +284,7 @@ struct ExploreScreen: View {
                         offset: $scrollOffset,
                         content: {
                             VStack(alignment: .center, spacing: 16) {
-                                // Add top padding to account for sticky header
-                                Spacer()
-                                    .frame(height: 20)
+                               
                                 
                                 // Main content based on current state
                                 if viewModel.showingDetailedFlightList {

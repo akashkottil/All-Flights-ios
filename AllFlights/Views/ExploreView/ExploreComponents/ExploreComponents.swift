@@ -3605,6 +3605,16 @@ struct ModifiedDetailedFlightListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Text("Flights to \(viewModel.toLocation)")
+                    .font(.system(size: 24, weight: .bold))
+                    .padding(.horizontal)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+                Spacer()
+            }
+            .background(Color("scroll"))
             // Filter tabs section
             HStack {
                 FilterButton {
