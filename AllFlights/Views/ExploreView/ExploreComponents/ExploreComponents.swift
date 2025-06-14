@@ -278,179 +278,181 @@ struct SearchCard: View {
     }
     
     var body: some View {
-        // Conditionally show multi-city or regular interface
-        if shouldShowMultiCity {
-            // Multi-city search card - only show when came from direct multi-city search
-            MultiCitySearchCard(viewModel: viewModel)
-        } else {
-            // Regular interface for return/one-way trips
-            ZStack {
-                // Extended vertical line that goes behind everything except the swap button
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 1, height: 88)
-                    .offset(y: 5)
-                    .zIndex(0) // Ensure it's behind other content
-                
-                VStack(alignment:.leading,spacing: 5) {
-                    Divider()
-                        .padding(.horizontal,-16)
+            // Conditionally show multi-city or regular interface
+            if shouldShowMultiCity {
+                // Multi-city search card - only show when came from direct multi-city search
+                MultiCitySearchCard(viewModel: viewModel)
+            } else {
+                // Regular interface for return/one-way trips
+                ZStack {
+                    // Extended vertical line that goes behind everything except the swap button
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 1, height: 88)
+                        .offset(y: 5)
+                        .zIndex(0) // Ensure it's behind other content
                     
-                    // From row with fixed swap button position
-                    ZStack {
-                        HStack {
-                            // From button - takes available space on left
+                    VStack(alignment:.leading,spacing: 5) {
+                        Divider()
+                            .padding(.horizontal,-16)
+                        
+                        // From row with fixed swap button position
+                        ZStack {
+                            HStack {
+                                // From button - takes available space on left
+                                Button(action: {
+                                    initialFocus = .origin
+                                    showingSearchSheet = true
+                                }) {
+                                    HStack {
+                                        Image("carddeparture")
+                                            .foregroundColor(.primary)
+                                        Text(getFromLocationDisplayText())
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(getFromLocationTextColor())
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .zIndex(1) // Above the line
+                                
+                              
+                                
+                                
+                                // To button - takes available space on right
+                                Button(action: {
+                                    initialFocus = .destination
+                                    showingSearchSheet = true
+                                }) {
+                                    HStack {
+                                        Image("carddestination")
+                                            .foregroundColor(.primary)
+                                        
+                                        Text(getToLocationDisplayText())
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(getToLocationTextColor())
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(.leading, 16)
+                                   
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                                .zIndex(1) // Above the line
+                            }
+                            
+                            // Swap button - absolutely centered
                             Button(action: {
-                                initialFocus = .origin
-                                showingSearchSheet = true
+                                animatedSwapLocations()
                             }) {
-                                HStack {
-                                    Image("carddeparture")
-                                        .foregroundColor(.primary)
-                                    Text(getFromLocationDisplayText())
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(getFromLocationTextColor())
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
+                                ZStack {
+                                    Circle()
+                                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                                        .frame(width: 26, height: 26)
+                                        .background(Circle().fill(Color.white)) // White background to cover the line
+                                    Image("swapexplore")
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.blue)
+                                        .font(.system(size: 14))
+                                        .rotationEffect(.degrees(swapRotationDegrees))
+                                        .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .buttonStyle(PlainButtonStyle())
+                            .zIndex(2) // Above everything else
+                        }
+                        .padding(4)
+                        
+                        Divider()
+                            .padding(.horizontal,-16)
+                        
+                        // Date and passengers row
+                        HStack{
+                            Button(action: {
+                                // Only show calendar if destination is not "Anywhere"
+                                if viewModel.toLocation == "Anywhere" {
+                                    handleAnywhereDestination()
+                                } else {
+                                    showingCalendar = true
+                                }
+                            }){
+                                Image("cardcalendar")
+                                    .foregroundColor(.primary)
+                              
+                                Text(getDateDisplayText())
+                                    .foregroundColor(getDateTextColor())
+                                    .font(.system(size: 14, weight: .medium))
+                            }
                             .zIndex(1) // Above the line
                             
                             Spacer()
-                                .frame(width: 60) // Fixed space for swap button area
+                                .frame(width: 100)
                             
-                            // To button - takes available space on right
+                            // Passenger selection button
                             Button(action: {
-                                initialFocus = .destination
-                                showingSearchSheet = true
+                                viewModel.showingPassengersSheet = true
                             }) {
-                                HStack {
-                                    Image("carddestination")
-                                        .foregroundColor(.primary)
+                                HStack(spacing: 4) {
+                                    Image("cardpassenger")
+                                        .foregroundColor(.black)
                                     
-                                    Text(getToLocationDisplayText())
+                                    Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(getToLocationTextColor())
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
+                                        .foregroundColor(.black)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .trailing)
                             .zIndex(1) // Above the line
                         }
-                        
-                        // Swap button - absolutely centered
-                        Button(action: {
-                            animatedSwapLocations()
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                                    .frame(width: 26, height: 26)
-                                    .background(Circle().fill(Color.white)) // White background to cover the line
-                                Image("swapexplore")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.blue)
-                                    .font(.system(size: 14))
-                                    .rotationEffect(.degrees(swapRotationDegrees))
-                                    .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .zIndex(2) // Above everything else
+                        .padding(.vertical, 4)
+                        .padding(.horizontal,4)
                     }
-                    .padding(4)
-                    
-                    Divider()
-                        .padding(.horizontal,-16)
-                    
-                    // Date and passengers row
-                    HStack{
-                        Button(action: {
-                            // Only show calendar if destination is not "Anywhere"
-                            if viewModel.toLocation == "Anywhere" {
-                                handleAnywhereDestination()
-                            } else {
-                                showingCalendar = true
-                            }
-                        }){
-                            Image("cardcalendar")
-                                .foregroundColor(.primary)
-                          
-                            Text(getDateDisplayText())
-                                .foregroundColor(getDateTextColor())
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .zIndex(1) // Above the line
-                        
-                        Spacer()
-                        
-                        // Passenger selection button
-                        Button(action: {
-                            viewModel.showingPassengersSheet = true
-                        }) {
-                            HStack(spacing: 4) {
-                                Image("cardpassenger")
-                                    .foregroundColor(.black)
-                                
-                                Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.black)
-                            }
-                        }
-                        .zIndex(1) // Above the line
+                    .zIndex(1) // Ensure VStack content is above the background line
+                }
+                .sheet(isPresented: $showingSearchSheet) {
+                    LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
+                        .presentationDetents([.large])
+                }
+                .sheet(isPresented: $showingCalendar, onDismiss: {
+                    // When calendar is dismissed, check if dates were selected and trigger search
+                    if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                        viewModel.updateDatesAndRunSearch()
                     }
-                    .padding(.leading,8)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal,4)
+                }) {
+                    CalendarView(
+                        fromiatacode: $viewModel.fromIataCode,
+                        toiatacode: $viewModel.toIataCode,
+                        parentSelectedDates: $viewModel.dates,
+                        onAnytimeSelection: { results in
+                            viewModel.handleAnytimeResults(results)
+                        },
+                        onTripTypeChange: { newIsRoundTrip in
+                            isRoundTrip = newIsRoundTrip
+                            viewModel.isRoundTrip = newIsRoundTrip
+                        },
+                        isRoundTrip: isRoundTrip
+                    )
                 }
-                .zIndex(1) // Ensure VStack content is above the background line
-            }
-            .sheet(isPresented: $showingSearchSheet) {
-                LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
-                    .presentationDetents([.large])
-            }
-            .sheet(isPresented: $showingCalendar, onDismiss: {
-                // When calendar is dismissed, check if dates were selected and trigger search
-                if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
-                    viewModel.updateDatesAndRunSearch()
+                .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
+                    triggerSearchAfterPassengerChange()
+                }) {
+                    PassengersAndClassSelector(
+                        adultsCount: $viewModel.adultsCount,
+                        childrenCount: $viewModel.childrenCount,
+                        selectedClass: $viewModel.selectedCabinClass,
+                        childrenAges: $viewModel.childrenAges
+                    )
                 }
-            }) {
-                CalendarView(
-                    fromiatacode: $viewModel.fromIataCode,
-                    toiatacode: $viewModel.toIataCode,
-                    parentSelectedDates: $viewModel.dates,
-                    onAnytimeSelection: { results in
-                        viewModel.handleAnytimeResults(results)
-                    },
-                    onTripTypeChange: { newIsRoundTrip in
-                        isRoundTrip = newIsRoundTrip
-                        viewModel.isRoundTrip = newIsRoundTrip
-                    },
-                    isRoundTrip: isRoundTrip
-                )
-            }
-            .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
-                triggerSearchAfterPassengerChange()
-            }) {
-                PassengersAndClassSelector(
-                    adultsCount: $viewModel.adultsCount,
-                    childrenCount: $viewModel.childrenCount,
-                    selectedClass: $viewModel.selectedCabinClass,
-                    childrenAges: $viewModel.childrenAges
-                )
-            }
-            .onAppear {
-                viewModel.isRoundTrip = isRoundTrip
-            }
-            .onChange(of: isRoundTrip) { newValue in
-                viewModel.isRoundTrip = newValue
-                viewModel.handleTripTypeChange()
+                .onAppear {
+                    viewModel.isRoundTrip = isRoundTrip
+                }
+                .onChange(of: isRoundTrip) { newValue in
+                    viewModel.isRoundTrip = newValue
+                    viewModel.handleTripTypeChange()
+                }
             }
         }
-    }
-    
     // MARK: - Helper Methods
     
     private func animatedSwapLocations() {
@@ -607,9 +609,7 @@ struct SearchCard: View {
     }
     
     private func getDateTextColor() -> Color {
-        if viewModel.dates.isEmpty || viewModel.toLocation == "Anywhere" {
-            return .gray
-        }
+ 
         return .primary
     }
     
