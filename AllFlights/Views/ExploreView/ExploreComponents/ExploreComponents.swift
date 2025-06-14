@@ -1360,9 +1360,6 @@ struct FilterTabButton: View {
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.white)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
                 )
         }
@@ -1707,9 +1704,6 @@ struct MonthButton: View {
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
             )
         }
