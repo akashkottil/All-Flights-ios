@@ -2232,6 +2232,8 @@ static let fastest = FlightTag(title: "Fastest", color: Color.purple)
 
 // Updated Flight Card Components to match the UI design
 
+// REPLACE the existing DetailedFlightCardWrapper in ExploreComponents.swift with this corrected version:
+
 struct DetailedFlightCardWrapper: View {
     let result: FlightDetailResult
     @ObservedObject var viewModel: ExploreViewModel
@@ -2311,12 +2313,12 @@ struct DetailedFlightCardWrapper: View {
                         isOutboundDirect: outboundLeg.stopCount == 0,
                         outboundStops: outboundLeg.stopCount,
                         
-                        // Airline and price - Updated with airline details
+                        // FIXED: For one-way trips, use outbound airline data for both OutboundAirline and ReturnAirline
+                        // (even though return data won't be displayed for one-way trips)
                         OutboundAirline: outboundSegment.airlineName,
                         OutboundAirlineCode: outboundSegment.airlineIata,
                         OutboundAirlineLogo: outboundSegment.airlineLogo,
                         
-                        // FIXED: For one-way trips, use outbound airline data as placeholder for return
                         ReturnAirline: outboundSegment.airlineName,
                         ReturnAirlineCode: outboundSegment.airlineIata,
                         ReturnAirlineLogo: outboundSegment.airlineLogo,
@@ -2355,6 +2357,165 @@ struct DetailedFlightCardWrapper: View {
         let hours = minutes / 60
         let mins = minutes % 60
         return "\(hours)h \(mins)m"
+    }
+}
+
+struct MultiCityModernFlightCard: View {
+    let result: FlightDetailResult
+    @ObservedObject var viewModel: ExploreViewModel
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tags at the top
+            if result.isBest || result.isCheapest || result.isFastest {
+                HStack(spacing: 6) {
+                    if result.isBest {
+                        TagView(text: "Best", color: .blue)
+                    }
+                    if result.isCheapest {
+                        TagView(text: "Cheapest", color: .green)
+                    }
+                    if result.isFastest {
+                        TagView(text: "Fastest", color: .purple)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            }
+            
+            // Display each leg with modern styling
+            ForEach(0..<result.legs.count, id: \.self) { index in
+                let leg = result.legs[index]
+                
+                if index > 0 {
+                    Divider()
+                        .padding(.horizontal, 16)
+                }
+                
+                if let segment = leg.segments.first {
+                    HStack(alignment: .top, spacing: 0) {
+                        // Departure
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(formatTime(from: segment.departureTimeAirport))
+                                .font(.system(size: 18, weight: .bold))
+                            Text(segment.originCode)
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                            Text(formatDateShort(from: segment.departureTimeAirport))
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                        .frame(width: 70, alignment: .leading)
+                        
+                        // Flight path
+                        VStack(spacing: 2) {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.gray)
+                                
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(.gray)
+                                
+                                Circle()
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Text(formatDuration(minutes: leg.duration))
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                            
+                            Text(leg.stopCount == 0 ? "Direct" : "\(leg.stopCount) Stop\(leg.stopCount > 1 ? "s" : "")")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(leg.stopCount == 0 ? .green : .primary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        
+                        // Arrival
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(formatTime(from: segment.arriveTimeAirport))
+                                .font(.system(size: 18, weight: .bold))
+                            Text(segment.destinationCode)
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                            Text(formatDateShort(from: segment.arriveTimeAirport))
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                        .frame(width: 70, alignment: .trailing)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+            }
+            
+            // Price section
+            Divider()
+                .padding(.horizontal, 16)
+            
+            HStack {
+                Text("Multi-city Trip")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("₹\(Int(result.minPrice))")
+                        .font(.system(size: 20, weight: .bold))
+                    
+                    Text("For \(viewModel.adultsCount + viewModel.childrenCount) People")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+    }
+    
+    // Helper functions
+    private func formatTime(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDateShort(from timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "\(hours)h \(mins)m"
+    }
+}
+
+// TagView helper (if not already defined)
+struct TagView: View {
+    let text: String
+    let color: Color
+    
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color)
+            .cornerRadius(4)
     }
 }
 
@@ -2682,21 +2843,6 @@ struct FlightRowView: View {
     }
 }
 
-// Updated TagView to be more compact
-struct TagView: View {
-    let text: String
-    let color: Color
-    
-    var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium)) // Reduced from 11 to 10
-            .foregroundColor(.white)
-            .padding(.horizontal, 6) // Reduced from 8 to 6
-            .padding(.vertical, 3) // Reduced from 4 to 3
-            .background(color)
-            .cornerRadius(3) // Reduced from 4 to 3
-    }
-}
 
 
 
@@ -4833,6 +4979,8 @@ struct RangeSliderView: View {
 }
 
 
+// REPLACE the existing PaginatedFlightList in ExploreComponents.swift with this corrected version:
+
 struct PaginatedFlightList: View {
     @ObservedObject var viewModel: ExploreViewModel
     let filteredResults: [FlightDetailResult]
@@ -4842,30 +4990,20 @@ struct PaginatedFlightList: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                // Flight results
+                // UNIFIED: Always use DetailedFlightCardWrapper for ALL trip types
+                // This ensures the same beautiful cards everywhere
                 ForEach(filteredResults, id: \.id) { result in
-                    if isMultiCity {
-                        ModernMultiCityFlightCardWrapper(
-                            result: result,
-                            viewModel: viewModel,
-                            onTap: {
-                                onFlightSelected(result)
-                            }
-                        )
-                        .padding(.horizontal)
-                    } else {
-                        DetailedFlightCardWrapper(
-                            result: result,
-                            viewModel: viewModel,
-                            onTap: {
-                                onFlightSelected(result)
-                            }
-                        )
-                        .padding(.horizontal)
-                    }
+                    DetailedFlightCardWrapper(
+                        result: result,
+                        viewModel: viewModel,
+                        onTap: {
+                            onFlightSelected(result)
+                        }
+                    )
+                    .padding(.horizontal)
                 }
                 
-                // FIXED: Updated footer with proper logic
+                // Footer
                 ScrollViewFooter(
                     viewModel: viewModel,
                     loadMore: {
