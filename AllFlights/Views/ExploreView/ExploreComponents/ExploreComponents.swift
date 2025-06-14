@@ -368,8 +368,10 @@ struct SearchCard: View {
                         Divider()
                             .padding(.horizontal,-16)
                         
-                        // Date and passengers row
-                        HStack{
+                        
+                        // Date and passengers row - FIXED VERSION
+                        HStack {
+                            // Date button - flexible width with proper constraints
                             Button(action: {
                                 // Only show calendar if destination is not "Anywhere"
                                 if viewModel.toLocation == "Anywhere" {
@@ -377,20 +379,22 @@ struct SearchCard: View {
                                 } else {
                                     showingCalendar = true
                                 }
-                            }){
-                                Image("cardcalendar")
-                                    .foregroundColor(.primary)
-                              
-                                Text(getDateDisplayText())
-                                    .foregroundColor(getDateTextColor())
-                                    .font(.system(size: 14, weight: .medium))
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image("cardcalendar")
+                                        .foregroundColor(.primary)
+                                    
+                                    Text(getDateDisplayText())
+                                        .foregroundColor(getDateTextColor())
+                                        .font(.system(size: 14, weight: .medium))
+                                        .lineLimit(1) // Force single line
+                                        .minimumScaleFactor(0.8) // Allow text to scale down slightly if needed
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading) // Take available space
                             .zIndex(1) // Above the line
                             
-                            Spacer()
-                                .frame(width: 100)
-                            
-                            // Passenger selection button
+                            // Passenger selection button - fixed width from the right
                             Button(action: {
                                 viewModel.showingPassengersSheet = true
                             }) {
@@ -401,10 +405,10 @@ struct SearchCard: View {
                                     Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(.black)
+                                        .lineLimit(1)
                                 }
-                                .padding(.leading,12)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading) 
+                            .frame(alignment: .trailing) // Align to right side
                             .zIndex(1) // Above the line
                         }
                         .padding(.vertical, 4)
