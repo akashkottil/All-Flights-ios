@@ -413,29 +413,29 @@ struct EnhancedSkeletonFlightResultCard: View {
 
 // MARK: - Enhanced Detailed Flight Card Skeleton
 struct EnhancedDetailedFlightCardSkeleton: View {
-    @State private var waveOffset: CGFloat = -200
+    @State private var shimmerOffset: CGFloat = -200
     @State private var glowIntensity: Double = 0.3
     @State private var breatheScale: CGFloat = 1.0
     
     var body: some View {
         VStack(spacing: 0) {
-            // Tags section with enhanced animation
+            // Tags section with synchronized shimmer animation
             HStack(spacing: 8) {
                 ForEach(0..<2, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 12)
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.blue.opacity(0.2),
-                                    Color.blue.opacity(0.1),
-                                    Color.blue.opacity(0.2)
+                                    Color.gray.opacity(0.2),
+                                    Color.gray.opacity(0.1),
+                                    Color.gray.opacity(0.2)
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
                         .frame(width: 60 + CGFloat(index * 20), height: 24)
-                        .shimmer(duration: 1.5 + Double(index) * 0.3)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                 }
                 Spacer()
             }
@@ -443,66 +443,58 @@ struct EnhancedDetailedFlightCardSkeleton: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
             
-            // Flight row with enhanced visualization
+            // Flight row with synchronized shimmer
             enhancedFlightRow()
             
-            // Return flight row
+            // Return flight row with synchronized shimmer
             enhancedFlightRow()
             
             Divider()
                 .opacity(0.2)
                 .padding(.horizontal, 16)
             
-            // Enhanced bottom section
+            // Enhanced bottom section with synchronized shimmer
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
-                    // Airline placeholder
+                    // Airline placeholder with synchronized shimmer
                     RoundedRectangle(cornerRadius: 6)
                         .fill(
                             LinearGradient(
-                                colors: [Color(.systemGray6), Color(.systemGray5)],
+                                colors: [Color(.systemGray6).opacity(0.4), Color(.systemGray5)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
                         .frame(width: 120, height: 14)
-                        .shimmer(duration: 1.8)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                     
-                    // Price with premium styling
+                    // Price with synchronized shimmer (Updated)
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color(.systemGray4),
-                                        Color(.systemGray3),
-                                        Color(.systemGray4)
+                                        Color(.systemGray4).opacity(0.4),
+                                        Color(.systemGray3).opacity(0.4),
+                                        Color(.systemGray4).opacity(0.4)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                             .frame(width: 100, height: 22)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(
-                                        Color(.systemGray2).opacity(glowIntensity),
-                                        lineWidth: 1
-                                    )
-                            )
-                            .shimmer(duration: 1.4)
+                            // Removed the overlay stroke to remove the border
+                            .modifier(ShimmerEffectt(offset: shimmerOffset))
                     }
                     
-                    // Price detail
+                    // Price detail with synchronized shimmer
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray6))
+                        .fill(Color(.systemGray6).opacity(0.4))
                         .frame(width: 140, height: 12)
-                        .shimmer(duration: 2.0)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                 }
                 
                 Spacer()
-                
- 
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -515,9 +507,9 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                         .stroke(
                             LinearGradient(
                                 colors: [
-                                    Color(.systemGray5).opacity(0.4),
+                                    Color(.systemGray5).opacity(0.3),
                                     Color(.systemGray4).opacity(0.1),
-                                    Color(.systemGray5).opacity(0.4)
+                                    Color(.systemGray5).opacity(0.3)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -541,15 +533,15 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     @ViewBuilder
     private func enhancedFlightRow() -> some View {
         HStack(alignment: .center, spacing: 12) {
-            // Airline logo placeholder with glow
+            // Airline logo placeholder with synchronized shimmer
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(.systemGray5),
-                                Color(.systemGray4),
-                                Color(.systemGray5)
+                                Color(.systemGray5).opacity(0.4),
+                                Color(.systemGray4).opacity(0.3),
+                                Color(.systemGray5).opacity(0.4)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -558,9 +550,9 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                     .frame(width: 32, height: 32)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(.systemGray3).opacity(0.3), lineWidth: 1)
+                            .stroke(Color(.systemGray3).opacity(0.2), lineWidth: 1)
                     )
-                    .shimmer(duration: 1.6)
+                    .modifier(ShimmerEffectt(offset: shimmerOffset))
                 
                 Image(systemName: "airplane")
                     .font(.system(size: 14))
@@ -568,129 +560,87 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                     .opacity(0.6)
             }
             
-            // Departure section
+            // Departure section with synchronized shimmer
             VStack(alignment: .leading, spacing: 4) {
-                // Time with gradient
+                // Time with synchronized shimmer
                 RoundedRectangle(cornerRadius: 6)
                     .fill(
                         LinearGradient(
-                            colors: [Color(.systemGray5), Color(.systemGray4)],
+                            colors: [Color(.systemGray5).opacity(0.4), Color(.systemGray4)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
                     .frame(width: 50, height: 16)
-                    .shimmer(duration: 1.4)
+                    .modifier(ShimmerEffectt(offset: shimmerOffset))
                 
-                // Code and date row
+                // Code and date row with synchronized shimmer
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray6))
+                        .fill(Color(.systemGray6).opacity(0.4))
                         .frame(width: 30, height: 12)
-                        .shimmer(duration: 1.8)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                     
                     Circle()
-                        .fill(Color(.systemGray5))
+                        .fill(Color(.systemGray5).opacity(0.5))
                         .frame(width: 3, height: 3)
                     
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray6))
+                        .fill(Color(.systemGray6).opacity(0.4))
                         .frame(width: 40, height: 10)
-                        .shimmer(duration: 2.0)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                 }
             }
             .frame(width: 75, alignment: .leading)
             
             Spacer()
             
-            // Enhanced flight path with wave animation
+            // Duration and status with synchronized shimmer
             VStack(spacing: 6) {
-                // Animated flight path
-                HStack(spacing: 0) {
-                    Circle()
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                        .frame(width: 6, height: 6)
-                    
-                    ZStack {
-                        // Base line
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .frame(height: 1)
-                        
-                        // Animated wave overlay
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.clear,
-                                        Color.blue.opacity(0.3),
-                                        Color.blue.opacity(0.6),
-                                        Color.blue.opacity(0.3),
-                                        Color.clear
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: 30, height: 2)
-                            .offset(x: waveOffset)
-                            .animation(
-                                .linear(duration: 2.0)
-                                .repeatForever(autoreverses: false),
-                                value: waveOffset
-                            )
-                    }
-                    .frame(width: 90)
-                    
-                    Circle()
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                        .frame(width: 6, height: 6)
-                }
-                
-                // Duration
+                // Duration with synchronized shimmer
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
+                    .fill(Color(.systemGray6).opacity(0.4))
                     .frame(width: 45, height: 10)
-                    .shimmer(duration: 1.6)
+                    .modifier(ShimmerEffectt(offset: shimmerOffset))
                 
-                // Status
+                // Status with synchronized shimmer
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.systemGray6))
+                    .fill(Color(.systemGray6).opacity(0.4))
                     .frame(width: 50, height: 10)
-                    .shimmer(duration: 1.8)
+                    .modifier(ShimmerEffectt(offset: shimmerOffset))
             }
             
             Spacer()
             
-            // Arrival section
+            // Arrival section with synchronized shimmer
             VStack(alignment: .trailing, spacing: 4) {
-                // Time
+                // Time with synchronized shimmer
                 RoundedRectangle(cornerRadius: 6)
                     .fill(
                         LinearGradient(
-                            colors: [Color(.systemGray4), Color(.systemGray5)],
+                            colors: [Color(.systemGray4).opacity(0.4), Color(.systemGray5)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
                     .frame(width: 50, height: 16)
-                    .shimmer(duration: 1.6)
+                    .modifier(ShimmerEffectt(offset: shimmerOffset))
                 
-                // Code and date row
+                // Code and date row with synchronized shimmer
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray6))
+                        .fill(Color(.systemGray6).opacity(0.4))
                         .frame(width: 40, height: 10)
-                        .shimmer(duration: 1.8)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                     
                     Circle()
-                        .fill(Color(.systemGray5))
+                        .fill(Color(.systemGray5).opacity(0.5))
                         .frame(width: 3, height: 3)
                     
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray6))
+                        .fill(Color(.systemGray6).opacity(0.4))
                         .frame(width: 30, height: 12)
-                        .shimmer(duration: 2.0)
+                        .modifier(ShimmerEffectt(offset: shimmerOffset))
                 }
             }
             .frame(width: 75, alignment: .trailing)
@@ -700,8 +650,13 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     }
     
     private func startPremiumAnimations() {
-        // Wave animation
-        waveOffset = 120
+        // Synchronize shimmer across the card
+        withAnimation(
+            .linear(duration: 2.0)
+            .repeatForever(autoreverses: false)
+        ) {
+            shimmerOffset = 200
+        }
         
         // Glow pulse
         withAnimation(
@@ -720,3 +675,32 @@ struct EnhancedDetailedFlightCardSkeleton: View {
         }
     }
 }
+
+struct ShimmerEffectt: ViewModifier {
+    var offset: CGFloat
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.clear,
+                        Color.white.opacity(0.3),
+                        Color.clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .mask(content)
+                .offset(x: offset)
+            )
+    }
+}
+
+
+
+
+
+
+
+
