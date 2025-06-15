@@ -2444,7 +2444,7 @@ struct MultiCityModernFlightCard: View {
     @ObservedObject var viewModel: ExploreViewModel
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 10) {
             // Tags at the top (same style as ModernFlightCard)
             if result.isBest || result.isCheapest || result.isFastest {
                 HStack(spacing: 4) {
@@ -2562,10 +2562,10 @@ struct TagView: View {
     
     var body: some View {
         Text(text)
-            .font(.system(size: 8, weight: .bold))
+            .font(.system(size: 10, weight: .bold))
             .foregroundColor(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
             .background(color)
             .cornerRadius(4)
     }
@@ -2617,7 +2617,7 @@ struct ModernFlightCard: View {
     let isRoundTrip: Bool
     
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 12) {
             // Tags at the top inside the card - REDUCED PADDING
             if isBest || isCheapest || isFastest {
                 HStack(spacing: 4) { // Reduced from 6 to 4
@@ -2634,7 +2634,7 @@ struct ModernFlightCard: View {
                 }
                 .padding(.horizontal, 12) // Reduced from 16 to 12
                 .padding(.top, 12) // Reduced from 12 to 8
-                .padding(.bottom, 4) // Reduced from 8 to 4
+                .padding(.bottom, 2) // Reduced from 8 to 4
             }
             
             // Outbound flight - REDUCED PADDING
@@ -2682,7 +2682,7 @@ struct ModernFlightCard: View {
                     airlineLogo: ReturnAirlineLogo
                 )
                 .padding(.horizontal, 12) // Reduced from 16 to 12
-                .padding(.vertical, 6) // Reduced from 8 to 6
+                .padding(.vertical, 8) // Reduced from 8 to 6
             }
             
             // Bottom section with airline and price - REDUCED PADDING
@@ -2693,7 +2693,7 @@ struct ModernFlightCard: View {
             HStack {
                 Text(airlineDisplayText())
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color.black.opacity(0.6))
                 
                 Spacer()
                 
@@ -2709,6 +2709,7 @@ struct ModernFlightCard: View {
             }
             .padding(.horizontal, 12) // Reduced from 16 to 12
             .padding(.vertical, 8) // Reduced from 12 to 8
+            .padding(.bottom,2)
         }
         .background(Color.white)
         .cornerRadius(12)
@@ -2798,7 +2799,7 @@ struct FlightRowView: View {
                         .foregroundColor(.gray)
                     
                     Circle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Color.gray.opacity(0.3))
                         .frame(width: 4, height: 4)
                     
                     Text(departureDate)
@@ -2816,19 +2817,19 @@ struct FlightRowView: View {
                 HStack(spacing: 0) {
                     // Left circle
                     Circle()
-                        .stroke(Color.gray, lineWidth: 1)
+                        .stroke(Color.black.opacity(0.6), lineWidth: 1)
                         .frame(width: 6, height: 6) // Reduced from 6 to 5
                     
                     // Left line segment
                     Rectangle()
-                        .fill(Color.gray)
+                        .fill(Color.black.opacity(0.6))
                         .frame(width:12,height: 1)
                        
                     
                     // Date/Time capsule in the middle
                     Text(duration)
                         .font(.system(size: 11)) // Reduced from 12 to 11
-                        .foregroundColor(.gray)
+                        .foregroundColor(Color.black.opacity(0.6))
                         .padding(.horizontal, 10) // Reduced from 8 to 6
                         .padding(.vertical, 1) // Reduced from 2 to 1
                         .background(
@@ -2836,36 +2837,37 @@ struct FlightRowView: View {
                                 .fill(Color.white)
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                                        .stroke(Color.black.opacity(0.6), lineWidth: 0.5)
                                 )
                         )
                         .padding(.horizontal,6)
                     
                     // Right line segment
                     Rectangle()
-                        .fill(Color.gray)
+                        .fill(Color.black.opacity(0.6))
                         .frame(width:12,height: 1)
                         
                     
                     // Right circle
                     Circle()
-                        .stroke(Color.gray, lineWidth: 1)
+                        .stroke(Color.black.opacity(0.6), lineWidth: 1)
                         .frame(width: 6, height: 6) // Reduced from 6 to 5
                 }
-                .frame(width: 110) // Reduced from 120 to 110
+                .frame(width: 116) // Reduced from 120 to 110
                 
                 // Direct/Stops indicator - SMALLER BADGES
                 if isDirect {
                     Text("Direct")
                         .font(.system(size: 10, weight: .medium)) // Reduced from 11 to 10
-                        .foregroundColor(.green)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color("darkGreen"))
                         .padding(.horizontal, 6) // Reduced from 8 to 6
                         .padding(.vertical, 1) // Reduced from 2 to 1
                         
                 } else {
                     Text("\(stops) Stop\(stops > 1 ? "s" : "")")
                         .font(.system(size: 10, weight: .medium)) // Reduced from 11 to 10
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color("darkGray"))
                         .padding(.horizontal, 6) // Reduced from 8 to 6
                         .padding(.vertical, 1) // Reduced from 2 to 1
                 }
@@ -2885,7 +2887,7 @@ struct FlightRowView: View {
                         .font(.system(size: 13)) // Reduced from 14 to 13
                         .foregroundColor(.gray)
                     Circle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Color.gray.opacity(0.3))
                         .frame(width: 4, height: 4)
                     Text(arrivalDate)
                         .font(.system(size: 11)) // Reduced from 12 to 11
@@ -3697,6 +3699,7 @@ struct ModifiedDetailedFlightListView: View {
                                 )
                                 .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                         }
+                        .padding(.top,36)
                         Spacer()
                     }
                     .onAppear {
@@ -3763,6 +3766,7 @@ struct ModifiedDetailedFlightListView: View {
                                 .padding(.bottom, 5)
                                 .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                         }
+                        .padding(.top,36)
                         Spacer()
                     }
                 }

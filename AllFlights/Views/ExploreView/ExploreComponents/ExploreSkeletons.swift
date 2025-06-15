@@ -425,7 +425,7 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     @State private var breatheScale: CGFloat = 1.0
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 6) {
             // Tags section with synchronized shimmer animation
             HStack(spacing: 8) {
                 ForEach(0..<2, id: \.self) { index in
