@@ -3643,7 +3643,7 @@ struct ModifiedDetailedFlightListView: View {
                     Spacer()
                     ForEach(0..<4, id: \.self) { index in
                         DetailedFlightCardSkeleton()
-                            .padding(.bottom, 5)
+                            .padding(.bottom, 3)
                             .opacity(skeletonOpacity)
                             .offset(y: skeletonOffset)
                             .animation(
@@ -3653,7 +3653,7 @@ struct ModifiedDetailedFlightListView: View {
                             )
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
-                    .padding(.top, 36)
+                    .padding(.top, 14)
                     Spacer()
                 }
                 .onAppear {
@@ -3717,10 +3717,10 @@ struct ModifiedDetailedFlightListView: View {
                     Spacer()
                     ForEach(0..<4, id: \.self) { _ in
                         DetailedFlightCardSkeleton()
-                            .padding(.bottom, 5)
+                            .padding(.bottom, 3)
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
-                    .padding(.top, 36)
+                    .padding(.top, 14)
                     Spacer()
                 }
             }

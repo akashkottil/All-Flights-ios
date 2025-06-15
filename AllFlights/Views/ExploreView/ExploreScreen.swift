@@ -308,7 +308,8 @@ struct ExploreScreen: View {
                                 Spacer()
                             }
                             .padding(.horizontal)
-                            .padding(.bottom, 8)
+                            .padding(.top, 4)
+                            .padding(.leading,4)
                         }
                     }
                     .frame(maxWidth: .infinity)
