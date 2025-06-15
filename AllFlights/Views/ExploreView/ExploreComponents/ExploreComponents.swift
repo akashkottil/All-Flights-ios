@@ -720,7 +720,7 @@ struct FlightResultCard: View {
     
     @ViewBuilder
     private var cardContent: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 5) {
             // Departure section
             VStack(alignment: .leading, spacing: 8) {
                 Text("Departure")
@@ -733,11 +733,11 @@ struct FlightResultCard: View {
                     
                     Spacer()
                     
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Text(origin)
                             .font(.headline)
                         
-                        Image(systemName: "arrow.right")
+                        Image("flightresultarrrow")
                             .font(.caption)
                         
                         Text(destination)
@@ -749,7 +749,7 @@ struct FlightResultCard: View {
                     Text(isOutDirect ? "Direct" : "Connecting")
                         .font(.subheadline)
                         .fontWeight(.bold)
-                        .foregroundColor(.green)
+                        .foregroundColor(Color("darkGreen"))
                 }
             }
             .padding(.horizontal)
@@ -757,7 +757,7 @@ struct FlightResultCard: View {
             
             // Return section - only show for round trips with valid return data
             if viewModel.isRoundTrip && !returnDate.isEmpty && returnDate != "No return" {
-                Divider()
+      
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Return")
                         .font(.subheadline)
@@ -769,11 +769,11 @@ struct FlightResultCard: View {
                         
                         Spacer()
                         
-                        HStack(spacing: 4) {
+                        HStack(spacing: 6) {
                             Text(destination)
                                 .font(.headline)
                             
-                            Image(systemName: "arrow.right")
+                            Image("flightresultarrrow")
                                 .font(.caption)
                             
                             Text(origin)
@@ -784,7 +784,7 @@ struct FlightResultCard: View {
                         
                         Text(isInDirect ? "Direct" : "Connecting")
                             .font(.subheadline)
-                            .foregroundColor(.green)
+                            .foregroundColor(Color("darkGreen"))
                             .fontWeight(.bold)
                     }
                 }
@@ -793,6 +793,7 @@ struct FlightResultCard: View {
             }
             
             Divider()
+                .padding(.horizontal,16)
             
             // Price section
             HStack {
@@ -819,11 +820,11 @@ struct FlightResultCard: View {
                     searchFlights()
                 }) {
                     Text("View these dates")
-                        .font(.subheadline)
+                        .font(.system(size: 14))
+                        .fontWeight(.bold)
                         .foregroundColor(.white)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 16)
-                        .background(Color.orange)
+                        .frame(width: 146,height: 46)
+                        .background(Color("buttonColor"))
                         .cornerRadius(8)
                 }
             }

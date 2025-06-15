@@ -516,7 +516,7 @@ struct ExploreScreen: View {
                         .padding(.bottom, 8)
                         .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
-                .padding(.top, 30)
+                .padding(.top, 40)
             } else if viewModel.flightResults.isEmpty {
                 // FIXED: Keep your auto-reload logic but prevent glitching with better state management
                 VStack(spacing: 12) {

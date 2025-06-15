@@ -174,7 +174,7 @@ struct EnhancedSkeletonFlightResultCard: View {
     @State private var breatheScale: CGFloat = 1.0
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 5) {
             // Outbound flight section
             flightSection(isReturn: false)
             
