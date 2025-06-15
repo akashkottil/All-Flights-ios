@@ -269,16 +269,19 @@ struct ExploreScreen: View {
                 
                 // NEW: Detailed Flight List Title + Filter Tabs (slides in from right)
                 if viewModel.showingDetailedFlightList {
+                    
                     VStack(spacing: 0) {
                         // Detailed Flight List Title
-                        HStack {
-                            Spacer()
-                            Text("Flights to \(viewModel.toLocation)")
-                                .font(.system(size: 24, weight: .bold))
-                                .padding(.horizontal)
-                                .padding(.top, 16)
-                                .padding(.bottom, 8)
-                            Spacer()
+                        if !viewModel.isDirectSearch{
+                            HStack {
+                                Spacer()
+                                Text("Flights to \(viewModel.toLocation)")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 8)
+                                Spacer()
+                            }
                         }
                         
                         // Filter tabs section for detailed flight list
