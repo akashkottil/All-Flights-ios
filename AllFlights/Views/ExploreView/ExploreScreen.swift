@@ -15,6 +15,10 @@ struct ExploreScreen: View {
     // ADD: Observe shared search data
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     
+    // NEW: Add animation state tracking
+    @State private var isInitialLoad = true
+    @State private var showContentWithHeader = false
+    
     private var isInMainCountryView: Bool {
         return !viewModel.showingCities &&
                !viewModel.hasSearchedFlights &&
@@ -179,153 +183,152 @@ struct ExploreScreen: View {
                viewModel.selectedCountryName != nil
     }
     
-
-   
-  
-    // MARK: - Updated Sticky Header Components in ExploreScreen
+    // MARK: - FIXED Sticky Header Components with Synchronized Animations
     private var stickyHeader: some View {
         VStack(spacing: 0) {
-            // Animated Title Section with proper sliding
-            HStack {
-                // Main Explore Title + Filter Tabs (slides out left)
-                if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
-                    VStack(spacing: 0) {
-                        // Main Title
-                        HStack {
-                            Spacer()
-                            Text(getExploreTitle())
-                                .font(.system(size: 24, weight: .bold))
-                                .padding(.horizontal)
-                                .padding(.top, 16)
-                            Spacer()
-                        }
-                        .padding(.bottom, 16)
-                        
-                        // Filter Tabs
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(0..<filterOptions.count, id: \.self) { index in
-                                    FilterTabButton(
-                                        title: filterOptions[index],
-                                        isSelected: selectedFilterTab == index
-                                    ) {
-                                        selectedFilterTab = index
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-                        .padding(.bottom, 5)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                }
-                
-                // Flight Results Title + Month Selector (slides in from right)
-                if viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
-                    VStack(spacing: 0) {
-                        // Flight Results Title
-                        HStack {
-                            Spacer()
-                            Text("Explore \(viewModel.toLocation)")
-                                .font(.system(size: 24, weight: .bold))
-                                .padding(.horizontal)
-                                .padding(.top, 16)
-                                .padding(.bottom, 8)
-                            Spacer()
-                        }
-                        .padding(.bottom,10)
-                        
-                        // Conditional Content based on anytime mode
-                        if !viewModel.isAnytimeMode {
-                            // Month Selector
-                            MonthSelectorView(
-                                months: viewModel.availableMonths,
-                                selectedIndex: viewModel.selectedMonthIndex,
-                                onSelect: { index in
-                                    viewModel.selectMonth(at: index)
-                                }
-                            )
-                            .padding(.horizontal)
-                            .padding(.bottom,5)
-                        } else {
-                            // Anytime Mode Message
-                            Text("Best prices for the next 3 months")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                                .padding(.horizontal)
-                                .padding(.bottom, 5)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                }
-                
-                // NEW: Detailed Flight List Title + Filter Tabs (slides in from right)
-                if viewModel.showingDetailedFlightList {
-                    
-                    VStack(spacing: 0) {
-                        // Detailed Flight List Title
-                        if !viewModel.isDirectSearch{
+            // FIXED: Only show header content when showContentWithHeader is true for direct searches
+            if showContentWithHeader || !viewModel.isDirectSearch {
+                // Animated Title Section with proper sliding
+                HStack {
+                    // Main Explore Title + Filter Tabs (slides out left)
+                    if !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
+                        VStack(spacing: 0) {
+                            // Main Title
                             HStack {
                                 Spacer()
-                                Text("Flights to \(viewModel.toLocation)")
+                                Text(getExploreTitle())
+                                    .font(.system(size: 24, weight: .bold))
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                                Spacer()
+                            }
+                            .padding(.bottom, 16)
+                            
+                            // Filter Tabs
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(0..<filterOptions.count, id: \.self) { index in
+                                        FilterTabButton(
+                                            title: filterOptions[index],
+                                            isSelected: selectedFilterTab == index
+                                        ) {
+                                            selectedFilterTab = index
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                            .padding(.bottom, 5)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
+                    }
+                    
+                    // Flight Results Title + Month Selector (slides in from right)
+                    if viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
+                        VStack(spacing: 0) {
+                            // Flight Results Title
+                            HStack {
+                                Spacer()
+                                Text("Explore \(viewModel.toLocation)")
                                     .font(.system(size: 24, weight: .bold))
                                     .padding(.horizontal)
                                     .padding(.top, 16)
                                     .padding(.bottom, 8)
                                 Spacer()
                             }
-                        }
-                        
-                        // Filter tabs section for detailed flight list
-                        HStack {
-                            FilterButton {
-                                showingDetailedFlightFilterSheet = true
-                            }
-                            .padding(.leading, 20)
+                            .padding(.bottom,10)
                             
-                            FlightFilterTabView(
-                                selectedFilter: selectedDetailedFlightFilter,
-                                onSelectFilter: { filter in
-                                    selectedDetailedFlightFilter = filter
-                                    applyDetailedFlightFilterOption(filter)
-                                }
-                            )
+                            // Conditional Content based on anytime mode
+                            if !viewModel.isAnytimeMode {
+                                // Month Selector
+                                MonthSelectorView(
+                                    months: viewModel.availableMonths,
+                                    selectedIndex: viewModel.selectedMonthIndex,
+                                    onSelect: { index in
+                                        viewModel.selectMonth(at: index)
+                                    }
+                                )
+                                .padding(.horizontal)
+                                .padding(.bottom,5)
+                            } else {
+                                // Anytime Mode Message
+                                Text("Best prices for the next 3 months")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal)
+                                    .padding(.bottom, 5)
+                            }
                         }
-                        .padding(.trailing, 16)
-                        .padding(.vertical, 8)
-                        
-                        // Flight count display
-                        if viewModel.isLoadingDetailedFlights || viewModel.totalFlightCount > 0 {
+                        .frame(maxWidth: .infinity)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
+                    }
+                    
+                    // NEW: Detailed Flight List Title + Filter Tabs (slides in from right)
+                    if viewModel.showingDetailedFlightList {
+                        VStack(spacing: 0) {
+                            // Detailed Flight List Title
+                            if !viewModel.isDirectSearch{
+                                HStack {
+                                    Spacer()
+                                    Text("Flights to \(viewModel.toLocation)")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .padding(.horizontal)
+                                        .padding(.top, 16)
+                                        .padding(.bottom, 8)
+                                    Spacer()
+                                }
+                            }
+                            
+                            // Filter tabs section for detailed flight list
                             HStack {
-                                FlightSearchStatusView(
-                                    isLoading: viewModel.isLoadingDetailedFlights,
-                                    flightCount: viewModel.totalFlightCount,
-                                    destinationName: viewModel.toLocation
+                                FilterButton {
+                                    showingDetailedFlightFilterSheet = true
+                                }
+                                .padding(.leading, 20)
+                                
+                                FlightFilterTabView(
+                                    selectedFilter: selectedDetailedFlightFilter,
+                                    onSelectFilter: { filter in
+                                        selectedDetailedFlightFilter = filter
+                                        applyDetailedFlightFilterOption(filter)
+                                    }
                                 )
                             }
-                            .padding(.horizontal)
-                            .padding(.top, 4)
-                            .padding(.leading, 4)
+                            .padding(.trailing, 16)
+                            .padding(.vertical, 8)
+                            
+                            // Flight count display
+                            if viewModel.isLoadingDetailedFlights || viewModel.totalFlightCount > 0 {
+                                HStack {
+                                    FlightSearchStatusView(
+                                        isLoading: viewModel.isLoadingDetailedFlights,
+                                        flightCount: viewModel.totalFlightCount,
+                                        destinationName: viewModel.toLocation
+                                    )
+                                }
+                                .padding(.horizontal)
+                                .padding(.top, 4)
+                                .padding(.leading, 4)
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
                     }
-                    .frame(maxWidth: .infinity)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
                 }
+                .background(Color("scroll"))
+                .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2), value: viewModel.hasSearchedFlights)
+                .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2), value: viewModel.showingDetailedFlightList)
             }
-            .background(Color("scroll"))
-            .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2), value: viewModel.hasSearchedFlights)
-            .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2), value: viewModel.showingDetailedFlightList)
         }
         .background(Color("scroll"))
         .zIndex(1) // Keep sticky header above scrollable content
@@ -376,27 +379,28 @@ struct ExploreScreen: View {
                         offset: $scrollOffset,
                         content: {
                             VStack(alignment: .center, spacing: 16) {
-                               
-                                
-                                // Main content based on current state
-                                if viewModel.showingDetailedFlightList {
-                                    // Detailed flight list - highest priority
-                                    ModifiedDetailedFlightListView(
-                                           viewModel: viewModel,
-                                           isCollapsed: $isCollapsed  // ADD: Pass the collapse state
-                                       )
-                                        .transition(.move(edge: .trailing))
-                                        .zIndex(1)
-                                        .edgesIgnoringSafeArea(.all)
-                                        .background(Color(.systemBackground))
-                                }
-                                else if !viewModel.hasSearchedFlights {
-                                    // Original explore view content (without title and filter tabs since they're sticky)
-                                    exploreMainContent
-                                }
-                                else {
-                                    // Flight search results view (without title and month selector since they're sticky)
-                                    flightResultsContent
+                                // FIXED: Only show content when showContentWithHeader is true for direct searches
+                                if showContentWithHeader || !viewModel.isDirectSearch {
+                                    // Main content based on current state
+                                    if viewModel.showingDetailedFlightList {
+                                        // Detailed flight list - highest priority
+                                        ModifiedDetailedFlightListView(
+                                               viewModel: viewModel,
+                                               isCollapsed: $isCollapsed  // ADD: Pass the collapse state
+                                           )
+                                            .transition(.move(edge: .trailing))
+                                            .zIndex(1)
+                                            .edgesIgnoringSafeArea(.all)
+                                            .background(Color(.systemBackground))
+                                    }
+                                    else if !viewModel.hasSearchedFlights {
+                                        // Original explore view content (without title and filter tabs since they're sticky)
+                                        exploreMainContent
+                                    }
+                                    else {
+                                        // Flight search results view (without title and month selector since they're sticky)
+                                        flightResultsContent
+                                    }
                                 }
                             }
                             .background(Color("scroll"))
@@ -459,6 +463,7 @@ struct ExploreScreen: View {
                !sharedSearchData.shouldExecuteSearch &&
                !sharedSearchData.shouldNavigateToExploreCities {
                 print("🔍 Clean explore state with countries loaded - no action needed")
+                showContentWithHeader = true // Ensure content is visible
                 return
             }
             
@@ -487,6 +492,7 @@ struct ExploreScreen: View {
                 
                 // FIXED: Set loading state immediately and fetch countries without delay
                 viewModel.isLoading = true
+                showContentWithHeader = true // Show content immediately
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     viewModel.fetchCountries()
                 }
@@ -504,11 +510,13 @@ struct ExploreScreen: View {
                 print("🔍 Setting loading state and fetching countries immediately...")
                 // FIXED: Set loading state immediately
                 viewModel.isLoading = true
+                showContentWithHeader = true // Show content immediately
                 
                 // FIXED: Fetch countries immediately (no delay)
                 viewModel.fetchCountries()
             } else {
                 print("🔍 Skipping country fetch - countries loaded or navigation state active")
+                showContentWithHeader = true // Ensure content is visible
             }
             
             viewModel.setupAvailableMonths()
@@ -520,8 +528,17 @@ struct ExploreScreen: View {
         .onChange(of: viewModel.hasSearchedFlights) {
             updateTabVisibility()
         }
-        .onChange(of: viewModel.showingDetailedFlightList) {
+        .onChange(of: viewModel.showingDetailedFlightList) { newValue in
             updateTabVisibility()
+            
+            // FIXED: Show content and header together for direct searches
+            if newValue && viewModel.isDirectSearch {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showContentWithHeader = true
+                    }
+                }
+            }
         }
         .onChange(of: viewModel.selectedCountryName) {
             updateTabVisibility()
@@ -558,7 +575,6 @@ struct ExploreScreen: View {
                 handleIncomingCountryNavigation()
             }
         }
-        
     }
     
     // MARK: - Content Views
@@ -772,11 +788,14 @@ struct ExploreScreen: View {
         print("✅ ExploreViewModel reset completed")
     }
     
-    // Existing handleIncomingSearchFromHome method remains the same...
+    // FIXED: Enhanced handleIncomingSearchFromHome with synchronized animations
     private func handleIncomingSearchFromHome() {
         print("🔥 ExploreScreen: Received search data from HomeView")
         print("🔥 Original selectedTab: \(sharedSearchData.selectedTab)")
         print("🔥 Direct flights only: \(sharedSearchData.directFlightsOnly)")
+        
+        // FIXED: Initialize showContentWithHeader to false for smooth animation
+        showContentWithHeader = false
         
         // Transfer all search data to the view model
         viewModel.fromLocation = sharedSearchData.fromLocation
@@ -805,6 +824,13 @@ struct ExploreScreen: View {
         
         // Store direct flights preference in view model for later use
         viewModel.directFlightsOnlyFromHome = sharedSearchData.directFlightsOnly
+        
+        // FIXED: Delay showing content until search is initiated to ensure smooth animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                showContentWithHeader = true
+            }
+        }
         
         // Handle multi-city vs regular search
         if sharedSearchData.selectedTab == 2 && !sharedSearchData.multiCityTrips.isEmpty {
