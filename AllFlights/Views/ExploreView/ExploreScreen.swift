@@ -241,9 +241,6 @@ struct ExploreScreen: View {
     // MARK: - Body
     var body: some View {
         ZStack(alignment: .top) {
-            // Background
-            Color("scroll")
-                .ignoresSafeArea()
             
             VStack(spacing: 0) {
                 // Custom navigation bar - Collapsible
@@ -313,9 +310,7 @@ struct ExploreScreen: View {
             }
         }
         .background(Color("scroll"))
-        .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 50) // space equal to tab bar height
-        }
+
         // Keep all your existing onAppear and onChange modifiers...
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
