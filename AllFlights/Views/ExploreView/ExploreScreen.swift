@@ -489,6 +489,25 @@ struct ExploreScreen: View {
                             }
                         )
                         .padding(.horizontal)
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 10, coordinateSpace: .global)
+                                .onChanged { value in
+                                    let verticalMovement = value.translation.height  // Changed from .y to .height
+                                    
+                                    // Only collapse when scrolling DOWN (negative height = content moving up)
+                                    if verticalMovement < -15 && !isCollapsed {
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                            isCollapsed = true
+                                        }
+                                    }
+                                    // Expand when scrolling UP (positive height = content moving down)
+                                    else if verticalMovement > 30 && isCollapsed {
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                            isCollapsed = false
+                                        }
+                                    }
+                                }
+                        )
                     }
                 }
                 .padding(.bottom, 16)
