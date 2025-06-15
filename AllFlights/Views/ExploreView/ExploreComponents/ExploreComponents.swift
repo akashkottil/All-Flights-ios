@@ -3613,16 +3613,19 @@ struct ModifiedDetailedFlightListView: View {
     let externalIsCollapsed: Binding<Bool>?
     @State private var internalIsCollapsed = false
     
+    let showFilterModal: Binding<Bool>?
+    
     // Computed property to get the right binding
     private var isCollapsedBinding: Binding<Bool> {
         externalIsCollapsed ?? $internalIsCollapsed
     }
     
     // Simple initializer
-    init(viewModel: ExploreViewModel, isCollapsed: Binding<Bool>? = nil) {
-        self.viewModel = viewModel
-        self.externalIsCollapsed = isCollapsed
-    }
+    init(viewModel: ExploreViewModel, isCollapsed: Binding<Bool>? = nil, showFilterModal: Binding<Bool>? = nil) {
+            self.viewModel = viewModel
+            self.externalIsCollapsed = isCollapsed
+            self.showFilterModal = showFilterModal
+        }
    
     @State private var skeletonOpacity: Double = 0
     @State private var skeletonOffset: CGFloat = 20
@@ -3706,24 +3709,16 @@ struct ModifiedDetailedFlightListView: View {
                     Spacer()
                 }
                 .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
-            } else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
-                // Show empty state only when we're certain there are no results
-                VStack {
-                    Spacer()
-                    Text("No flights found with current filters")
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                    
-                    Button("Clear Filters") {
-                        clearAllFilters()
+            }else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
+                // Trigger parent filter modal
+                Color.clear
+                    .onAppear {
+                        if let modalBinding = showFilterModal {
+                            modalBinding.wrappedValue = true
+                        }
                     }
-                    .padding(.top, 16)
-                    .foregroundColor(.blue)
-                    
-                    Spacer()
-                }
-                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
-            } else if !filteredResults.isEmpty {
+//                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+            }else if !filteredResults.isEmpty {
                 // Show flight list when we have results
                 PaginatedFlightList(
                     viewModel: viewModel,

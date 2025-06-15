@@ -19,6 +19,26 @@ struct ExploreScreen: View {
     @State private var isInitialLoad = true
     @State private var showContentWithHeader = false
     
+    @State private var showFilterModal = false
+    
+    private func clearAllFiltersInExploreScreen() {
+        print("🧹 Clearing all filters in ExploreScreen")
+        
+        // Reset detailed flight filter if we're in that view
+        if viewModel.showingDetailedFlightList {
+            selectedDetailedFlightFilter = .all
+            
+            // Reset the filter sheet state to defaults
+            viewModel.filterSheetState = ExploreViewModel.FilterSheetState()
+            
+            // Create an empty filter request and apply it
+            let emptyFilter = FlightFilterRequest()
+            viewModel.applyPollFilters(filterRequest: emptyFilter)
+        }
+        
+        print("✅ All filters cleared in ExploreScreen")
+    }
+    
     private func refreshCurrentScreen() {
         if viewModel.showingDetailedFlightList {
             // Refresh flight results using the current search parameters
@@ -419,9 +439,10 @@ struct ExploreScreen: View {
                                     if viewModel.showingDetailedFlightList {
                                         // Detailed flight list - highest priority
                                         ModifiedDetailedFlightListView(
-                                               viewModel: viewModel,
-                                               isCollapsed: $isCollapsed  // ADD: Pass the collapse state
-                                           )
+                                                viewModel: viewModel,
+                                                isCollapsed: $isCollapsed,
+                                                showFilterModal: $showFilterModal  // ADD: Pass the filter modal binding
+                                            )
                                             .transition(.move(edge: .trailing))
                                             .zIndex(1)
                                             .edgesIgnoringSafeArea(.all)
@@ -446,6 +467,15 @@ struct ExploreScreen: View {
                     // Refresh current screen when network comes back
                     refreshCurrentScreen()
                 }
+            .filterModal(
+                isPresented: Binding(
+                    get: { showFilterModal },
+                    set: { showFilterModal = $0 }
+                ),
+                onClearFilters: {
+                    clearAllFiltersInExploreScreen()
+                }
+            )
         }
         .background(Color("scroll"))
         .sheet(isPresented: $showingDetailedFlightFilterSheet) {
