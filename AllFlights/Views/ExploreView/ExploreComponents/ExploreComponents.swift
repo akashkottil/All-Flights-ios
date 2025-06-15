@@ -3584,26 +3584,24 @@ struct FlightFilterTabView: View {
 
 struct ModifiedDetailedFlightListView: View {
     let externalIsCollapsed: Binding<Bool>?
-        @State private var internalIsCollapsed = false
-        
-        // Computed property to get the right binding
-        private var isCollapsedBinding: Binding<Bool> {
-            externalIsCollapsed ?? $internalIsCollapsed
-        }
-        
-        // Simple initializer
-        init(viewModel: ExploreViewModel, isCollapsed: Binding<Bool>? = nil) {
-            self.viewModel = viewModel
-            self.externalIsCollapsed = isCollapsed
-        }
-       
+    @State private var internalIsCollapsed = false
+    
+    // Computed property to get the right binding
+    private var isCollapsedBinding: Binding<Bool> {
+        externalIsCollapsed ?? $internalIsCollapsed
+    }
+    
+    // Simple initializer
+    init(viewModel: ExploreViewModel, isCollapsed: Binding<Bool>? = nil) {
+        self.viewModel = viewModel
+        self.externalIsCollapsed = isCollapsed
+    }
+   
     @State private var skeletonOpacity: Double = 0
     @State private var skeletonOffset: CGFloat = 20
     @ObservedObject var viewModel: ExploreViewModel
     @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
     @State private var filteredResults: [FlightDetailResult] = []
-    @State private var showingFilterSheet = false
-    @State private var hasAppliedInitialDirectFilter = false
     @State private var showingFlightDetails = false
     
     @State private var showingLoadingSkeletons = true
@@ -3635,145 +3633,97 @@ struct ModifiedDetailedFlightListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Text("Flights to \(viewModel.toLocation)")
-                    .font(.system(size: 24, weight: .bold))
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
-                Spacer()
-            }
-            .background(Color("scroll"))
-            // Filter tabs section
-            HStack {
-                FilterButton {
-                    showingFilterSheet = true
-                }
-                .padding(.leading, 20)
-                
-                FlightFilterTabView(
-                    selectedFilter: selectedFilter,
-                    onSelectFilter: { filter in
-                        selectedFilter = filter
-                        applyQuickFilterOption(filter)
-                    }
-                )
-            }
-            .padding(.trailing, 16)
-            .padding(.vertical, 8)
-            .background(Color("scroll"))
+        // SIMPLIFIED: Just the scrollable content, no header
+        ZStack {
+            // Background color for the entire content area
+            Color("scroll").edgesIgnoringSafeArea(.all)
             
-            // Flight count display - UPDATED: Always show count when available
-            if viewModel.totalFlightCount > 0 || !filteredResults.isEmpty {
-                HStack {
-                    let displayCount = viewModel.totalFlightCount > 0 ? viewModel.totalFlightCount : filteredResults.count
-                    Text("\(displayCount) flights found")
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
+            if case .loading = viewState {
+                VStack {
+                    Spacer()
+                    ForEach(0..<4, id: \.self) { index in
+                        DetailedFlightCardSkeleton()
+                            .padding(.bottom, 5)
+                            .opacity(skeletonOpacity)
+                            .offset(y: skeletonOffset)
+                            .animation(
+                                .spring(response: 0.6, dampingFraction: 0.8)
+                                .delay(Double(index) * 0.1),
+                                value: skeletonOpacity
+                            )
+                            .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+                    }
+                    .padding(.top, 36)
                     Spacer()
                 }
-                .padding(.horizontal)
-                .padding(8)
-                .background(Color("scroll"))
-            }
-            
-            
-            ZStack {
-                // Background color for the entire content area
-                Color("scroll").edgesIgnoringSafeArea(.all)
-                
-                if case .loading = viewState {
-                    VStack {
-                        Spacer()
-                        ForEach(0..<4, id: \.self) { index in
-                            DetailedFlightCardSkeleton()
-                                .padding(.bottom, 5)
-                                .opacity(skeletonOpacity)
-                                .offset(y: skeletonOffset)
-                                .animation(
-                                    .spring(response: 0.6, dampingFraction: 0.8)
-                                    .delay(Double(index) * 0.1),
-                                    value: skeletonOpacity
-                                )
-                                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
-                        }
-                        .padding(.top,36)
-                        Spacer()
-                    }
-                    .onAppear {
-                        withAnimation {
-                            skeletonOpacity = 1.0
-                            skeletonOffset = 0
-                        }
-                    }
-                } else if case .error(let message) = viewState {
-                    VStack {
-                        Spacer()
-                        Text("Error: \(message)")
-                            .foregroundColor(.red)
-                            .padding()
-                        Button("Retry") {
-                            retrySearch()
-                        }
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        Spacer()
-                    }
-                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
-                } else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
-                    // Show empty state only when we're certain there are no results
-                    VStack {
-                        Spacer()
-                        Text("No flights found with current filters")
-                            .foregroundColor(.gray)
-                            .multilineTextAlignment(.center)
-                        
-                        Button("Clear Filters") {
-                            clearAllFilters()
-                        }
-                        .padding(.top, 16)
-                        .foregroundColor(.blue)
-                        
-                        Spacer()
-                    }
-                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
-                } else if !filteredResults.isEmpty {
-                    // Show flight list when we have results
-                    PaginatedFlightList(
-                        viewModel: viewModel,
-                        filteredResults: filteredResults,
-                        isMultiCity: isMultiCity,
-                        onFlightSelected: { result in
-                            viewModel.selectedFlightId = result.id
-                            showingFlightDetails = true
-                        }
-                    )
-                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
-                    .onAppear {
-                        cancelRetryTimer()
-                        hasReceivedEmptyResults = false
-                    }
-                } else {
-                    // Show skeleton loading while processing
-                    VStack {
-                        Spacer()
-                        ForEach(0..<4, id: \.self) { _ in
-                            DetailedFlightCardSkeleton()
-                                .padding(.bottom, 5)
-                                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
-                        }
-                        .padding(.top,36)
-                        Spacer()
+                .onAppear {
+                    withAnimation {
+                        skeletonOpacity = 1.0
+                        skeletonOffset = 0
                     }
                 }
+            } else if case .error(let message) = viewState {
+                VStack {
+                    Spacer()
+                    Text("Error: \(message)")
+                        .foregroundColor(.red)
+                        .padding()
+                    Button("Retry") {
+                        retrySearch()
+                    }
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    Spacer()
+                }
+                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+            } else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
+                // Show empty state only when we're certain there are no results
+                VStack {
+                    Spacer()
+                    Text("No flights found with current filters")
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                    
+                    Button("Clear Filters") {
+                        clearAllFilters()
+                    }
+                    .padding(.top, 16)
+                    .foregroundColor(.blue)
+                    
+                    Spacer()
+                }
+                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+            } else if !filteredResults.isEmpty {
+                // Show flight list when we have results
+                PaginatedFlightList(
+                    viewModel: viewModel,
+                    filteredResults: filteredResults,
+                    isMultiCity: isMultiCity,
+                    onFlightSelected: { result in
+                        viewModel.selectedFlightId = result.id
+                        showingFlightDetails = true
+                    }
+                )
+                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+                .onAppear {
+                    cancelRetryTimer()
+                    hasReceivedEmptyResults = false
+                }
+            } else {
+                // Show skeleton loading while processing
+                VStack {
+                    Spacer()
+                    ForEach(0..<4, id: \.self) { _ in
+                        DetailedFlightCardSkeleton()
+                            .padding(.bottom, 5)
+                            .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+                    }
+                    .padding(.top, 36)
+                    Spacer()
+                }
             }
-        }
-        .sheet(isPresented: $showingFilterSheet) {
-            FlightFilterSheet(viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $showingFlightDetails) {
             if let selectedId = viewModel.selectedFlightId,
@@ -3862,39 +3812,6 @@ struct ModifiedDetailedFlightListView: View {
         print("📱 Updated filtered results: \(filteredResults.count) flights")
     }
     
-    private func applyQuickFilterOption(_ filter: FlightFilterTabView.FilterOption) {
-        print("🔧 Applying quick filter: \(filter.rawValue)")
-        
-        // Create filter request based on the selected quick filter
-        var filterRequest: FlightFilterRequest? = nil
-        
-        switch filter {
-        case .all:
-            // Clear all filters
-            filterRequest = FlightFilterRequest()
-        case .best:
-            // For "best", don't set any sort parameter
-            filterRequest = FlightFilterRequest()
-        case .cheapest:
-            filterRequest = FlightFilterRequest()
-            filterRequest!.sortBy = "price"
-            filterRequest!.sortOrder = "asc"
-        case .fastest:
-            filterRequest = FlightFilterRequest()
-            filterRequest!.sortBy = "duration"
-            filterRequest!.sortOrder = "asc"
-        case .direct:
-            filterRequest = FlightFilterRequest()
-            filterRequest!.stopCountMax = 0
-        }
-        
-        // Apply the filter if we have one
-        if let request = filterRequest {
-           
-            viewModel.applyPollFilters(filterRequest: request)
-        }
-    }
-    
     private func clearAllFilters() {
         print("🧹 Clearing all filters")
         selectedFilter = .all
@@ -3973,14 +3890,6 @@ struct ModifiedDetailedFlightListView: View {
     
     private var isMultiCity: Bool {
         return viewModel.multiCityTrips.count >= 2
-    }
-    
-    private func applyInitialDirectFilterIfNeeded() {
-        if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
-            print("🎯 Applying initial direct filter")
-            selectedFilter = .direct
-            hasAppliedInitialDirectFilter = true
-        }
     }
 }
 

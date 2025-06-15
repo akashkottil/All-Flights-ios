@@ -32,6 +32,41 @@ struct ExploreScreen: View {
     @State private var scrollOffset: CGFloat = 0
     @Namespace private var searchCardNamespace
     
+    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .all
+    @State private var showingDetailedFlightFilterSheet = false
+    
+    private func applyDetailedFlightFilterOption(_ filter: FlightFilterTabView.FilterOption) {
+        print("🔧 Applying detailed flight filter: \(filter.rawValue)")
+        
+        // Create filter request based on the selected quick filter
+        var filterRequest: FlightFilterRequest? = nil
+        
+        switch filter {
+        case .all:
+            // Clear all filters
+            filterRequest = FlightFilterRequest()
+        case .best:
+            // For "best", don't set any sort parameter
+            filterRequest = FlightFilterRequest()
+        case .cheapest:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "price"
+            filterRequest!.sortOrder = "asc"
+        case .fastest:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "duration"
+            filterRequest!.sortOrder = "asc"
+        case .direct:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.stopCountMax = 0
+        }
+        
+        // Apply the filter if we have one
+        if let request = filterRequest {
+            viewModel.applyPollFilters(filterRequest: request)
+        }
+    }
+    
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
     
     // MODIFIED: Updated back navigation to handle "Anywhere" destination
@@ -145,7 +180,9 @@ struct ExploreScreen: View {
     }
     
 
-    // MARK: - Sticky Header Components
+   
+  
+    // MARK: - Updated Sticky Header Components in ExploreScreen
     private var stickyHeader: some View {
         VStack(spacing: 0) {
             // Animated Title Section with proper sliding
@@ -221,6 +258,57 @@ struct ExploreScreen: View {
                                 .foregroundColor(.gray)
                                 .padding(.horizontal)
                                 .padding(.bottom, 5)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                }
+                
+                // NEW: Detailed Flight List Title + Filter Tabs (slides in from right)
+                if viewModel.showingDetailedFlightList {
+                    VStack(spacing: 0) {
+                        // Detailed Flight List Title
+                        HStack {
+                            Spacer()
+                            Text("Flights to \(viewModel.toLocation)")
+                                .font(.system(size: 24, weight: .bold))
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                                .padding(.bottom, 8)
+                            Spacer()
+                        }
+                        
+                        // Filter tabs section for detailed flight list
+                        HStack {
+                            FilterButton {
+                                showingDetailedFlightFilterSheet = true
+                            }
+                            .padding(.leading, 20)
+                            
+                            FlightFilterTabView(
+                                selectedFilter: selectedDetailedFlightFilter,
+                                onSelectFilter: { filter in
+                                    selectedDetailedFlightFilter = filter
+                                    applyDetailedFlightFilterOption(filter)
+                                }
+                            )
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.vertical, 8)
+                        
+                        // Flight count display
+                        if viewModel.totalFlightCount > 0 {
+                            HStack {
+                                Text("\(viewModel.totalFlightCount) flights found")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 8)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -313,7 +401,9 @@ struct ExploreScreen: View {
             }
         }
         .background(Color("scroll"))
-
+        .sheet(isPresented: $showingDetailedFlightFilterSheet) {
+            FlightFilterSheet(viewModel: viewModel)
+        }
         // Keep all your existing onAppear and onChange modifiers...
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
@@ -463,6 +553,7 @@ struct ExploreScreen: View {
                 handleIncomingCountryNavigation()
             }
         }
+        
     }
     
     // MARK: - Content Views
