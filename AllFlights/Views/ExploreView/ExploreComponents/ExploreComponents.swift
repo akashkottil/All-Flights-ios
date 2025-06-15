@@ -113,9 +113,27 @@ struct CollapsedSearchCard: View {
     
     // UPDATED: Better display logic for collapsed state
     private func getLocationDisplayText() -> String {
-        let fromText = viewModel.fromLocation.isEmpty || viewModel.fromLocation == "Mumbai" ? "From" : viewModel.fromLocation
-        let toText = viewModel.toLocation == "Anywhere" || viewModel.toLocation.isEmpty ? "Anywhere" : viewModel.toLocation
-        return "\(fromText) → \(toText)"
+        let fromText: String = {
+            if !viewModel.fromIataCode.isEmpty && viewModel.fromIataCode != "DEL" {
+                return viewModel.fromIataCode
+            } else if !viewModel.fromLocation.isEmpty {
+                return viewModel.fromLocation
+            } else {
+                return "From"
+            }
+        }()
+
+        let toText: String = {
+            if !viewModel.toIataCode.isEmpty && viewModel.toIataCode != "Anywhere" {
+                return viewModel.toIataCode
+            } else if !viewModel.toLocation.isEmpty {
+                return viewModel.toLocation
+            } else {
+                return "Anywhere"
+            }
+        }()
+
+        return "\(fromText) - \(toText)"
     }
     
     private func getDateDisplayText() -> String {
