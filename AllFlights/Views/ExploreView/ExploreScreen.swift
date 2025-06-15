@@ -19,6 +19,36 @@ struct ExploreScreen: View {
     @State private var isInitialLoad = true
     @State private var showContentWithHeader = false
     
+    private func refreshCurrentScreen() {
+        if viewModel.showingDetailedFlightList {
+            // Refresh flight results using the current search parameters
+            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
+                if viewModel.multiCityTrips.count > 1 {
+                    // Multi-city search
+                    viewModel.searchMultiCityFlightsWithPagination()
+                } else {
+                    // Regular search
+                    viewModel.searchFlightsForDatesWithPagination(
+                        origin: viewModel.selectedOriginCode,
+                        destination: viewModel.selectedDestinationCode,
+                        returnDate: viewModel.selectedReturnDatee,
+                        departureDate: viewModel.selectedDepartureDatee,
+                        isDirectSearch: viewModel.isDirectSearch
+                    )
+                }
+            }
+        } else if viewModel.showingCities {
+            // Refresh cities using the selected country
+            if let countryName = viewModel.selectedCountryName,
+               let country = viewModel.destinations.first(where: { $0.location.name == countryName }) {
+                viewModel.fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
+            }
+        } else {
+            // Refresh main explore (countries)
+            viewModel.fetchCountries()
+        }
+    }
+    
     private var isInMainCountryView: Bool {
         return !viewModel.showingCities &&
                !viewModel.hasSearchedFlights &&
@@ -408,6 +438,10 @@ struct ExploreScreen: View {
                     )
                 }
             }
+            .networkModal {
+                    // Refresh current screen when network comes back
+                    refreshCurrentScreen()
+                }
         }
         .background(Color("scroll"))
         .sheet(isPresented: $showingDetailedFlightFilterSheet) {

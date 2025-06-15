@@ -24,6 +24,11 @@ struct HomeView: View {
     
     // ADD: Track if we've shown the restored search to user
     @State private var hasShownRestoredSearch = false
+    
+    private func refreshHomeData() {
+        // Refresh cheap flights data
+        cheapFlightsViewModel.fetchCheapFlights()
+    }
 
     var body: some View {
         NavigationStack {
@@ -110,6 +115,9 @@ struct HomeView: View {
                 }
             }
         }
+        .networkModal {
+                refreshHomeData()
+            }
         .scrollIndicators(.hidden)
     }
     
