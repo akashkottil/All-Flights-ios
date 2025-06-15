@@ -484,25 +484,7 @@ struct ExploreScreen: View {
                             }
                         )
                         .padding(.horizontal)
-                        .simultaneousGesture(
-                            DragGesture(minimumDistance: 10, coordinateSpace: .global)
-                                .onChanged { value in
-                                    let verticalMovement = value.translation.height  // Changed from .y to .height
-                                    
-                                    // Only collapse when scrolling DOWN (negative height = content moving up)
-                                    if verticalMovement < -15 && !isCollapsed {
-                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                            isCollapsed = true
-                                        }
-                                    }
-                                    // Expand when scrolling UP (positive height = content moving down)
-                                    else if verticalMovement > 30 && isCollapsed {
-                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                            isCollapsed = false
-                                        }
-                                    }
-                                }
-                        )
+                        .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                     }
                 }
                 .padding(.bottom, 16)
@@ -514,6 +496,7 @@ struct ExploreScreen: View {
                     ForEach(0..<5, id: \.self) { _ in
                         SkeletonDestinationCard()
                             .padding(.horizontal)
+                            .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                     }
                 }
                 .padding(.bottom, 16)
@@ -528,6 +511,7 @@ struct ExploreScreen: View {
                 ForEach(0..<3, id: \.self) { _ in
                     SkeletonFlightResultCard()
                         .padding(.bottom, 8)
+                        .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
                 .padding(.top, 30)
             } else if viewModel.flightResults.isEmpty {
@@ -584,6 +568,7 @@ struct ExploreScreen: View {
                         }
                 }
                 .padding(.vertical, 40)
+                .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
             } else {
                 if !viewModel.isAnytimeMode && !viewModel.flightResults.isEmpty {
                     Text("Estimated cheapest price during \(getCurrentMonthName())")
@@ -591,6 +576,7 @@ struct ExploreScreen: View {
                         .foregroundColor(.primary)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
+                        .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
                 
                 ForEach(viewModel.flightResults) { result in
@@ -607,6 +593,7 @@ struct ExploreScreen: View {
                         viewModel: viewModel
                     )
                     .padding(.bottom, 8)
+                    .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
             }
         }
