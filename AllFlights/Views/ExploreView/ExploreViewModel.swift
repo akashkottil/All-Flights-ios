@@ -78,6 +78,11 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
+    func resetFilterSheetStateForNewSearch() {
+        filterSheetState = FilterSheetState()
+        print("🧹 Filter sheet state reset for new search")
+    }
+    
     func handleFlightResults(_ results: [FlightResult]) {
             // Filter out invalid results before setting
             let validResults = results.filter { result in
@@ -958,17 +963,20 @@ class ExploreViewModel: ObservableObject {
     
     struct FilterSheetState {
         var sortOption: FlightFilterTabView.FilterOption = .all
-        var directFlightsSelected: Bool = true
-        var oneStopSelected: Bool = false
-        var multiStopSelected: Bool = false
+        var directFlightsSelected: Bool = true      // ✅ Keep as true
+        var oneStopSelected: Bool = true            // ✅ CHANGE: Set to true by default
+        var multiStopSelected: Bool = true          // ✅ CHANGE: Set to true by default
         var priceRange: [Double] = [0.0, 2000.0]
         var departureTimes: [Double] = [0.0, 24.0]
         var arrivalTimes: [Double] = [0.0, 24.0]
         var durationRange: [Double] = [1.75, 8.5]
         var selectedAirlines: Set<String> = []
         
-        // Add any other filter state variables you need to preserve
+        // Add flag to track if this is first time opening filter sheet
+        var isFirstTimeOpening: Bool = true         // ✅ ADD: Track first time opening
     }
+    
+    
     @Published var filterSheetState = FilterSheetState()
     
     @Published var isDirectSearch: Bool = false
@@ -1006,44 +1014,69 @@ class ExploreViewModel: ObservableObject {
         
         switch filter {
         case .all:
-            // No specific filters needed
-            currentFilterRequest = nil
-        case .best:
-            // For "best", don't set any sort parameter - let API return default best results
-            filterRequest = FlightFilterRequest()
-            // Don't set sortBy for best - this was causing the 400 error
+            // ✅ CRITICAL: For "All", respect current filter sheet state
+            filterRequest = createCompleteFilterRequest() ?? FlightFilterRequest()
             currentFilterRequest = filterRequest
+            
+        case .best:
+            filterRequest = FlightFilterRequest()
+            // Merge with current filter sheet state
+            if let completeRequest = createCompleteFilterRequest() {
+                filterRequest = completeRequest
+            }
+            currentFilterRequest = filterRequest
+            
         case .cheapest:
             filterRequest = FlightFilterRequest()
             filterRequest!.sortBy = "price"
             filterRequest!.sortOrder = "asc"
+            // Merge with current filter sheet state
+            if let completeRequest = createCompleteFilterRequest() {
+                filterRequest!.stopCountMax = completeRequest.stopCountMax
+                filterRequest!.iataCodesInclude = completeRequest.iataCodesInclude
+                filterRequest!.priceMin = completeRequest.priceMin
+                filterRequest!.priceMax = completeRequest.priceMax
+                filterRequest!.durationMax = completeRequest.durationMax
+                filterRequest!.arrivalDepartureRanges = completeRequest.arrivalDepartureRanges
+            }
             currentFilterRequest = filterRequest
+            
         case .fastest:
             filterRequest = FlightFilterRequest()
             filterRequest!.sortBy = "duration"
             filterRequest!.sortOrder = "asc"
+            // Merge with current filter sheet state
+            if let completeRequest = createCompleteFilterRequest() {
+                filterRequest!.stopCountMax = completeRequest.stopCountMax
+                filterRequest!.iataCodesInclude = completeRequest.iataCodesInclude
+                filterRequest!.priceMin = completeRequest.priceMin
+                filterRequest!.priceMax = completeRequest.priceMax
+                filterRequest!.durationMax = completeRequest.durationMax
+                filterRequest!.arrivalDepartureRanges = completeRequest.arrivalDepartureRanges
+            }
             currentFilterRequest = filterRequest
+            
         case .direct:
             filterRequest = FlightFilterRequest()
             filterRequest!.stopCountMax = 0
+            // Merge with current filter sheet state (except stops)
+            if let completeRequest = createCompleteFilterRequest() {
+                filterRequest!.iataCodesInclude = completeRequest.iataCodesInclude
+                filterRequest!.priceMin = completeRequest.priceMin
+                filterRequest!.priceMax = completeRequest.priceMax
+                filterRequest!.durationMax = completeRequest.durationMax
+                filterRequest!.arrivalDepartureRanges = completeRequest.arrivalDepartureRanges
+            }
             currentFilterRequest = filterRequest
         }
         
         // Always trigger a new search if we have origin/destination data
         if !self.selectedOriginCode.isEmpty && !self.selectedDestinationCode.isEmpty {
-            // Clear existing results
-            self.detailedFlightResults = []
-            
-            // Restart search with the current filter (or no filter for .all)
-            searchFlightsForDates(
-                origin: self.selectedOriginCode,
-                destination: self.selectedDestinationCode,
-                returnDate: self.isRoundTrip ? self.selectedReturnDatee : "",
-                departureDate: self.selectedDepartureDatee
-            )
+            // Apply the filter through polling
+            if let request = filterRequest {
+                applyPollFilters(filterRequest: request)
+            }
         }
-        
-        objectWillChange.send()
     }
     
     func applyPollFilters(filterRequest: FlightFilterRequest) {

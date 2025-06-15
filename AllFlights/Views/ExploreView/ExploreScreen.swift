@@ -72,24 +72,28 @@ struct ExploreScreen: View {
     private func applyDetailedFlightFilterOption(_ filter: FlightFilterTabView.FilterOption) {
         print("🔧 Applying detailed flight filter: \(filter.rawValue)")
         
-        // Create filter request based on the selected quick filter
         var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
         case .all:
-            // Clear all filters
+            // ✅ CRITICAL: For "All", create empty request but respect current filter sheet state
             filterRequest = FlightFilterRequest()
+            // Don't override any existing filter sheet settings
+            
         case .best:
-            // For "best", don't set any sort parameter
             filterRequest = FlightFilterRequest()
+            // Don't set sortBy for best - let API determine best results
+            
         case .cheapest:
             filterRequest = FlightFilterRequest()
             filterRequest!.sortBy = "price"
             filterRequest!.sortOrder = "asc"
+            
         case .fastest:
             filterRequest = FlightFilterRequest()
             filterRequest!.sortBy = "duration"
             filterRequest!.sortOrder = "asc"
+            
         case .direct:
             filterRequest = FlightFilterRequest()
             filterRequest!.stopCountMax = 0

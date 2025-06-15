@@ -3671,6 +3671,7 @@ struct ModifiedDetailedFlightListView: View {
                     ForEach(0..<4, id: \.self) { index in
                         DetailedFlightCardSkeleton()
                             .padding(.bottom, 3)
+                            .padding(.horizontal, 2)
                             .opacity(skeletonOpacity)
                             .offset(y: skeletonOffset)
                             .animation(
@@ -3745,6 +3746,7 @@ struct ModifiedDetailedFlightListView: View {
                     ForEach(0..<4, id: \.self) { _ in
                         DetailedFlightCardSkeleton()
                             .padding(.bottom, 3)
+                            .padding(.horizontal,2)
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
                     .padding(.top, 14)
@@ -3839,11 +3841,24 @@ struct ModifiedDetailedFlightListView: View {
         print("📱 Updated filtered results: \(filteredResults.count) flights")
     }
     
+    // MARK: - Update clearAllFilters method in ModifiedDetailedFlightListView
+
     private func clearAllFilters() {
-        print("🧹 Clearing all filters")
+        print("🧹 Clearing all filters and resetting filter sheet state")
+        
+        // 1. Reset the quick filter selection to "All"
         selectedFilter = .all
+        
+        // 2. Reset the filter sheet state to defaults (all options selected)
+        viewModel.filterSheetState = ExploreViewModel.FilterSheetState()
+        
+        // 3. Create an empty filter request (no API filters applied)
         let emptyFilter = FlightFilterRequest()
+        
+        // 4. Apply the empty filter through the API (this acts like clicking "Apply Filters" with all options selected)
         viewModel.applyPollFilters(filterRequest: emptyFilter)
+        
+        print("✅ All filters cleared and applied - showing all flights")
     }
     
     // MARK: - Search Management
@@ -4209,6 +4224,38 @@ struct FlightFilterSheet: View {
     @State private var lastPreviewRequest: FlightFilterRequest?
     @State private var previewTimer: Timer?
     
+    private func setFirstTimeDefaults() {
+        // Set default sort option
+        sortOption = .best
+        hasSortChanged = false
+        
+        // ✅ CRITICAL: Set all stop options to true by default
+        directFlightsSelected = true
+        oneStopSelected = true        // ✅ CHANGE: Set to true
+        multiStopSelected = true      // ✅ CHANGE: Set to true
+        hasStopsChanged = false
+        
+        // Set full time ranges
+        departureTimes = [0.0, 24.0]
+        arrivalTimes = [0.0, 24.0]
+        hasTimesChanged = false
+        
+        // Set full duration range
+        durationRange = [1.75, 8.5]
+        hasDurationChanged = false
+        
+        // ✅ CRITICAL: Select ALL available airlines by default
+        selectedAirlines = Set(availableAirlines.map { $0.code })
+        hasAirlinesChanged = false
+        
+        // Initialize price range from API data
+        initializePriceRange()
+        hasPriceChanged = false
+        
+        print("🔧 Set defaults: Direct=\(directFlightsSelected), OneStop=\(oneStopSelected), MultiStop=\(multiStopSelected)")
+        print("🔧 Selected airlines: \(selectedAirlines.count)/\(availableAirlines.count)")
+    }
+    
     enum SortOption: String, CaseIterable {
         case best = "Best"
         case cheapest = "Cheapest"
@@ -4464,11 +4511,24 @@ struct FlightFilterSheet: View {
             }
         }
         .onAppear {
+            print("🔧 Filter sheet appeared")
+            
+            // Load airlines from the viewModel's current results if available
             populateAirlinesFromResults()
+            
+            // Set initial price range based on min/max prices from results if available
             initializePriceRange()
-            loadFilterStateFromViewModel()
-            // Set initial preview count
-            previewFlightCount = viewModel.totalFlightCount
+            
+            // ✅ NEW: Handle first time opening vs subsequent openings
+            if viewModel.filterSheetState.isFirstTimeOpening {
+                print("🔧 First time opening filter sheet - setting defaults")
+                setFirstTimeDefaults()
+                viewModel.filterSheetState.isFirstTimeOpening = false
+            } else {
+                print("🔧 Subsequent opening - loading saved state")
+                // Load saved filter state from the viewModel
+                loadFilterStateFromViewModel()
+            }
         }
         .onDisappear {
             // Cancel any pending preview requests
@@ -4763,12 +4823,14 @@ struct FlightFilterSheet: View {
     }
     
     private func resetFilters() {
+        // Reset all filters to default values
         sortOption = .best
         hasSortChanged = false
         
+        // ✅ CHANGE: Reset all stop options to true (show all flights)
         directFlightsSelected = true
-        oneStopSelected = false
-        multiStopSelected = false
+        oneStopSelected = true          // ✅ CHANGE: Set to true
+        multiStopSelected = true        // ✅ CHANGE: Set to true
         hasStopsChanged = false
         
         departureTimes = [0.0, 24.0]
@@ -4778,24 +4840,35 @@ struct FlightFilterSheet: View {
         durationRange = [1.75, 8.5]
         hasDurationChanged = false
         
-        selectedAirlines.removeAll()
+        // ✅ CHANGE: Select all available airlines when resetting
+        selectedAirlines = Set(availableAirlines.map { $0.code })
         hasAirlinesChanged = false
         
+        // Reset price range based on available flights
         initializePriceRange()
         hasPriceChanged = false
         
-        triggerPreviewUpdate()
+        print("🔧 Reset to defaults: all stops=true, all airlines selected")
     }
     
     private func populateAirlinesFromResults() {
+        // Get unique airlines from current flight results
         if let pollResponse = viewModel.lastPollResponse {
             self.availableAirlines = pollResponse.airlines.map { airline in
                 return (name: airline.airlineName, code: airline.airlineIata, logo: airline.airlineLogo)
             }
             
-            if !selectedAirlines.isEmpty {
-                let availableCodes = Set(availableAirlines.map { $0.code })
-                selectedAirlines = selectedAirlines.intersection(availableCodes)
+            // ✅ CHANGE: For first time opening, select all airlines
+            if viewModel.filterSheetState.isFirstTimeOpening {
+                selectedAirlines = Set(availableAirlines.map { $0.code })
+                print("🔧 First time: Selected all \(selectedAirlines.count) airlines")
+            } else {
+                // For subsequent openings, filter to only include airlines that exist in the response
+                if !selectedAirlines.isEmpty {
+                    let availableCodes = Set(availableAirlines.map { $0.code })
+                    selectedAirlines = selectedAirlines.intersection(availableCodes)
+                    print("🔧 Subsequent: Filtered to \(selectedAirlines.count) existing airlines")
+                }
             }
         }
     }
