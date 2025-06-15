@@ -1365,13 +1365,17 @@ struct FilterTabButton: View {
                 .foregroundColor(isSelected ? .blue : .black)
                 .padding(.vertical, 8)
                 .padding(.horizontal, 16)
-                .background(
+                .background(Color.white)
+                .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white)
-                        .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
+                        .stroke(
+                            isSelected ? Color.blue : Color.clear,
+                            lineWidth: isSelected ? 1 : 0
+                        )
                 )
+                .cornerRadius(8)
         }
-       
+        .buttonStyle(PlainButtonStyle()) // Prevents button highlighting issues
     }
 }
 
@@ -1709,12 +1713,17 @@ struct MonthButton: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 16)
-            .background(
+            .background(Color.white)
+            .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white)
-                    .stroke(Color.blue, lineWidth: isSelected ? 1 : 0)
+                    .stroke(
+                        isSelected ? Color.blue : Color.clear,
+                        lineWidth: isSelected ? 1 : 0
+                    )
             )
+            .cornerRadius(8)
         }
+        .buttonStyle(PlainButtonStyle()) // Prevents button highlighting issues
     }
     
     private func monthName(from date: Date) -> String {
@@ -3554,15 +3563,13 @@ struct FlightFilterTabView: View {
                             .foregroundColor(selectedFilter == filter ? .blue : .black)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.white)
-                            )
+                            .background(Color.white)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(selectedFilter == filter ? Color.blue : Color.black.opacity(0.3), lineWidth: selectedFilter == filter ? 1 : 0.5)
                             )
                             .scaleEffect(tabPressStates[index] ? 0.95 : 1.0)
+                            .cornerRadius(8)
                     }
                 }
             }
