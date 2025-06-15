@@ -288,7 +288,10 @@ struct ExploreScreen: View {
                                 // Main content based on current state
                                 if viewModel.showingDetailedFlightList {
                                     // Detailed flight list - highest priority
-                                    ModifiedDetailedFlightListView(viewModel: viewModel)
+                                    ModifiedDetailedFlightListView(
+                                           viewModel: viewModel,
+                                           isCollapsed: $isCollapsed  // ADD: Pass the collapse state
+                                       )
                                         .transition(.move(edge: .trailing))
                                         .zIndex(1)
                                         .edgesIgnoringSafeArea(.all)

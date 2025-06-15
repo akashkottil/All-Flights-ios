@@ -2388,7 +2388,10 @@ struct ExploreScreenWithSearchData: View {
             ScrollView {
                 VStack(alignment: .center, spacing: 16) {
                     // Show detailed flight list directly
-                    ModifiedDetailedFlightListView(viewModel: viewModel)
+                    ModifiedDetailedFlightListView(
+                           viewModel: viewModel
+                          // ADD: Pass the collapse state
+                       )
                         .edgesIgnoringSafeArea(.all)
                         .background(Color(.systemBackground))
                 }

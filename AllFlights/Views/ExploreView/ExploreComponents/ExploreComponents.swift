@@ -3573,6 +3573,20 @@ struct FlightFilterTabView: View {
 
 
 struct ModifiedDetailedFlightListView: View {
+    let externalIsCollapsed: Binding<Bool>?
+        @State private var internalIsCollapsed = false
+        
+        // Computed property to get the right binding
+        private var isCollapsedBinding: Binding<Bool> {
+            externalIsCollapsed ?? $internalIsCollapsed
+        }
+        
+        // Simple initializer
+        init(viewModel: ExploreViewModel, isCollapsed: Binding<Bool>? = nil) {
+            self.viewModel = viewModel
+            self.externalIsCollapsed = isCollapsed
+        }
+       
     @State private var skeletonOpacity: Double = 0
     @State private var skeletonOffset: CGFloat = 20
     @ObservedObject var viewModel: ExploreViewModel
@@ -3655,7 +3669,7 @@ struct ModifiedDetailedFlightListView: View {
                 .background(Color("scroll"))
             }
             
-            // Main content area
+            
             ZStack {
                 // Background color for the entire content area
                 Color("scroll").edgesIgnoringSafeArea(.all)
@@ -3673,6 +3687,7 @@ struct ModifiedDetailedFlightListView: View {
                                     .delay(Double(index) * 0.1),
                                     value: skeletonOpacity
                                 )
+                                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                         }
                         Spacer()
                     }
@@ -3697,6 +3712,7 @@ struct ModifiedDetailedFlightListView: View {
                         .cornerRadius(8)
                         Spacer()
                     }
+                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                 } else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
                     // Show empty state only when we're certain there are no results
                     VStack {
@@ -3713,6 +3729,7 @@ struct ModifiedDetailedFlightListView: View {
                         
                         Spacer()
                     }
+                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                 } else if !filteredResults.isEmpty {
                     // Show flight list when we have results
                     PaginatedFlightList(
@@ -3724,6 +3741,7 @@ struct ModifiedDetailedFlightListView: View {
                             showingFlightDetails = true
                         }
                     )
+                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                     .onAppear {
                         cancelRetryTimer()
                         hasReceivedEmptyResults = false
@@ -3735,6 +3753,7 @@ struct ModifiedDetailedFlightListView: View {
                         ForEach(0..<4, id: \.self) { _ in
                             DetailedFlightCardSkeleton()
                                 .padding(.bottom, 5)
+                                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding) // ADD THIS
                         }
                         Spacer()
                     }
