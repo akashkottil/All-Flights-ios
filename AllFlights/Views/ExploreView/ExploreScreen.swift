@@ -300,16 +300,17 @@ struct ExploreScreen: View {
                         .padding(.vertical, 8)
                         
                         // Flight count display
-                        if viewModel.totalFlightCount > 0 {
+                        if viewModel.isLoadingDetailedFlights || viewModel.totalFlightCount > 0 {
                             HStack {
-                                Text("\(viewModel.totalFlightCount) flights found")
-                                    .font(.subheadline)
-                                    .foregroundColor(.primary)
-                                Spacer()
+                                FlightSearchStatusView(
+                                    isLoading: viewModel.isLoadingDetailedFlights,
+                                    flightCount: viewModel.totalFlightCount,
+                                    destinationName: viewModel.toLocation
+                                )
                             }
                             .padding(.horizontal)
                             .padding(.top, 4)
-                            .padding(.leading,4)
+                            .padding(.leading, 4)
                         }
                     }
                     .frame(maxWidth: .infinity)
