@@ -146,15 +146,23 @@ struct CollapsedSearchCard: View {
         Button(action: onTap) {
             VStack(spacing: 0) {
                 HStack {
-                    // Back button
-                    if shouldShowBackButton{
-                        Button(action: handleBackNavigation) {
+                    // UPDATED: Always reserve space for back button to keep content centered
+                    HStack {
+                        if shouldShowBackButton {
+                            Button(action: handleBackNavigation) {
+                                Image(systemName: "chevron.left")
+                                    .foregroundColor(.primary)
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
+                        } else {
+                            // Invisible spacer with same dimensions as back button
                             Image(systemName: "chevron.left")
-                                .foregroundColor(.primary)
+                                .foregroundColor(.clear)
                                 .font(.system(size: 18, weight: .semibold))
                         }
-                        .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                     }
+                    .frame(width: 30) // Fixed width to ensure consistent spacing
                     
                     Spacer()
                     
@@ -190,12 +198,13 @@ struct CollapsedSearchCard: View {
                     
                     Spacer()
                     
-                    // ADD: Invisible spacer to balance layout when back button is hidden
-                    if !shouldShowBackButton {
+                    // UPDATED: Always reserve space on the right side to balance the layout
+                    HStack {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.clear)
                             .font(.system(size: 18, weight: .semibold))
                     }
+                    .frame(width: 30) // Same fixed width as left side
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
