@@ -191,18 +191,16 @@ struct CollapsedSearchCard: View {
                     Spacer()
                     
                     // ADD: Invisible spacer to balance layout when back button is hidden
-                                        if !shouldShowBackButton {
-                                            Image(systemName: "chevron.left")
-                                                .foregroundColor(.clear)
-                                                .font(.system(size: 18, weight: .semibold))
-                                        }
-                    
+                    if !shouldShowBackButton {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.clear)
+                            .font(.system(size: 18, weight: .semibold))
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
                 .padding(.top, 5)
             }
-            
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.systemBackground))
@@ -216,7 +214,17 @@ struct CollapsedSearchCard: View {
             .padding()
         }
         .buttonStyle(PlainButtonStyle())
-        .background(Color("searchcardBackground"))
+        // UPDATED: Add the same animated background as ExpandedSearchCard
+        .background(
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    Color("searchcardBackground")
+                        .frame(height: geo.size.height)
+                    Color("scroll")
+                }
+                .edgesIgnoringSafeArea(.all)
+            }
+        )
     }
 }
 
