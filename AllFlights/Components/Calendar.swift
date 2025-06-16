@@ -146,6 +146,76 @@ struct CalendarView: View {
     // Controls whether to show the return date selector
     @State private var showReturnDateSelector: Bool = false
     
+    private func isRangeStartDate(_ date: Date) -> Bool {
+        guard dateSelection.selectedDates.count >= 2 else { return false }
+        let sortedDates = dateSelection.selectedDates.sorted()
+        return calendar.isDate(date, inSameDayAs: sortedDates.first!)
+    }
+
+    private func isRangeEndDate(_ date: Date) -> Bool {
+        guard dateSelection.selectedDates.count >= 2 else { return false }
+        let sortedDates = dateSelection.selectedDates.sorted()
+        return calendar.isDate(date, inSameDayAs: sortedDates.last!)
+    }
+    
+    struct LeftCurvedBorder: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let radius = rect.height / 2
+            
+            // Start from top-left corner with curve
+            path.move(to: CGPoint(x: radius, y: 0))
+            
+            // Top edge to right
+            path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+            
+            // Right edge
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            
+            // Bottom edge to curve start
+            path.addLine(to: CGPoint(x: radius, y: rect.maxY))
+            
+            // Left curved edge
+            path.addArc(center: CGPoint(x: radius, y: radius),
+                       radius: radius,
+                       startAngle: .degrees(90),
+                       endAngle: .degrees(270),
+                       clockwise: false)
+            
+            path.closeSubpath()
+            return path
+        }
+    }
+
+    struct RightCurvedBorder: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let radius = rect.height / 2
+            
+            // Start from top-left corner
+            path.move(to: CGPoint(x: 0, y: 0))
+            
+            // Top edge to curve start
+            path.addLine(to: CGPoint(x: rect.maxX - radius, y: 0))
+            
+            // Right curved edge
+            path.addArc(center: CGPoint(x: rect.maxX - radius, y: radius),
+                       radius: radius,
+                       startAngle: .degrees(270),
+                       endAngle: .degrees(90),
+                       clockwise: false)
+            
+            // Bottom edge to left
+            path.addLine(to: CGPoint(x: 0, y: rect.maxY))
+            
+            // Left edge
+            path.addLine(to: CGPoint(x: 0, y: 0))
+            
+            path.closeSubpath()
+            return path
+        }
+    }
+    
     
     
     var isMultiCity: Bool = false
@@ -639,7 +709,8 @@ struct CalendarView: View {
                             calendar: calendar,
                             priceData: priceData,
                             isInRange: isDateInRange(dayDate),
-                            isRangeSelection: dateSelection.selectedDates.count > 1
+                            isRangeSelection: dateSelection.selectedDates.count > 1,
+                            dateSelection: dateSelection  // ADD this line
                         )
                         .onTapGesture {
                             handleDateSelection(dayDate)
@@ -679,6 +750,47 @@ struct CalendarView: View {
         let priceData: [Date: (Int, String)]
         let isInRange: Bool
         let isRangeSelection: Bool
+        let dateSelection: DateSelection
+        
+        @ViewBuilder
+        private func overlayView(for date: Date) -> some View {
+            if isPastDate {
+                Color.clear
+            } else if isSelected {
+                if isRangeSelection && dateSelection.selectedDates.count >= 2 {
+                    // Range selection - use curved borders
+                    if isRangeStartDate(date) {
+                        LeftCurvedBorder()
+                            .stroke(Color(hex: "#0044AB"), lineWidth: 1)
+                    } else if isRangeEndDate(date) {
+                        RightCurvedBorder()
+                            .stroke(Color(hex: "#0044AB"), lineWidth: 1)
+                    } else {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color(hex: "#0044AB"), lineWidth: 1)
+                    }
+                } else {
+                    // Single date selection
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color(hex: "#0044AB"), lineWidth: 1)
+                }
+            } else {
+                Color.clear
+            }
+        }
+
+        // Also add these helper methods inside DayViewWithPrice
+        private func isRangeStartDate(_ date: Date) -> Bool {
+            guard dateSelection.selectedDates.count >= 2 else { return false }
+            let sortedDates = dateSelection.selectedDates.sorted()
+            return calendar.isDate(date, inSameDayAs: sortedDates.first!)
+        }
+
+        private func isRangeEndDate(_ date: Date) -> Bool {
+            guard dateSelection.selectedDates.count >= 2 else { return false }
+            let sortedDates = dateSelection.selectedDates.sorted()
+            return calendar.isDate(date, inSameDayAs: sortedDates.last!)
+        }
         
         private var day: Int {
             calendar.component(.day, from: date)
@@ -715,12 +827,7 @@ struct CalendarView: View {
                             .fill(isSelected ? Color.clear : Color.clear)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(
-                                isPastDate ? Color.clear :
-                                (isSelected ? Color(hex: "#0044AB") : Color.clear),
-                                lineWidth: 1
-                            )
+                        overlayView(for: date)
                     )
                     .background(
                         RoundedRectangle(cornerRadius: 5)
