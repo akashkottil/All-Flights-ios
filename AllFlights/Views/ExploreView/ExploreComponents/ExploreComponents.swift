@@ -610,7 +610,7 @@ struct SearchCard: View {
 
     private func getFromLocationDisplayText() -> String {
         if viewModel.fromIataCode.isEmpty {
-            return "DEL Delhi"
+            return "COK Kochi"
         }
         return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
     }
@@ -1509,7 +1509,7 @@ struct MultiCitySearchCard: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.primary)
                         
-                        Text(trip.fromLocation.isEmpty ? "From" : trip.fromLocation)
+                        Text(trip.fromLocation.isEmpty ? "Kochi" : trip.fromLocation)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.gray)
                             .lineLimit(1)
@@ -2043,9 +2043,9 @@ struct LocationSearchSheet: View {
     }
     
     private func useCurrentLocation() {
-        viewModel.fromLocation = "Current Location"
-        viewModel.fromIataCode = "DEL" // Using Delhi as default
-        originSearchText = "Current Location"
+        viewModel.fromLocation = "Kochi"
+        viewModel.fromIataCode = "COK" 
+        originSearchText = "Kochi"
         
         activeSearchBar = .destination
         focusedField = .destination

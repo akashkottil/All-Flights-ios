@@ -389,7 +389,7 @@ class ExploreAPIService {
        }
     
     func fetchFlightDetails(
-        origin: String = "MOB", // Using Mumbai as default
+        origin: String = "COK", // Using Mumbai as default
         destination: String,
         departure: String,
         roundTrip: Bool = true,

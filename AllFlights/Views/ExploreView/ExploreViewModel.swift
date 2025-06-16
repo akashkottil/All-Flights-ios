@@ -11,7 +11,7 @@ class ExploreViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingCities = false
     @Published var selectedCountryName: String? = nil
-    @Published var fromLocation = "Delhi"  // Default to Kochi
+    @Published var fromLocation = "Kochi"  // Default to Kochi
     @Published var toLocation = "Anywhere"  // Default to Chennai
     @Published var selectedCity: ExploreDestination? = nil
     
@@ -28,7 +28,7 @@ class ExploreViewModel: ObservableObject {
    
     @Published var hasSearchedFlights = false
     
-    @Published var fromIataCode: String = "DEL"
+    @Published var fromIataCode: String = "COK"
     @Published var toIataCode: String = ""
     
     @Published var selectedFlightDetail: FlightDetailResult?

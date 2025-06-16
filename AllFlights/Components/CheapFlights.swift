@@ -8,8 +8,8 @@ class CheapFlightsViewModel: ObservableObject {
     @Published var destinations: [ExploreDestination] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
-    @Published var fromLocationName = "Delhi"
-    @Published var fromLocationCode = "DEL"
+    @Published var fromLocationName = "Kochi"
+    @Published var fromLocationCode = "COK"
     @Published var currencyInfo: CurrencyDetail?
     
     private var cancellables = Set<AnyCancellable>()
