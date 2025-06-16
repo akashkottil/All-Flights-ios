@@ -2513,6 +2513,7 @@ struct MultiCityModernFlightCard: View {
                     )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
+                    .padding(.top,2)
                 }
             }
             
@@ -2779,37 +2780,23 @@ struct FlightRowView: View {
     
     var body: some View {
         HStack(alignment: .center, spacing: 10) { // Reduced from 12 to 8
-            // Flight/Airline image section - SMALLER SIZE
-            AsyncImage(url: URL(string: airlineLogo)) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 28, height: 28) // Reduced from 32 to 28
-                        .clipShape(RoundedRectangle(cornerRadius: 5)) // Reduced from 6 to 5
-                case .failure(_), .empty:
-                    // Fallback airline logo
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 5) // Reduced from 6 to 5
-                            .fill(Color.blue.opacity(0.1))
-                            .frame(width: 28, height: 28) // Reduced from 32 to 28
-                        
-                        Text(String(airlineCode.prefix(2)))
-                            .font(.system(size: 11, weight: .bold)) // Reduced from 12 to 11
-                            .foregroundColor(.blue)
-                    }
-                @unknown default:
-                    // Default placeholder
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: 28, height: 28)
-                        
-                        Image(systemName: "airplane")
-                            .font(.system(size: 12)) // Reduced from 14 to 12
-                            .foregroundColor(.gray)
-                    }
+
+            CachedAsyncImage(url: URL(string: airlineLogo)) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            } placeholder: {
+                // Your existing fallback code
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 28, height: 28)
+                    
+                    Text(String(airlineCode.prefix(2)))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.blue)
                 }
             }
             
