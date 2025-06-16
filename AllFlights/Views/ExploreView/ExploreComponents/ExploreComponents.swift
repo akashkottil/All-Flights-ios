@@ -4273,7 +4273,7 @@ struct FlightFilterSheet: View {
                     // Sort options section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Sort")
-                            .font(.headline)
+                            .font(.system(size: 18, weight: .bold)) // Made bold
                             .foregroundColor(.primary)
                         
                         ForEach(SortOption.allCases, id: \.self) { option in
@@ -4285,6 +4285,8 @@ struct FlightFilterSheet: View {
                                 
                                 Image(systemName: sortOption == option ? "inset.filled.square" : "square")
                                     .foregroundColor(sortOption == option ? .blue : .gray)
+                                    .font(.system(size: 22)) // Increased to 22x22
+                                    .frame(width: 22, height: 22) // Set frame size
                                     .onTapGesture {
                                         sortOption = option
                                         hasSortChanged = true
@@ -4299,7 +4301,7 @@ struct FlightFilterSheet: View {
                     // Stops section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Stops")
-                            .font(.headline)
+                            .font(.system(size: 18, weight: .bold)) // Made bold
                             .foregroundColor(.primary)
                         
                         stopFilterRow(
@@ -4339,7 +4341,7 @@ struct FlightFilterSheet: View {
                     // Price range section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Price Range")
-                            .font(.headline)
+                            .font(.system(size: 18, weight: .bold)) // Made bold
                         
                         Text("\(formatPrice(priceRange[0])) - \(formatPrice(priceRange[1]))")
                             .foregroundColor(.primary)
@@ -4372,14 +4374,14 @@ struct FlightFilterSheet: View {
                     // Times section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Times")
-                            .font(.headline)
+                            .font(.system(size: 18, weight: .bold)) // Made bold
                         
                         Text("\(viewModel.selectedOriginCode) - \(viewModel.selectedDestinationCode)")
                             .foregroundColor(.gray)
                         
                         // Departure time slider
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Departure")
+                            Text("\(viewModel.selectedOriginCode)")
                                 .foregroundColor(.primary)
                             
                             RangeSliderView(values: $departureTimes, minValue: 0, maxValue: 24, onChangeHandler: {
@@ -4402,7 +4404,7 @@ struct FlightFilterSheet: View {
                         
                         // Arrival time slider
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Arrival")
+                            Text("\(viewModel.selectedDestinationCode)")
                                 .foregroundColor(.primary)
                             
                             RangeSliderView(values: $arrivalTimes, minValue: 0, maxValue: 24, onChangeHandler: {
@@ -4429,7 +4431,7 @@ struct FlightFilterSheet: View {
                     // Duration section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Journey Duration")
-                            .font(.headline)
+                            .font(.system(size: 18, weight: .bold)) // Made bold
                         
                         Text("\(formatDuration(hours: durationRange[0])) - \(formatDuration(hours: durationRange[1]))")
                             .foregroundColor(.primary)
@@ -4461,23 +4463,35 @@ struct FlightFilterSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle("Filter")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark")
+                // UPDATED: Custom title with close button aligned to left
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        // Close button on the far left
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Image(systemName: "xmark")
+                                .foregroundColor(.primary)
+                                .font(.system(size: 18))
+                        }
+                        
+                        // Title - left aligned and bold
+                        Text("Filter")
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        // Clear all button on the right
+                        Button("Clear all") {
+                            resetFilters()
+                        }
+                        .font(.system(size: 16, weight: .bold)) // Made bold
+                        .foregroundColor(.blue)
                     }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Clear all") {
-                        resetFilters()
-                    }
-                    .foregroundColor(.blue)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -4555,6 +4569,8 @@ struct FlightFilterSheet: View {
             
             Image(systemName: isSelected ? "checkmark.square.fill" : "square")
                 .foregroundColor(isSelected ? .blue : .gray)
+                .font(.system(size: 22)) // Increased to 22x22
+                .frame(width: 22, height: 22) // Set frame size
                 .onTapGesture(perform: action)
         }
     }
@@ -4563,7 +4579,7 @@ struct FlightFilterSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Airlines")
-                    .font(.headline)
+                    .font(.system(size: 18, weight: .bold)) // Made bold
                 
                 Spacer()
                 
@@ -4572,8 +4588,8 @@ struct FlightFilterSheet: View {
                     hasAirlinesChanged = true
                     triggerPreviewUpdate()
                 }
+                .font(.system(size: 16, weight: .bold)) // Made bold
                 .foregroundColor(.blue)
-                .font(.subheadline)
             }
             
             ForEach(availableAirlines, id: \.code) { airline in
@@ -4600,6 +4616,8 @@ struct FlightFilterSheet: View {
                     
                     Image(systemName: selectedAirlines.contains(airline.code) ? "checkmark.square.fill" : "square")
                         .foregroundColor(selectedAirlines.contains(airline.code) ? .blue : .gray)
+                        .font(.system(size: 22)) // Increased to 22x22
+                        .frame(width: 22, height: 22) // Set frame size
                         .onTapGesture {
                             if selectedAirlines.contains(airline.code) {
                                 selectedAirlines.remove(airline.code)
@@ -4964,7 +4982,7 @@ struct FlightFilterSheet: View {
     }
 }
 
-// Updated RangeSliderView with callback for change detection
+// Updated RangeSliderView with curved slider thumbs
 struct RangeSliderView: View {
     @Binding var values: [Double]
     let minValue: Double
@@ -4988,45 +5006,51 @@ struct RangeSliderView: View {
                     )
                     .offset(x: calculateRangeOffset(geometry: geometry))
                 
-                // Low Thumb - FIXED: Safe position calculation
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 20, height: 20)
-                    .shadow(radius: 2)
-                    .offset(x: calculateThumbPosition(for: values[0], geometry: geometry))
-                    .gesture(
-                        DragGesture()
-                            .onChanged { gesture in
-                                let newValue = calculateValueFromPosition(
-                                    position: gesture.location.x,
-                                    geometry: geometry
-                                )
-                                // Ensure low value doesn't exceed high value
-                                let clampedValue = min(values[1] - 0.1, max(minValue, newValue))
-                                values[0] = clampedValue
-                                onChangeHandler?()
-                            }
-                    )
+                // Low Thumb - LEFT SIDE CURVED (only left side rounded)
+                ZStack {
+                    // Custom shape for left thumb - only left side curved
+                    LeftCurvedThumb()
+                        .fill(Color.white)
+                        .frame(width: 20, height: 20)
+                        .shadow(radius: 2)
+                }
+                .offset(x: calculateThumbPosition(for: values[0], geometry: geometry))
+                .gesture(
+                    DragGesture()
+                        .onChanged { gesture in
+                            let newValue = calculateValueFromPosition(
+                                position: gesture.location.x,
+                                geometry: geometry
+                            )
+                            // Ensure low value doesn't exceed high value
+                            let clampedValue = min(values[1] - 0.1, max(minValue, newValue))
+                            values[0] = clampedValue
+                            onChangeHandler?()
+                        }
+                )
                 
-                // High Thumb - FIXED: Safe position calculation
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 20, height: 20)
-                    .shadow(radius: 2)
-                    .offset(x: calculateThumbPosition(for: values[1], geometry: geometry))
-                    .gesture(
-                        DragGesture()
-                            .onChanged { gesture in
-                                let newValue = calculateValueFromPosition(
-                                    position: gesture.location.x,
-                                    geometry: geometry
-                                )
-                                // Ensure high value doesn't go below low value
-                                let clampedValue = max(values[0] + 0.1, min(maxValue, newValue))
-                                values[1] = clampedValue
-                                onChangeHandler?()
-                            }
-                    )
+                // High Thumb - RIGHT SIDE CURVED (only right side rounded)
+                ZStack {
+                    // Custom shape for right thumb - only right side curved
+                    RightCurvedThumb()
+                        .fill(Color.white)
+                        .frame(width: 20, height: 20)
+                        .shadow(radius: 2)
+                }
+                .offset(x: calculateThumbPosition(for: values[1], geometry: geometry))
+                .gesture(
+                    DragGesture()
+                        .onChanged { gesture in
+                            let newValue = calculateValueFromPosition(
+                                position: gesture.location.x,
+                                geometry: geometry
+                            )
+                            // Ensure high value doesn't go below low value
+                            let clampedValue = max(values[0] + 0.1, min(maxValue, newValue))
+                            values[1] = clampedValue
+                            onChangeHandler?()
+                        }
+                )
             }
         }
         .frame(height: 30)
@@ -5071,6 +5095,65 @@ struct RangeSliderView: View {
         
         let ratio = max(0, min(1, position / geometry.size.width))
         return minValue + Double(ratio) * (maxValue - minValue)
+    }
+}
+
+// Custom shapes for curved thumbs
+struct LeftCurvedThumb: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let radius = rect.height / 2
+        
+        // Start from top-left corner with curve
+        path.move(to: CGPoint(x: radius, y: 0))
+        
+        // Top edge to right
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+        
+        // Right edge
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        
+        // Bottom edge to curve start
+        path.addLine(to: CGPoint(x: radius, y: rect.maxY))
+        
+        // Left curved edge
+        path.addArc(center: CGPoint(x: radius, y: radius),
+                   radius: radius,
+                   startAngle: .degrees(90),
+                   endAngle: .degrees(270),
+                   clockwise: false)
+        
+        path.closeSubpath()
+        return path
+    }
+}
+
+struct RightCurvedThumb: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let radius = rect.height / 2
+        
+        // Start from top-left corner
+        path.move(to: CGPoint(x: 0, y: 0))
+        
+        // Top edge to curve start
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: 0))
+        
+        // Right curved edge
+        path.addArc(center: CGPoint(x: rect.maxX - radius, y: radius),
+                   radius: radius,
+                   startAngle: .degrees(270),
+                   endAngle: .degrees(90),
+                   clockwise: false)
+        
+        // Bottom edge to left
+        path.addLine(to: CGPoint(x: 0, y: rect.maxY))
+        
+        // Left edge
+        path.addLine(to: CGPoint(x: 0, y: 0))
+        
+        path.closeSubpath()
+        return path
     }
 }
 
