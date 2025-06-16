@@ -1819,9 +1819,6 @@ struct HomeCollapsibleSearchInput: View {
 
 
 
-
-// MARK: - Updated Home Location Search Sheets with Recent Searches
-
 // MARK: - Updated Home Location Search Sheets with Recent Searches
 
 struct HomeFromLocationSearchSheet: View {
@@ -1866,29 +1863,36 @@ struct HomeFromLocationSearchSheet: View {
             }
             .padding()
             
-            // Search bar
+            // UPDATED: Search bar with embedded dismiss button
             HStack {
-                TextField("Origin City, Airport or place", text: $searchText)
-                    .padding(12)
-                    .background(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.orange, lineWidth: 2)
-                    )
-                    .cornerRadius(8)
-                    .focused($isTextFieldFocused)
-                    .onChange(of: searchText) {
-                        handleTextChange()
-                    }
-                
-                if !searchText.isEmpty {
-                    Button(action: {
-                        searchText = ""
-                        results = []
-                        showRecentSearches = true
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
+                // Search field container with embedded clear button
+                ZStack(alignment: .trailing) {
+                    TextField("Origin City, Airport or place", text: $searchText)
+                        .padding(12)
+                        .padding(.trailing, !searchText.isEmpty ? 40 : 12) // Add right padding when clear button is visible
+                        .background(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.orange, lineWidth: 2)
+                        )
+                        .cornerRadius(8)
+                        .focused($isTextFieldFocused)
+                        .onChange(of: searchText) {
+                            handleTextChange()
+                        }
+                    
+                    // Clear button positioned inside the search box
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            results = []
+                            showRecentSearches = true
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 18))
+                        }
+                        .padding(.trailing, 12)
                     }
                 }
             }
@@ -1973,7 +1977,8 @@ struct HomeFromLocationSearchSheet: View {
                 )
                 Spacer()
             }  else if shouldShowNoResults() {
-                Text("No results found")
+                Image("noresultIcon")
+                Text("No result found.search something else.")
                     .foregroundColor(.gray)
                     .padding()
                 Spacer()
@@ -2094,29 +2099,36 @@ struct HomeToLocationSearchSheet: View {
             }
             .padding()
             
-            // Search bar
+            // UPDATED: Search bar with embedded dismiss button
             HStack {
-                TextField("Destination City, Airport or place", text: $searchText)
-                    .padding(12)
-                    .background(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.orange, lineWidth: 2)
-                    )
-                    .cornerRadius(8)
-                    .focused($isTextFieldFocused)
-                    .onChange(of: searchText) {
-                        handleTextChange()
-                    }
-                
-                if !searchText.isEmpty {
-                    Button(action: {
-                        searchText = ""
-                        results = []
-                        showRecentSearches = true
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
+                // Search field container with embedded clear button
+                ZStack(alignment: .trailing) {
+                    TextField("Destination City, Airport or place", text: $searchText)
+                        .padding(12)
+                        .padding(.trailing, !searchText.isEmpty ? 40 : 12) // Add right padding when clear button is visible
+                        .background(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.orange, lineWidth: 2)
+                        )
+                        .cornerRadius(8)
+                        .focused($isTextFieldFocused)
+                        .onChange(of: searchText) {
+                            handleTextChange()
+                        }
+                    
+                    // Clear button positioned inside the search box
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            results = []
+                            showRecentSearches = true
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 18))
+                        }
+                        .padding(.trailing, 12)
                     }
                 }
             }
