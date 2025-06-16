@@ -18,9 +18,9 @@ struct NetworkConnectionModal: View {
                 Spacer()
                 
                 // WiFi slash icon
-                Image(systemName: "wifi.slash")
+                Image("networkModal")
                     .font(.system(size: 50))
-                    .foregroundColor(.orange)
+              
                 
                 VStack(spacing: 12) {
                     Text("Are we on airplane mode?")
@@ -59,9 +59,9 @@ struct NetworkConnectionModal: View {
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.orange)
+                            .fill(Color.blue)
                     )
-                    .shadow(color: Color.orange.opacity(0.3), radius: 8, x: 0, y: 4)
+                    .shadow(color: Color.blue.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .disabled(isRetrying)
                 
