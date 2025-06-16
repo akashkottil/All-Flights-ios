@@ -2335,7 +2335,9 @@ struct DetailedFlightCardWrapper: View {
     
     var body: some View {
         if let outboundLeg = result.legs.first, !outboundLeg.segments.isEmpty {
-            let outboundSegment = outboundLeg.segments.first!
+            // ✅ FIX: Use first segment for origin, last segment for final destination
+            let outboundFirstSegment = outboundLeg.segments.first!
+            let outboundLastSegment = outboundLeg.segments.last!
             
             Button(action: onTap) {
                 // Check if this is a multi-city trip (more than 2 legs)
@@ -2348,13 +2350,16 @@ struct DetailedFlightCardWrapper: View {
                 } else {
                     // Regular trip (return or one-way) - use existing logic
                     let returnLeg = viewModel.isRoundTrip && result.legs.count >= 2 ? result.legs.last : nil
-                    let returnSegment = returnLeg?.segments.first
                     
-                    // Format time and dates
-                    let outboundDepartureTime = formatTime(from: outboundSegment.departureTimeAirport)
-                    let outboundArrivalTime = formatTime(from: outboundSegment.arriveTimeAirport)
+                    // ✅ FIX: For return leg, also use first and last segments correctly
+                    let returnFirstSegment = returnLeg?.segments.first
+                    let returnLastSegment = returnLeg?.segments.last
                     
-                    if viewModel.isRoundTrip && returnLeg != nil && returnSegment != nil {
+                    // Format time and dates using correct segments
+                    let outboundDepartureTime = formatTime(from: outboundFirstSegment.departureTimeAirport)
+                    let outboundArrivalTime = formatTime(from: outboundLastSegment.arriveTimeAirport)
+                    
+                    if viewModel.isRoundTrip && returnLeg != nil && returnFirstSegment != nil && returnLastSegment != nil {
                         // Round trip flight card (2 rows)
                         ModernFlightCard(
                             // Tags
@@ -2362,36 +2367,36 @@ struct DetailedFlightCardWrapper: View {
                             isCheapest: result.isCheapest,
                             isFastest: result.isFastest,
                             
-                            // Outbound flight
+                            // ✅ FIX: Outbound flight - use first segment origin, last segment destination
                             outboundDepartureTime: outboundDepartureTime,
-                            outboundDepartureCode: outboundSegment.originCode,
-                            outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
+                            outboundDepartureCode: outboundFirstSegment.originCode,  // Origin
+                            outboundDepartureDate: formatDateShort(from: outboundFirstSegment.departureTimeAirport),
                             outboundArrivalTime: outboundArrivalTime,
-                            outboundArrivalCode: outboundSegment.destinationCode,
-                            outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
+                            outboundArrivalCode: outboundLastSegment.destinationCode,  // Final destination
+                            outboundArrivalDate: formatDateShort(from: outboundLastSegment.arriveTimeAirport),
                             outboundDuration: formatDuration(minutes: outboundLeg.duration),
                             isOutboundDirect: outboundLeg.stopCount == 0,
                             outboundStops: outboundLeg.stopCount,
                             
-                            // Return flight
-                            returnDepartureTime: formatTime(from: returnSegment!.departureTimeAirport),
-                            returnDepartureCode: returnSegment!.originCode,
-                            returnDepartureDate: formatDateShort(from: returnSegment!.departureTimeAirport),
-                            returnArrivalTime: formatTime(from: returnSegment!.arriveTimeAirport),
-                            returnArrivalCode: returnSegment!.destinationCode,
-                            returnArrivalDate: formatDateShort(from: returnSegment!.arriveTimeAirport),
+                            // ✅ FIX: Return flight - use first segment origin, last segment destination
+                            returnDepartureTime: formatTime(from: returnFirstSegment!.departureTimeAirport),
+                            returnDepartureCode: returnFirstSegment!.originCode,  // Return origin
+                            returnDepartureDate: formatDateShort(from: returnFirstSegment!.departureTimeAirport),
+                            returnArrivalTime: formatTime(from: returnLastSegment!.arriveTimeAirport),
+                            returnArrivalCode: returnLastSegment!.destinationCode,  // Return final destination
+                            returnArrivalDate: formatDateShort(from: returnLastSegment!.arriveTimeAirport),
                             returnDuration: formatDuration(minutes: returnLeg!.duration),
                             isReturnDirect: returnLeg!.stopCount == 0,
                             returnStops: returnLeg!.stopCount,
                             
                             // Airline and price
-                            OutboundAirline: outboundSegment.airlineName,
-                            OutboundAirlineCode: outboundSegment.airlineIata,
-                            OutboundAirlineLogo: outboundSegment.airlineLogo,
+                            OutboundAirline: outboundFirstSegment.airlineName,
+                            OutboundAirlineCode: outboundFirstSegment.airlineIata,
+                            OutboundAirlineLogo: outboundFirstSegment.airlineLogo,
                             
-                            ReturnAirline: returnSegment!.airlineName,
-                            ReturnAirlineCode: returnSegment!.airlineIata,
-                            ReturnAirlineLogo: returnSegment!.airlineLogo,
+                            ReturnAirline: returnFirstSegment!.airlineName,
+                            ReturnAirlineCode: returnFirstSegment!.airlineIata,
+                            ReturnAirlineLogo: returnFirstSegment!.airlineLogo,
                             
                             price: "₹\(Int(result.minPrice))",
                             priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
@@ -2399,32 +2404,32 @@ struct DetailedFlightCardWrapper: View {
                             isRoundTrip: true
                         )
                     } else {
-                        // One way flight card (1 row)
+                        // ✅ FIX: One way flight card (1 row)
                         ModernFlightCard(
                             // Tags
                             isBest: result.isBest,
                             isCheapest: result.isCheapest,
                             isFastest: result.isFastest,
                             
-                            // Outbound flight
+                            // ✅ FIX: Outbound flight - use first segment origin, last segment destination
                             outboundDepartureTime: outboundDepartureTime,
-                            outboundDepartureCode: outboundSegment.originCode,
-                            outboundDepartureDate: formatDateShort(from: outboundSegment.departureTimeAirport),
+                            outboundDepartureCode: outboundFirstSegment.originCode,  // Origin
+                            outboundDepartureDate: formatDateShort(from: outboundFirstSegment.departureTimeAirport),
                             outboundArrivalTime: outboundArrivalTime,
-                            outboundArrivalCode: outboundSegment.destinationCode,
-                            outboundArrivalDate: formatDateShort(from: outboundSegment.arriveTimeAirport),
+                            outboundArrivalCode: outboundLastSegment.destinationCode,  // Final destination
+                            outboundArrivalDate: formatDateShort(from: outboundLastSegment.arriveTimeAirport),
                             outboundDuration: formatDuration(minutes: outboundLeg.duration),
                             isOutboundDirect: outboundLeg.stopCount == 0,
                             outboundStops: outboundLeg.stopCount,
                             
                             // For one-way trips, use outbound airline data for both parameters
-                            OutboundAirline: outboundSegment.airlineName,
-                            OutboundAirlineCode: outboundSegment.airlineIata,
-                            OutboundAirlineLogo: outboundSegment.airlineLogo,
+                            OutboundAirline: outboundFirstSegment.airlineName,
+                            OutboundAirlineCode: outboundFirstSegment.airlineIata,
+                            OutboundAirlineLogo: outboundFirstSegment.airlineLogo,
                             
-                            ReturnAirline: outboundSegment.airlineName,
-                            ReturnAirlineCode: outboundSegment.airlineIata,
-                            ReturnAirlineLogo: outboundSegment.airlineLogo,
+                            ReturnAirline: outboundFirstSegment.airlineName,
+                            ReturnAirlineCode: outboundFirstSegment.airlineIata,
+                            ReturnAirlineLogo: outboundFirstSegment.airlineLogo,
                             
                             price: "₹\(Int(result.minPrice))",
                             priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
@@ -2491,29 +2496,32 @@ struct MultiCityModernFlightCard: View {
                 .padding(.bottom, 4)
             }
             
-            // Display each leg (3-4 rows for multi-city) - NO DIVIDERS BETWEEN ROWS
+            // ✅ FIX: Display each leg using first and last segments correctly
             ForEach(0..<result.legs.count, id: \.self) { index in
                 let leg = result.legs[index]
                 
-                if let segment = leg.segments.first {
-                    // Use the same FlightRowView style as ModernFlightCard
+                if !leg.segments.isEmpty {
+                    // ✅ FIX: Use first segment for origin, last segment for destination
+                    let firstSegment = leg.segments.first!
+                    let lastSegment = leg.segments.last!
+                    
                     FlightRowView(
-                        departureTime: formatTime(from: segment.departureTimeAirport),
-                        departureCode: segment.originCode,
-                        departureDate: formatDateShort(from: segment.departureTimeAirport),
-                        arrivalTime: formatTime(from: segment.arriveTimeAirport),
-                        arrivalCode: segment.destinationCode,
-                        arrivalDate: formatDateShort(from: segment.arriveTimeAirport),
+                        departureTime: formatTime(from: firstSegment.departureTimeAirport),
+                        departureCode: firstSegment.originCode,  // Origin
+                        departureDate: formatDateShort(from: firstSegment.departureTimeAirport),
+                        arrivalTime: formatTime(from: lastSegment.arriveTimeAirport),
+                        arrivalCode: lastSegment.destinationCode,  // Final destination
+                        arrivalDate: formatDateShort(from: lastSegment.arriveTimeAirport),
                         duration: formatDuration(minutes: leg.duration),
                         isDirect: leg.stopCount == 0,
                         stops: leg.stopCount,
-                        airlineName: segment.airlineName,
-                        airlineCode: segment.airlineIata,
-                        airlineLogo: segment.airlineLogo
+                        airlineName: firstSegment.airlineName,
+                        airlineCode: firstSegment.airlineIata,
+                        airlineLogo: firstSegment.airlineLogo
                     )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .padding(.top,2)
+                    .padding(.top, 2)
                 }
             }
             
