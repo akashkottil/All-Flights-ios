@@ -4188,6 +4188,9 @@ struct DetailedFlightCardSkeleton: View {
 
 
 
+
+// MARK: - Updated Flight Filter Sheet with Animations
+// MARK: - Updated Flight Filter Sheet with Animations
 struct FlightFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ExploreViewModel
@@ -4225,6 +4228,11 @@ struct FlightFilterSheet: View {
     @State private var isLoadingPreview = false
     @State private var lastPreviewRequest: FlightFilterRequest?
     @State private var previewTimer: Timer?
+    
+    // MARK: - Animation States
+    @State private var isResetting = false
+    @State private var previousFlightCount: Int = 0
+    @State private var countChangeId = UUID()
     
     private func setFirstTimeDefaults() {
         // Set default sort option
@@ -4273,7 +4281,7 @@ struct FlightFilterSheet: View {
                     // Sort options section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Sort")
-                            .font(.system(size: 18, weight: .bold)) // Made bold
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.primary)
                         
                         ForEach(SortOption.allCases, id: \.self) { option in
@@ -4285,8 +4293,8 @@ struct FlightFilterSheet: View {
                                 
                                 Image(systemName: sortOption == option ? "inset.filled.square" : "square")
                                     .foregroundColor(sortOption == option ? .blue : .gray)
-                                    .font(.system(size: 22)) // Increased to 22x22
-                                    .frame(width: 22, height: 22) // Set frame size
+                                    .font(.system(size: 22))
+                                    .frame(width: 22, height: 22)
                                     .onTapGesture {
                                         sortOption = option
                                         hasSortChanged = true
@@ -4301,7 +4309,7 @@ struct FlightFilterSheet: View {
                     // Stops section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Stops")
-                            .font(.system(size: 18, weight: .bold)) // Made bold
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.primary)
                         
                         stopFilterRow(
@@ -4337,19 +4345,19 @@ struct FlightFilterSheet: View {
                     
                     Divider()
                     
-                   
-                    // Price range section
+                    // Price range section with animation
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Price Range")
-                            .font(.system(size: 18, weight: .bold)) // Made bold
+                            .font(.system(size: 18, weight: .bold))
                         
                         Text("\(formatPrice(priceRange[0])) - \(formatPrice(priceRange[1]))")
                             .foregroundColor(.primary)
                         
-                        RangeSliderView(
+                        AnimatedRangeSliderView(
                             values: $priceRange,
                             minValue: getApiMinPrice(),
                             maxValue: getApiMaxPrice(),
+                            isResetting: $isResetting,
                             onChangeHandler: {
                                 hasPriceChanged = true
                                 triggerPreviewUpdate()
@@ -4371,10 +4379,10 @@ struct FlightFilterSheet: View {
                     
                     Divider()
                     
-                    // Times section
+                    // Times section with animation
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Times")
-                            .font(.system(size: 18, weight: .bold)) // Made bold
+                            .font(.system(size: 18, weight: .bold))
                         
                         Text("\(viewModel.selectedOriginCode) - \(viewModel.selectedDestinationCode)")
                             .foregroundColor(.gray)
@@ -4384,10 +4392,16 @@ struct FlightFilterSheet: View {
                             Text("\(viewModel.selectedOriginCode)")
                                 .foregroundColor(.primary)
                             
-                            RangeSliderView(values: $departureTimes, minValue: 0, maxValue: 24, onChangeHandler: {
-                                hasTimesChanged = true
-                                triggerPreviewUpdate()
-                            })
+                            AnimatedRangeSliderView(
+                                values: $departureTimes,
+                                minValue: 0,
+                                maxValue: 24,
+                                isResetting: $isResetting,
+                                onChangeHandler: {
+                                    hasTimesChanged = true
+                                    triggerPreviewUpdate()
+                                }
+                            )
                             
                             HStack {
                                 Text(formatTime(hours: Int(departureTimes[0])))
@@ -4407,10 +4421,16 @@ struct FlightFilterSheet: View {
                             Text("\(viewModel.selectedDestinationCode)")
                                 .foregroundColor(.primary)
                             
-                            RangeSliderView(values: $arrivalTimes, minValue: 0, maxValue: 24, onChangeHandler: {
-                                hasTimesChanged = true
-                                triggerPreviewUpdate()
-                            })
+                            AnimatedRangeSliderView(
+                                values: $arrivalTimes,
+                                minValue: 0,
+                                maxValue: 24,
+                                isResetting: $isResetting,
+                                onChangeHandler: {
+                                    hasTimesChanged = true
+                                    triggerPreviewUpdate()
+                                }
+                            )
                             
                             HStack {
                                 Text(formatTime(hours: Int(arrivalTimes[0])))
@@ -4428,18 +4448,24 @@ struct FlightFilterSheet: View {
                     
                     Divider()
                     
-                    // Duration section
+                    // Duration section with animation
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Journey Duration")
-                            .font(.system(size: 18, weight: .bold)) // Made bold
+                            .font(.system(size: 18, weight: .bold))
                         
                         Text("\(formatDuration(hours: durationRange[0])) - \(formatDuration(hours: durationRange[1]))")
                             .foregroundColor(.primary)
                         
-                        RangeSliderView(values: $durationRange, minValue: 1, maxValue: 8.5, onChangeHandler: {
-                            hasDurationChanged = true
-                            triggerPreviewUpdate()
-                        })
+                        AnimatedRangeSliderView(
+                            values: $durationRange,
+                            minValue: 1,
+                            maxValue: 8.5,
+                            isResetting: $isResetting,
+                            onChangeHandler: {
+                                hasDurationChanged = true
+                                triggerPreviewUpdate()
+                            }
+                        )
                         
                         HStack {
                             Text(formatDuration(hours: durationRange[0]))
@@ -4487,43 +4513,38 @@ struct FlightFilterSheet: View {
                         
                         // Clear all button on the right
                         Button("Clear all") {
-                            resetFilters()
+                            resetFiltersWithAnimation()
                         }
-                        .font(.system(size: 16, weight: .bold)) // Made bold
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.blue)
                     }
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                // Enhanced Apply button with live count
-                    
-                    Button(action: {
-                        applyFilters()
-                    }) {
-                        HStack {
-                            Text("Apply Filters")
-                                .fontWeight(.medium)
-                            if isLoadingPreview {
-
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-
-                                        .foregroundColor(.white)
-
-                            }
-                            else if previewFlightCount > 0 && !isLoadingPreview {
-                                Text("(\(previewFlightCount))")
-                                    .fontWeight(.medium)
-                            }
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange)
-                        .cornerRadius(8)
-                        .padding()
+                // Enhanced Apply button with animated count
+                Button(action: {
+                    applyFilters()
+                }) {
+                    HStack {
+                        Text("Show")
+                            .fontWeight(.medium)
+                        
+                        AnimatedFlightCountView(
+                            count: previewFlightCount,
+                            previousCount: previousFlightCount,
+                            countChangeId: countChangeId
+                        )
+                        
+                        Text("Flights >")
+                            .fontWeight(.medium)
                     }
-              
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color("buttonColor"))
+                    .cornerRadius(8)
+                    .padding()
+                }
             }
         }
         .onAppear {
@@ -4550,6 +4571,61 @@ struct FlightFilterSheet: View {
             // Cancel any pending preview requests
             previewTimer?.invalidate()
         }
+        .onChange(of: previewFlightCount) { newValue in
+            if newValue != previousFlightCount {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    previousFlightCount = newValue
+                    countChangeId = UUID()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Animation Methods
+    
+    private func resetFiltersWithAnimation() {
+        // Start the animation
+        withAnimation(.easeInOut(duration: 0.8)) {
+            isResetting = true
+            
+            // Reset all filter values immediately for animation
+            sortOption = .best
+            hasSortChanged = false
+            
+            // ✅ CHANGE: Reset all stop options to true (show all flights)
+            directFlightsSelected = true
+            oneStopSelected = true
+            multiStopSelected = true
+            hasStopsChanged = false
+            
+            // Reset time ranges (will animate)
+            departureTimes = [0.0, 24.0]
+            arrivalTimes = [0.0, 24.0]
+            hasTimesChanged = false
+            
+            // Reset duration range (will animate)
+            durationRange = [1.75, 8.5]
+            hasDurationChanged = false
+            
+            // ✅ CHANGE: Select all available airlines when resetting
+            selectedAirlines = Set(availableAirlines.map { $0.code })
+            hasAirlinesChanged = false
+            
+            // ✅ FIX: Reset price range to full API range immediately
+            priceRange = [getApiMinPrice(), getApiMaxPrice()]
+            hasPriceChanged = false
+        }
+        
+        // End the animation after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isResetting = false
+            }
+            // Trigger preview update after reset is complete
+            triggerPreviewUpdate()
+        }
+        
+        print("🔧 Reset to defaults with animation: all stops=true, all airlines selected")
     }
     
     // MARK: - UI Helper Views
@@ -4569,8 +4645,8 @@ struct FlightFilterSheet: View {
             
             Image(systemName: isSelected ? "checkmark.square.fill" : "square")
                 .foregroundColor(isSelected ? .blue : .gray)
-                .font(.system(size: 22)) // Increased to 22x22
-                .frame(width: 22, height: 22) // Set frame size
+                .font(.system(size: 22))
+                .frame(width: 22, height: 22)
                 .onTapGesture(perform: action)
         }
     }
@@ -4579,7 +4655,7 @@ struct FlightFilterSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Airlines")
-                    .font(.system(size: 18, weight: .bold)) // Made bold
+                    .font(.system(size: 18, weight: .bold))
                 
                 Spacer()
                 
@@ -4588,7 +4664,7 @@ struct FlightFilterSheet: View {
                     hasAirlinesChanged = true
                     triggerPreviewUpdate()
                 }
-                .font(.system(size: 16, weight: .bold)) // Made bold
+                .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.blue)
             }
             
@@ -4616,8 +4692,8 @@ struct FlightFilterSheet: View {
                     
                     Image(systemName: selectedAirlines.contains(airline.code) ? "checkmark.square.fill" : "square")
                         .foregroundColor(selectedAirlines.contains(airline.code) ? .blue : .gray)
-                        .font(.system(size: 22)) // Increased to 22x22
-                        .frame(width: 22, height: 22) // Set frame size
+                        .font(.system(size: 22))
+                        .frame(width: 22, height: 22)
                         .onTapGesture {
                             if selectedAirlines.contains(airline.code) {
                                 selectedAirlines.remove(airline.code)
@@ -4647,13 +4723,11 @@ struct FlightFilterSheet: View {
     
     // MARK: - Live Preview Methods
     
-    // MARK: - Price Range Helper Methods
-
     private func getApiMinPrice() -> Double {
         if let pollResponse = viewModel.lastPollResponse {
             return pollResponse.minPrice
         } else {
-            return 0.0 // Fallback
+            return 0.0
         }
     }
 
@@ -4661,7 +4735,7 @@ struct FlightFilterSheet: View {
         if let pollResponse = viewModel.lastPollResponse {
             return pollResponse.maxPrice
         } else {
-            return 5000.0 // Fallback
+            return 5000.0
         }
     }
     
@@ -4732,7 +4806,7 @@ struct FlightFilterSheet: View {
             }
         }
         
-        // UPDATED: Smarter API-level stop filtering + client-side filtering
+        // Stop filtering logic
         if hasStopsChanged {
             let selectedOptions = [
                 (directFlightsSelected, "direct"),
@@ -4740,38 +4814,16 @@ struct FlightFilterSheet: View {
                 (multiStopSelected, "multiStop")
             ].filter { $0.0 }.map { $0.1 }
             
-            print("🛑 Selected stop options: \(selectedOptions)")
-            
             if selectedOptions.count == 1 {
-                // Only one option selected
                 if directFlightsSelected {
-                    // Only direct flights - use API filtering
                     filterRequest.stopCountMax = 0
-                    print("🛑 API Filter: Direct flights only (stopCountMax = 0)")
                 } else if oneStopSelected {
-                    // Only 1-stop flights - get up to 1 stop via API, filter out direct on client
                     filterRequest.stopCountMax = 1
-                    print("🛑 API Filter: Up to 1-stop (stopCountMax = 1), client will filter out direct")
-                } else if multiStopSelected {
-                    // Only 2+ stops - no API limit, client will filter out 0 and 1 stop
-                    print("🛑 API Filter: No limit, client will filter out direct and 1-stop")
                 }
             } else if selectedOptions.count == 2 {
-                // Two options selected
                 if directFlightsSelected && oneStopSelected {
-                    // Direct and 1-stop - use API filtering
                     filterRequest.stopCountMax = 1
-                    print("🛑 API Filter: Direct and 1-stop (stopCountMax = 1)")
-                } else if directFlightsSelected && multiStopSelected {
-                    // Direct and 2+ stops - no API filtering, client will exclude 1-stop
-                    print("🛑 API Filter: No limit, client will filter out 1-stop only")
-                } else if oneStopSelected && multiStopSelected {
-                    // 1-stop and 2+ stops - no API filtering, client will exclude direct
-                    print("🛑 API Filter: No limit, client will filter out direct")
                 }
-            } else if selectedOptions.count == 3 || selectedOptions.count == 0 {
-                // All options or no options - no filtering
-                print("🛑 API Filter: No stop filtering")
             }
         }
         
@@ -4819,8 +4871,6 @@ struct FlightFilterSheet: View {
     
     // MARK: - Helper Methods
     
-  
-    
     private func formatTime(hours: Int) -> String {
         let hour = hours % 12 == 0 ? 12 : hours % 12
         let amPm = hours < 12 ? "am" : "pm"
@@ -4840,35 +4890,6 @@ struct FlightFilterSheet: View {
         formatter.maximumFractionDigits = 0
         
         return formatter.string(from: NSNumber(value: price)) ?? "₹\(Int(price))"
-    }
-    
-    private func resetFilters() {
-        // Reset all filters to default values
-        sortOption = .best
-        hasSortChanged = false
-        
-        // ✅ CHANGE: Reset all stop options to true (show all flights)
-        directFlightsSelected = true
-        oneStopSelected = true          // ✅ CHANGE: Set to true
-        multiStopSelected = true        // ✅ CHANGE: Set to true
-        hasStopsChanged = false
-        
-        departureTimes = [0.0, 24.0]
-        arrivalTimes = [0.0, 24.0]
-        hasTimesChanged = false
-        
-        durationRange = [1.75, 8.5]
-        hasDurationChanged = false
-        
-        // ✅ CHANGE: Select all available airlines when resetting
-        selectedAirlines = Set(availableAirlines.map { $0.code })
-        hasAirlinesChanged = false
-        
-        // Reset price range based on available flights
-        initializePriceRange()
-        hasPriceChanged = false
-        
-        print("🔧 Reset to defaults: all stops=true, all airlines selected")
     }
     
     private func populateAirlinesFromResults() {
@@ -4982,12 +5003,17 @@ struct FlightFilterSheet: View {
     }
 }
 
-// Updated RangeSliderView with curved slider thumbs
-struct RangeSliderView: View {
+// MARK: - Animated Range Slider View
+struct AnimatedRangeSliderView: View {
     @Binding var values: [Double]
     let minValue: Double
     let maxValue: Double
+    @Binding var isResetting: Bool
     var onChangeHandler: (() -> Void)? = nil
+    
+    // Animation state
+    @State private var animatedValues: [Double] = [0, 0]
+    @State private var isDragging = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -4997,7 +5023,7 @@ struct RangeSliderView: View {
                     .fill(Color.gray.opacity(0.2))
                     .frame(height: 4)
                 
-                // Selected Range - FIXED: Safe calculation with bounds checking
+                // Selected Range
                 Rectangle()
                     .fill(Color.blue)
                     .frame(
@@ -5014,18 +5040,25 @@ struct RangeSliderView: View {
                         .frame(width: 20, height: 20)
                         .shadow(radius: 2)
                 }
-                .offset(x: calculateThumbPosition(for: values[0], geometry: geometry))
+                .offset(x: calculateThumbPosition(for: animatedValues[0], geometry: geometry))
                 .gesture(
                     DragGesture()
                         .onChanged { gesture in
-                            let newValue = calculateValueFromPosition(
-                                position: gesture.location.x,
-                                geometry: geometry
-                            )
-                            // Ensure low value doesn't exceed high value
-                            let clampedValue = min(values[1] - 0.1, max(minValue, newValue))
-                            values[0] = clampedValue
-                            onChangeHandler?()
+                            if !isResetting {
+                                isDragging = true
+                                let newValue = calculateValueFromPosition(
+                                    position: gesture.location.x,
+                                    geometry: geometry
+                                )
+                                // Ensure low value doesn't exceed high value
+                                let clampedValue = min(animatedValues[1] - 0.1, max(minValue, newValue))
+                                animatedValues[0] = clampedValue
+                                values[0] = clampedValue
+                                onChangeHandler?()
+                            }
+                        }
+                        .onEnded { _ in
+                            isDragging = false
                         }
                 )
                 
@@ -5037,23 +5070,54 @@ struct RangeSliderView: View {
                         .frame(width: 20, height: 20)
                         .shadow(radius: 2)
                 }
-                .offset(x: calculateThumbPosition(for: values[1], geometry: geometry))
+                .offset(x: calculateThumbPosition(for: animatedValues[1], geometry: geometry))
                 .gesture(
                     DragGesture()
                         .onChanged { gesture in
-                            let newValue = calculateValueFromPosition(
-                                position: gesture.location.x,
-                                geometry: geometry
-                            )
-                            // Ensure high value doesn't go below low value
-                            let clampedValue = max(values[0] + 0.1, min(maxValue, newValue))
-                            values[1] = clampedValue
-                            onChangeHandler?()
+                            if !isResetting {
+                                isDragging = true
+                                let newValue = calculateValueFromPosition(
+                                    position: gesture.location.x,
+                                    geometry: geometry
+                                )
+                                // Ensure high value doesn't go below low value
+                                let clampedValue = max(animatedValues[0] + 0.1, min(maxValue, newValue))
+                                animatedValues[1] = clampedValue
+                                values[1] = clampedValue
+                                onChangeHandler?()
+                            }
+                        }
+                        .onEnded { _ in
+                            isDragging = false
                         }
                 )
             }
         }
         .frame(height: 30)
+        .onAppear {
+            animatedValues = values
+        }
+        .onChange(of: values) { newValues in
+            if !isDragging {
+                if isResetting {
+                    // Animate to new values when resetting
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        animatedValues = newValues
+                    }
+                } else {
+                    // Update immediately when not resetting
+                    animatedValues = newValues
+                }
+            }
+        }
+        .onChange(of: isResetting) { resetting in
+            if resetting {
+                // Start animation to reset values
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    animatedValues = values
+                }
+            }
+        }
     }
     
     // MARK: - Safe Calculation Methods
@@ -5061,7 +5125,7 @@ struct RangeSliderView: View {
     private func calculateRangeWidth(geometry: GeometryProxy) -> CGFloat {
         guard maxValue > minValue else { return 0 }
         
-        let range = values[1] - values[0]
+        let range = animatedValues[1] - animatedValues[0]
         let totalRange = maxValue - minValue
         let ratio = range / totalRange
         
@@ -5073,7 +5137,7 @@ struct RangeSliderView: View {
     private func calculateRangeOffset(geometry: GeometryProxy) -> CGFloat {
         guard maxValue > minValue else { return 0 }
         
-        let offsetRatio = (values[0] - minValue) / (maxValue - minValue)
+        let offsetRatio = (animatedValues[0] - minValue) / (maxValue - minValue)
         let calculatedOffset = CGFloat(offsetRatio) * geometry.size.width
         
         // Clamp the offset between 0 and geometry width
@@ -5098,7 +5162,56 @@ struct RangeSliderView: View {
     }
 }
 
-// Custom shapes for curved thumbs
+// MARK: - Animated Flight Count View
+struct AnimatedFlightCountView: View {
+    let count: Int
+    let previousCount: Int
+    let countChangeId: UUID
+    
+    @State private var currentDisplayCount: Int = 0
+    @State private var hasShownCount = false
+    
+    var body: some View {
+        ZStack {
+            if hasShownCount && currentDisplayCount > 0 {
+                // Current count number with slide-in animation
+                Text("\(currentDisplayCount)")
+                    .fontWeight(.medium)
+                    .id("count-\(countChangeId)")
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
+            }
+        }
+        .clipped()
+        .onAppear {
+            // Don't show anything initially
+            currentDisplayCount = 0
+            hasShownCount = false
+        }
+        .onChange(of: count) { newCount in
+            if newCount > 0 && newCount != currentDisplayCount {
+                // First time showing a number or changing to a new number
+                if !hasShownCount {
+                    hasShownCount = true
+                }
+                
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    currentDisplayCount = newCount
+                }
+            } else if newCount == 0 {
+                // Hide the number if count becomes 0
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    hasShownCount = false
+                    currentDisplayCount = 0
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Custom shapes for curved thumbs (already exist but including for completeness)
 struct LeftCurvedThumb: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
