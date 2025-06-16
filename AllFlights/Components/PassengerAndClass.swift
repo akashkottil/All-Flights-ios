@@ -255,9 +255,11 @@ struct PassengersAndClassSelector: View {
                         Circle()
                             .fill(Color.gray.opacity(0.1))
                             .frame(width: 36, height: 36)
-                        Image(systemName: showInfoDetails ? "chevron.up" : "chevron.down")
-                            .foregroundColor(.primary)
-                            .font(.system(size: 12, weight: .medium))
+                        Image(systemName: "chevron.down")
+                                                    .foregroundColor(.primary)
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .rotationEffect(.degrees(showInfoDetails ? 180 : 0))
+                                                    .animation(.easeInOut(duration: 0.3), value: showInfoDetails)
                     }
                 }
                 
