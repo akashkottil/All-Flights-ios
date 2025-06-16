@@ -3745,6 +3745,7 @@ struct ModifiedDetailedFlightListView: View {
                 )
             }
         }
+        .noResultsModal(isPresented: $viewModel.showNoResultsModal)
         .onAppear {
             print("📱 ModifiedDetailedFlightListView appeared")
             

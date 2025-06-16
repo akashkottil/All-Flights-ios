@@ -78,6 +78,43 @@ class ExploreViewModel: ObservableObject {
     @Published var isDataCached = false
     @Published var actualLoadedCount = 0
     
+    @Published var showNoResultsModal = false
+    @Published var isInitialEmptyResult = false
+    
+    func handleTryDifferentSearch() {
+        print("🔄 User requested different search from modal")
+        showNoResultsModal = false
+        isInitialEmptyResult = false
+        
+        // Navigate back to search form
+        if isDirectSearch {
+            clearSearchFormAndReturnToExplore()
+        } else {
+            goBackToFlightResults()
+        }
+    }
+
+    func handleClearFilters() {
+        print("🧹 User requested clear filters from modal")
+        showNoResultsModal = false
+        isInitialEmptyResult = false
+        
+        // Reset filters and try search again
+        _currentFilterRequest = nil
+        resetFilterSheetState()
+        
+        // Retry the search with no filters
+        if !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
+            searchFlightsForDatesWithPagination(
+                origin: selectedOriginCode,
+                destination: selectedDestinationCode,
+                returnDate: selectedReturnDatee,
+                departureDate: selectedDepartureDatee,
+                isDirectSearch: isDirectSearch
+            )
+        }
+    }
+    
     func resetFilterSheetStateForNewSearch() {
         filterSheetState = FilterSheetState()
         print("🧹 Filter sheet state reset for new search")
@@ -311,11 +348,22 @@ class ExploreViewModel: ObservableObject {
                             self.actualLoadedCount = pollResponse.results.count
                             self.detailedFlightResults = pollResponse.results
                             
-                            // CRITICAL: Always check cache status for multi-city
-                            if pollResponse.cache {
+                            // 🚨 ADD THIS NEW CONDITION CHECK FOR MULTI-CITY:
+                            // CRITICAL: Check for initial empty results with cache = true for multi-city
+                            if pollResponse.cache && pollResponse.count == 0 && self.isFirstLoad {
+                                print("🚨 Multi-city initial empty result detected (cache: true, count: 0)")
+                                self.isInitialEmptyResult = true
+                                self.showNoResultsModal = true
+                                self.hasMoreFlights = false
+                                self.detailedFlightError = nil
+                            }
+                            // CRITICAL: Normal handling for multi-city
+                            else if pollResponse.cache {
                                 // Backend finished processing multi-city search
                                 if pollResponse.count == 0 {
-                                    self.detailedFlightError = "No flights found for your multi-city route"
+                                    if !self.isFirstLoad {
+                                        self.detailedFlightError = "No flights found for your multi-city route"
+                                    }
                                     self.hasMoreFlights = false
                                 } else {
                                     self.detailedFlightError = nil
@@ -330,6 +378,8 @@ class ExploreViewModel: ObservableObject {
                             }
                             
                             self.isLoadingDetailedFlights = false
+                            // 🚨 ADD THIS: Mark first load complete
+                            self.isFirstLoad = false
                         }
                     )
                     .store(in: &self.cancellables)
@@ -421,11 +471,24 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-                // CRITICAL: Always check cache status for proper handling
-                if pollResponse.cache {
+                // 🚨 ADD THIS NEW CONDITION CHECK FOR MODAL:
+                // CRITICAL: Check for initial empty results with cache = true
+                if pollResponse.cache && pollResponse.count == 0 && self.isFirstLoad {
+                    // This is an initial empty result - show modal
+                    print("🚨 Initial empty result detected (cache: true, count: 0)")
+                    self.isInitialEmptyResult = true
+                    self.showNoResultsModal = true
+                    self.hasMoreFlights = false
+                    self.detailedFlightError = nil // Clear error message since modal will handle it
+                }
+                // CRITICAL: Normal handling for other cache scenarios
+                else if pollResponse.cache {
                     // Backend finished processing - final results
                     if pollResponse.count == 0 {
-                        self.detailedFlightError = "No flights found for this route and date"
+                        // This shouldn't happen if we caught it above, but just in case
+                        if !self.isFirstLoad {
+                            self.detailedFlightError = "No flights found for this route and date"
+                        }
                         self.hasMoreFlights = false
                     } else {
                         self.hasMoreFlights = pollResponse.next != nil
@@ -437,6 +500,9 @@ class ExploreViewModel: ObservableObject {
                     print("🔄 Initial search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
                     self.scheduleRetryAfterDelay()
                 }
+                
+                // 🚨 ADD THIS: Mark that we've completed the first load
+                self.isFirstLoad = false
             }
         )
         .store(in: &cancellables)
@@ -482,11 +548,17 @@ class ExploreViewModel: ObservableObject {
                     print("✅ Retry fetched \(newResults.count) new results, total now: \(self.detailedFlightResults.count)")
                     print("📊 Cache status: \(pollResponse.cache)")
                     
-                    // CRITICAL: Always check cache status to decide next action
+                    // 🚨 ADD THIS NEW CONDITION CHECK:
+                    // CRITICAL: Check if this becomes an empty result during retry
                     if pollResponse.cache {
                         // Backend finished - check final state
                         if self.detailedFlightResults.isEmpty && pollResponse.count == 0 {
-                            self.detailedFlightError = "No flights found for this route and date"
+                            // Only show modal if this wasn't already handled as initial empty result
+                            if !self.isInitialEmptyResult {
+                                print("🚨 Empty result detected during retry (cache: true, count: 0)")
+                                self.showNoResultsModal = true
+                                self.detailedFlightError = nil // Clear error message since modal will handle it
+                            }
                             self.hasMoreFlights = false
                         } else {
                             self.hasMoreFlights = pollResponse.next != nil
@@ -1827,6 +1899,10 @@ class ExploreViewModel: ObservableObject {
     
     func goBackToFlightResults() {
         print("goBackToFlightResults called")
+        
+        showNoResultsModal = false
+            isInitialEmptyResult = false
+        
         // Clear selected flight first
         selectedFlightId = nil
         
@@ -1883,6 +1959,8 @@ class ExploreViewModel: ObservableObject {
     }
     
     func clearSearchFormAndReturnToExplore() {
+        showNoResultsModal = false
+            isInitialEmptyResult = false
             // Clear all search-related flags
             isDirectSearch = false
             showingDetailedFlightList = false
