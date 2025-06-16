@@ -4535,8 +4535,11 @@ struct FlightFilterSheet: View {
                             countChangeId: countChangeId
                         )
                         
-                        Text("Flights >")
+                        Text("Flights ")
                             .fontWeight(.medium)
+                        
+                        Image(systemName: "chevron.right")
+                            .fontWeight(.bold)
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
