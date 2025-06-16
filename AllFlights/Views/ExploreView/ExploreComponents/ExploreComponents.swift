@@ -2219,35 +2219,31 @@ struct AnywhereOptionRow: View {
     var body: some View {
         HStack(spacing: 16) {
             // Icon for "Anywhere"
-            ZStack {
-                Circle()
-                    .fill(Color.orange.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                
-                Image(systemName: "globe")
-                    .font(.system(size: 18))
-                    .foregroundColor(.orange)
-            }
+            Image(systemName: "globe")
+                .font(.system(size: 24))
+                .foregroundColor(.primary)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("Anywhere")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.primary)
                 
-                Text("Explore destinations")
+                Text("Explore best value destinations")
                     .font(.system(size: 14))
                     .foregroundColor(.gray)
             }
             
             Spacer()
-            
-            Image(systemName: "arrow.up.right")
-                .font(.system(size: 14))
-                .foregroundColor(.gray)
         }
         .padding()
         .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(16)
         .contentShape(Rectangle())
+        .padding()
     }
 }
 
