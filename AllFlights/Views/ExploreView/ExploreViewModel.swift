@@ -173,68 +173,67 @@ class ExploreViewModel: ObservableObject {
     func resetToInitialState(preserveCountries: Bool = true) {
         print("🔄 Resetting ExploreViewModel to initial state")
             
-            // Reset all search-related states
-            isDirectSearch = false
-            showingDetailedFlightList = false
-            hasSearchedFlights = false
-            flightResults = []
-            detailedFlightResults = []
-            flightSearchResponse = nil
-            selectedFlightId = nil
-            isAnytimeMode = false
-            directFlightsOnlyFromHome = false
-        
+        // Reset all search-related states
+        isDirectSearch = false
+        showingDetailedFlightList = false
+        hasSearchedFlights = false
+        flightResults = []
+        detailedFlightResults = []
+        flightSearchResponse = nil
+        selectedFlightId = nil
+        isAnytimeMode = false
+        directFlightsOnlyFromHome = false
+
         // IMPORTANT: Reset filters
-            _currentFilterRequest = nil
-            resetFilterSheetState()
+        _currentFilterRequest = nil
+        resetFilterSheetState()
             
-            // Reset navigation states
-            showingCities = false
-            selectedCountryName = nil
-            selectedCity = nil
+        // Reset navigation states
+        showingCities = false
+        selectedCountryName = nil
+        selectedCity = nil
             
-            // Reset location states to default
-            toLocation = "Anywhere"
-            toIataCode = ""
-            fromLocation = "Mumbai"
-            fromIataCode = "DEL"
+        // Reset location states to default - FIXED to always show COK Kochi
+        toLocation = "Anywhere"
+        toIataCode = ""
+        fromLocation = "Kochi"  // Always reset to Kochi
+        fromIataCode = "COK"    // Always reset to COK
             
-            // Clear search context
-            selectedOriginCode = ""
-            selectedDestinationCode = ""
-            selectedDepartureDatee = ""
-            selectedReturnDatee = ""
-            dates = []
+        // Clear search context
+        selectedOriginCode = ""
+        selectedDestinationCode = ""
+        selectedDepartureDatee = ""
+        selectedReturnDatee = ""
+        dates = []
             
-            // Reset error states
-            errorMessage = nil
-            detailedFlightError = nil
-            isLoadingDetailedFlights = false
-            isLoadingFlights = false
+        // Reset error states
+        errorMessage = nil
+        detailedFlightError = nil
+        isLoadingDetailedFlights = false
+        isLoadingFlights = false
             
-            // Reset pagination
-            currentPage = 1
-            totalFlightCount = 0
-            actualLoadedCount = 0
-            hasMoreFlights = true
-            isLoadingMoreFlights = false
-            isFirstLoad = true
-            isDataCached = false
+        // Reset pagination
+        currentPage = 1
+        totalFlightCount = 0
+        actualLoadedCount = 0
+        hasMoreFlights = true
+        isLoadingMoreFlights = false
+        isFirstLoad = true
+        isDataCached = false
             
-            // Clear multi-city data
-            multiCityTrips = []
+        // Clear multi-city data
+        multiCityTrips = []
             
-            // FIXED: Set loading state to true if destinations will be cleared
-            // This ensures skeleton shows during the reset-to-fetch process
+        // Set loading state if destinations will be cleared
         if !preserveCountries {
-                    destinations = []
-                }
-            if destinations.isEmpty {
-                isLoading = true
-                print("🔄 Setting loading state during reset (destinations empty)")
-            }
+            destinations = []
+        }
+        if destinations.isEmpty {
+            isLoading = true
+            print("🔄 Setting loading state during reset (destinations empty)")
+        }
             
-            print("✅ ExploreViewModel reset completed")
+        print("✅ ExploreViewModel reset completed - fromLocation: \(fromLocation), fromIataCode: \(fromIataCode)")
     }
     
     func debugDuplicateFlightIDs() {
@@ -1352,7 +1351,14 @@ class ExploreViewModel: ObservableObject {
      var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
+    // In ExploreViewModel init() method, make sure these defaults are set
     init() {
+        // Set default location values
+        fromLocation = "Kochi"
+        fromIataCode = "COK"
+        toLocation = "Anywhere"
+        toIataCode = ""
+        
         setupAvailableMonths()
         
         // Initialize passenger data
@@ -1361,8 +1367,7 @@ class ExploreViewModel: ObservableObject {
         childrenAges = [0]
         selectedCabinClass = "Economy"
         
-        // FIXED: Set initial loading state to true if no destinations are loaded
-        // This ensures skeleton appears immediately when view is first shown
+        // Rest of your existing init code...
         if destinations.isEmpty {
             isLoading = true
             print("🔄 ExploreViewModel: Setting initial loading state to true")
@@ -1454,7 +1459,7 @@ class ExploreViewModel: ObservableObject {
             // Scenario 3: We have a selected city in the explore flow
             else if let city = selectedCity {
                 print("🔄 Re-fetching flight details for selected city")
-                fetchFlightDetails(destination: city.location.iata)
+                fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
             }
             // Scenario 4: We have search parameters but need to reconstruct dates
             else if !selectedDepartureDatee.isEmpty {
@@ -1722,8 +1727,8 @@ class ExploreViewModel: ObservableObject {
         toLocation = city.location.name
         toIataCode = city.location.iata  // ADDED: Set the IATA code when city is selected
         
-        // Fetch flight details when a city is selected
-        fetchFlightDetails(destination: city.location.iata)
+        // Fetch flight details when a city is selected - use fromIataCode as departure
+        fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
     }
     
     func setupAvailableMonths() {
@@ -1746,11 +1751,14 @@ class ExploreViewModel: ObservableObject {
         selectedMonthIndex = 0 // Default to current month
     }
     
-    func fetchFlightDetails(destination: String) {
+    func fetchFlightDetails(departure: String? = nil, destination: String) {
         isLoadingFlights = true
         errorMessage = nil
         hasSearchedFlights = true
         flightResults = [] // Clear previous results when starting a new search
+        
+        // Use fromIataCode as default departure if not provided
+        let finalDeparture = departure ?? fromIataCode
         
         // Format date based on selected month
         let dateFormatter = DateFormatter()
@@ -1772,12 +1780,13 @@ class ExploreViewModel: ObservableObject {
         print("Rountrip1111: \(isRoundTrip)")
         print("depdate1111: \(departureDate)")
         print("dest1111: \(destination)")
+        print("departure1111: \(finalDeparture)")
         
         service.fetchFlightDetails(
-            origin: "DEL",
+            origin: finalDeparture,
             destination: destination,
             departure: departureDate,
-            roundTrip: isRoundTrip // Make sure this is being passed correctly
+            roundTrip: isRoundTrip
         )
         .receive(on: DispatchQueue.main)
         .sink(receiveCompletion: { [weak self] completion in
@@ -1842,9 +1851,9 @@ class ExploreViewModel: ObservableObject {
                         if hasSearchedFlights && !showingDetailedFlightList {
                             // If we're already in flight results view, use fetchFlightDetails instead of full search
                             if let city = selectedCity {
-                                fetchFlightDetails(destination: city.location.iata)
+                                fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
                             } else if !selectedDestinationCode.isEmpty {
-                                fetchFlightDetails(destination: selectedDestinationCode)
+                                fetchFlightDetails(departure: fromIataCode, destination: selectedDestinationCode)
                             }
                             return
                         } else {
@@ -1871,9 +1880,9 @@ class ExploreViewModel: ObservableObject {
                 if hasSearchedFlights && !showingDetailedFlightList {
                     // If we're already in flight results view, use fetchFlightDetails
                     if let city = selectedCity {
-                        fetchFlightDetails(destination: city.location.iata)
+                        fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
                     } else if !selectedDestinationCode.isEmpty {
-                        fetchFlightDetails(destination: selectedDestinationCode)
+                        fetchFlightDetails(departure: fromIataCode, destination: selectedDestinationCode)
                     }
                 } else {
                     // Otherwise trigger search with the new month dates
@@ -1892,7 +1901,7 @@ class ExploreViewModel: ObservableObject {
             // If a city was selected but we don't have both origin/destination codes yet,
             // still fetch flight details to show available flights in this month
             else if let city = selectedCity {
-                fetchFlightDetails(destination: city.location.iata)
+                fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
             }
         }
     }
@@ -1901,14 +1910,14 @@ class ExploreViewModel: ObservableObject {
         print("goBackToFlightResults called")
         
         showNoResultsModal = false
-            isInitialEmptyResult = false
+        isInitialEmptyResult = false
         
         // Clear selected flight first
         selectedFlightId = nil
         
         // IMPORTANT: Reset filters when going back
-            _currentFilterRequest = nil
-            resetFilterSheetState()
+        _currentFilterRequest = nil
+        resetFilterSheetState()
         
         // Reset all search-related states
         if isDirectSearch {
@@ -1932,12 +1941,12 @@ class ExploreViewModel: ObservableObject {
                 // If we have a selected city, fetch flight details for current month
                 if let city = selectedCity {
                     print("🔄 Fetching flight details for city: \(city.location.name)")
-                    fetchFlightDetails(destination: city.location.iata)
+                    fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
                 }
                 // If we have destination code but no city, still fetch flight details
                 else if !toIataCode.isEmpty {
                     print("🔄 Fetching flight details for destination: \(toIataCode)")
-                    fetchFlightDetails(destination: toIataCode)
+                    fetchFlightDetails(departure: fromIataCode, destination: toIataCode)
                 }
                 // If we have search context with dates, trigger search
                 else if !fromIataCode.isEmpty && !toIataCode.isEmpty && !dates.isEmpty {
@@ -1978,9 +1987,9 @@ class ExploreViewModel: ObservableObject {
            resetFilterSheetState()
             
             // Clear search form data
-            fromLocation = "Mumbai" // Reset to default
+            fromLocation = "Kochi" // Reset to default
             toLocation = "Anywhere" // Reset to anywhere
-            fromIataCode = "DEL" // Reset to default origin
+            fromIataCode = "COK" // Reset to default origin
             toIataCode = "" // Clear destination
             dates = [] // Clear selected dates
             selectedDepartureDatee = ""

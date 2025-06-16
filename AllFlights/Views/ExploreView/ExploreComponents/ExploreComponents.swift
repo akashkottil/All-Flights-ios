@@ -113,16 +113,18 @@ struct CollapsedSearchCard: View {
     
     // UPDATED: Better display logic for collapsed state
     private func getLocationDisplayText() -> String {
+        // From location - always show IATA code when available
         let fromText: String = {
-            if !viewModel.fromIataCode.isEmpty && viewModel.fromIataCode != "DEL" {
+            if !viewModel.fromIataCode.isEmpty {
                 return viewModel.fromIataCode
             } else if !viewModel.fromLocation.isEmpty {
                 return viewModel.fromLocation
             } else {
-                return "From"
+                return "COK" // Default fallback
             }
         }()
 
+        // To location
         let toText: String = {
             if !viewModel.toIataCode.isEmpty && viewModel.toIataCode != "Anywhere" {
                 return viewModel.toIataCode
@@ -135,6 +137,7 @@ struct CollapsedSearchCard: View {
 
         return "\(fromText) - \(toText)"
     }
+    
     
     private func getDateDisplayText() -> String {
         // If we just cleared the form, show "Anytime"
@@ -609,10 +612,17 @@ struct SearchCard: View {
     }
 
     private func getFromLocationDisplayText() -> String {
-        if viewModel.fromIataCode.isEmpty {
+        // Always show IATA code and location name when available
+        if !viewModel.fromIataCode.isEmpty && !viewModel.fromLocation.isEmpty {
+            return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
+        } else if !viewModel.fromIataCode.isEmpty {
+            return viewModel.fromIataCode
+        } else if !viewModel.fromLocation.isEmpty {
+            return viewModel.fromLocation
+        } else {
+            // Fallback to default
             return "COK Kochi"
         }
-        return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
     }
 
     private func getFromLocationTextColor() -> Color {
@@ -2043,10 +2053,12 @@ struct LocationSearchSheet: View {
     }
     
     private func useCurrentLocation() {
+        // Set default Kochi location
         viewModel.fromLocation = "Kochi"
-        viewModel.fromIataCode = "COK" 
+        viewModel.fromIataCode = "COK"
         originSearchText = "Kochi"
         
+        // Auto-focus destination field after setting origin
         activeSearchBar = .destination
         focusedField = .destination
     }
@@ -2091,9 +2103,12 @@ struct LocationSearchSheet: View {
             viewModel.multiCityTrips[multiCityTripIndex].fromLocation = result.cityName
             viewModel.multiCityTrips[multiCityTripIndex].fromIataCode = result.iataCode
         } else {
+            // Update both location name and IATA code
             viewModel.fromLocation = result.cityName
             viewModel.fromIataCode = result.iataCode
             originSearchText = result.cityName
+            
+            print("✅ Origin updated: \(result.cityName) (\(result.iataCode))")
         }
         
         // Check if we should proceed with search or just dismiss

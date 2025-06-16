@@ -325,7 +325,7 @@ class ExploreAPIService {
     
     func fetchDestinations(country: String = "IN",
                               currency: String = "INR",
-                              departure: String = "DEL",
+                              departure: String = "COK",
                               language: String = "en-GB",
                               arrivalType: String = "country",
                               arrivalId: String? = nil) -> AnyPublisher<[ExploreDestination], Error> {
@@ -388,23 +388,27 @@ class ExploreAPIService {
            return apiResponse.currency.symbol
        }
     
+    // In ExploreAPIService, update the fetchFlightDetails method
     func fetchFlightDetails(
-        origin: String = "COK", // Using Mumbai as default
+        origin: String = "COK", // Default to COK
         destination: String,
         departure: String,
         roundTrip: Bool = true,
     ) -> AnyPublisher<FlightSearchResponse, Error> {
         
-        print("origin222 \(origin)")
-        print("dest222 \(destination)")
-        print("dep222 \(departure)")
-        print("roundTr222 \(roundTrip)")
-        print("ocurrency222 \(currency)")
-        print("ocontry222 \(country)")
+        // Use COK as default origin if empty
+        let finalOrigin = origin.isEmpty ? "COK" : origin
+        
+        print("origin: \(finalOrigin)")
+        print("dest: \(destination)")
+        print("dep: \(departure)")
+        print("roundTrip: \(roundTrip)")
+        print("currency: \(currency)")
+        print("country: \(country)")
         
         // Create request parameters according to requirements
         let parameters: [String: Any] = [
-            "origin": origin,
+            "origin": finalOrigin,
             "destination": destination,
             "departure": departure,
             "round_trip": roundTrip,
