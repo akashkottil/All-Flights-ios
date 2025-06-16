@@ -21,6 +21,17 @@ struct ExploreScreen: View {
     
     @State private var showFilterModal = false
     
+    @State private var hasAppliedInitialDirectFilter = false
+    
+    private func applyInitialDirectFilterIfNeeded() {
+        if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
+            print("🔧 Applying initial direct filter from HomeView toggle")
+            selectedDetailedFlightFilter = .direct
+            hasAppliedInitialDirectFilter = true
+            applyDetailedFlightFilterOption(.direct)
+        }
+    }
+    
     private func clearAllFiltersInExploreScreen() {
         print("🧹 Clearing all filters in ExploreScreen")
         
@@ -377,6 +388,10 @@ struct ExploreScreen: View {
                             insertion: .move(edge: .trailing).combined(with: .opacity),
                             removal: .move(edge: .leading).combined(with: .opacity)
                         ))
+                        .onAppear {
+                               // ADD THIS LINE:
+                               applyInitialDirectFilterIfNeeded()
+                           }
                     }
                 }
                 .background(Color("scroll"))
@@ -599,13 +614,17 @@ struct ExploreScreen: View {
         .onChange(of: viewModel.showingDetailedFlightList) { newValue in
             updateTabVisibility()
             
-            // FIXED: Show content and header together for direct searches
             if newValue && viewModel.isDirectSearch {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                         showContentWithHeader = true
                     }
                 }
+            }
+            
+            // ADD THESE LINES:
+            if newValue {
+                applyInitialDirectFilterIfNeeded()
             }
         }
         .onChange(of: viewModel.selectedCountryName) {
