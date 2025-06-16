@@ -25,13 +25,14 @@ struct PassengersAndClassSelector: View {
                 }) {
                     Image(systemName: "xmark")
                         .foregroundColor(.black)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                 }
                 
                 Spacer()
                 
                 Text("Passengers and Class")
-                    .font(.headline)
+                    .fontWeight(.bold)
+                    .font(.title3)
                 
                 Spacer()
             }
