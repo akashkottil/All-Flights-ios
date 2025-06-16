@@ -1,12 +1,8 @@
 import SwiftUI
 
-// MARK: - No Results Modal (No Sheet - Direct Overlay)
+// MARK: - Simplified No Results Modal (No Buttons - Back Navigation Only)
 struct NoResultsModal: View {
     @Binding var isPresented: Bool
-    let onTryDifferentSearch: () -> Void
-    let onClearFilters: () -> Void
-    
-    @State private var isSearching = false
     
     var body: some View {
         ZStack {
@@ -19,7 +15,6 @@ struct NoResultsModal: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 50))
                         .foregroundColor(.gray)
-
                     
                     VStack(spacing: 12) {
                         Text("No Results Found")
@@ -28,59 +23,11 @@ struct NoResultsModal: View {
                             .multilineTextAlignment(.center)
                             .foregroundColor(.primary)
                         
-                        Text("Nothing found for your search. Try adjusting your filters or search criteria.")
+                        Text("Nothing found for your search.")
                             .font(.body)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
-                    }
-                    
-                    VStack(spacing: 12) {
-                        // Try Different Search button
-                        Button(action: {
-                            isSearching = true
-                            onTryDifferentSearch()
-                            
-                            // Reset state and dismiss modal after a delay
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isSearching = false
-                                isPresented = false
-                            }
-                        }) {
-                            HStack {
-                                if isSearching {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .tint(.white)
-                                }
-                                Text(isSearching ? "Searching..." : "Try different search")
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.blue)
-                            )
-                            .shadow(color: Color.blue.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
-                        .disabled(isSearching)
-                        
-                        // Clear Filters button (secondary)
-                        Button(action: {
-                            onClearFilters()
-                            isPresented = false
-                        }) {
-                            Text("Clear filters")
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 32)
-                                .padding(.vertical, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.blue, lineWidth: 1)
-                                        .fill(Color.clear)
-                                )
-                        }
                     }
                 }
                 .padding(30)
@@ -96,18 +43,16 @@ struct NoResultsModal: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            // Semi-transparent overlay so back button remains accessible
+            // Semi-transparent overlay - allows back button to remain visible
             Color.black.opacity(0.3)
         )
         .ignoresSafeArea()
     }
 }
 
-// MARK: - No Results Modal Modifier
+// MARK: - Simplified No Results Modal Modifier
 struct NoResultsModalModifier: ViewModifier {
     @Binding var showModal: Bool
-    let onTryDifferentSearch: () -> Void
-    let onClearFilters: () -> Void
     
     func body(content: Content) -> some View {
         ZStack {
@@ -116,30 +61,18 @@ struct NoResultsModalModifier: ViewModifier {
             
             // Overlay modal directly (NO sheet)
             if showModal {
-                NoResultsModal(
-                    isPresented: $showModal,
-                    onTryDifferentSearch: onTryDifferentSearch,
-                    onClearFilters: onClearFilters
-                )
-                .zIndex(999)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
+                NoResultsModal(isPresented: $showModal)
+                    .zIndex(999)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
             }
         }
     }
 }
 
-// MARK: - Easy Extension
+// MARK: - Simplified Extension
 extension View {
-    func noResultsModal(
-        isPresented: Binding<Bool>,
-        onTryDifferentSearch: @escaping () -> Void,
-        onClearFilters: @escaping () -> Void
-    ) -> some View {
-        modifier(NoResultsModalModifier(
-            showModal: isPresented,
-            onTryDifferentSearch: onTryDifferentSearch,
-            onClearFilters: onClearFilters
-        ))
+    func noResultsModal(isPresented: Binding<Bool>) -> some View {
+        modifier(NoResultsModalModifier(showModal: isPresented))
     }
 }
