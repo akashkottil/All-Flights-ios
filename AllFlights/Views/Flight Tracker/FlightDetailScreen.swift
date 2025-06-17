@@ -38,7 +38,7 @@ struct FlightDetailScreen: View {
                         }
                         
                         Image("DottedLine")
-                            .frame(width: .infinity)
+//                            .frame(width: .infinity)
        
                         // Flight Route Timeline with updated design
                         HStack(alignment: .top, spacing: 16) {
