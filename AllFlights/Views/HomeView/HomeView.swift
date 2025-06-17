@@ -2,16 +2,24 @@ import SwiftUI
 import Combine
 import CoreLocation
 
-
-
-
-// MARK: - Enhanced HomeView with Simplified Dynamic Cheap Flights
+// MARK: - Enhanced HomeView with Complete ExploreScreen Transformation
 struct HomeView: View {
     @State private var isSearchExpanded = true
     @State private var navigateToAccount = false
     @Namespace private var animation
     @GestureState private var dragOffset: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
+    
+    // NEW: State for complete transformation to ExploreScreen
+    @State private var isShowingExploreScreen = false
+    @State private var homeContentOpacity: Double = 1.0
+    @State private var exploreContentOpacity: Double = 0.0
+    @State private var homeContentOffset: CGFloat = 0
+    @State private var exploreContentOffset: CGFloat = 0
+    
+    // NEW: Collapsible card states for ExploreScreen
+    @State private var isCollapsed = false
+    @State private var exploreScrollOffset: CGFloat = 0
     
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
@@ -25,78 +33,316 @@ struct HomeView: View {
     // ADD: Track if we've shown the restored search to user
     @State private var hasShownRestoredSearch = false
     
+    // NEW: ExploreViewModel for transformed results
+    @StateObject private var exploreViewModel = ExploreViewModel()
+    
+    // NEW: State for explore screen components
+    @State private var selectedTab = 0
+    @State private var selectedFilterTab = 0
+    @State private var selectedMonthTab = 0
+    @State private var isRoundTrip: Bool = true
+    @State private var showFilterModal = false
+    
     private func refreshHomeData() {
         // Refresh cheap flights data
         cheapFlightsViewModel.fetchCheapFlights()
     }
+    
+    // NEW: Complete transformation to ExploreScreen
+    private func transformToExploreScreen() {
+        print("🔄 Starting complete transformation to ExploreScreen")
+        
+        // Prevent interaction during transformation
+        isShowingExploreScreen = true
+        
+        // Phase 1: Fade out home content and prepare explore content
+        withAnimation(.easeInOut(duration: 0.4)) {
+            homeContentOpacity = 0.0
+            homeContentOffset = -50
+        }
+        
+        // Phase 2: Transfer search data and initialize explore
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            transferSearchDataToExplore()
+        }
+        
+        // Phase 3: Slide in explore content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                exploreContentOpacity = 1.0
+                exploreContentOffset = 0
+            }
+        }
+    }
+    
+    // NEW: Transform back to HomeView
+    private func transformBackToHome() {
+        print("🏠 Transforming back to HomeView")
+        
+        // Phase 1: Hide explore content
+        withAnimation(.easeInOut(duration: 0.4)) {
+            exploreContentOpacity = 0.0
+            exploreContentOffset = 50
+        }
+        
+        // Phase 2: Show home content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                homeContentOpacity = 1.0
+                homeContentOffset = 0
+                isShowingExploreScreen = false
+            }
+        }
+        
+        // Reset explore view model
+        exploreViewModel.resetToInitialState()
+        isCollapsed = false
+        exploreScrollOffset = 0
+    }
+    
+    // NEW: Transfer search data to explore view model (same as your current logic)
+    private func transferSearchDataToExplore() {
+        // Transfer all search data to the explore view model
+        exploreViewModel.fromLocation = searchViewModel.fromLocation
+        exploreViewModel.toLocation = searchViewModel.toLocation
+        exploreViewModel.fromIataCode = searchViewModel.fromIataCode
+        exploreViewModel.toIataCode = searchViewModel.toIataCode
+        exploreViewModel.dates = searchViewModel.selectedDates
+        exploreViewModel.isRoundTrip = searchViewModel.isRoundTrip
+        exploreViewModel.adultsCount = searchViewModel.adultsCount
+        exploreViewModel.childrenCount = searchViewModel.childrenCount
+        exploreViewModel.childrenAges = searchViewModel.childrenAges
+        exploreViewModel.selectedCabinClass = searchViewModel.selectedCabinClass
+        exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
+        
+        // Set the selected origin and destination codes
+        exploreViewModel.selectedOriginCode = searchViewModel.fromIataCode
+        exploreViewModel.selectedDestinationCode = searchViewModel.toIataCode
+        
+        // Mark as direct search to show detailed flight list
+        exploreViewModel.isDirectSearch = true
+        exploreViewModel.showingDetailedFlightList = true
+        
+        // Store direct flights preference
+        exploreViewModel.directFlightsOnlyFromHome = searchViewModel.directFlightsOnly
+        
+        // Sync tab states
+        selectedTab = searchViewModel.selectedTab
+        isRoundTrip = searchViewModel.isRoundTrip
+        
+        // Handle multi-city vs regular search (same as your current logic)
+        if searchViewModel.selectedTab == 2 && !searchViewModel.multiCityTrips.isEmpty {
+            // Multi-city search
+            exploreViewModel.searchMultiCityFlights()
+        } else {
+            // Regular search - format dates for API
+            if !searchViewModel.selectedDates.isEmpty {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                if searchViewModel.selectedDates.count >= 2 {
+                    let sortedDates = searchViewModel.selectedDates.sorted()
+                    exploreViewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                    exploreViewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+                } else if searchViewModel.selectedDates.count == 1 {
+                    exploreViewModel.selectedDepartureDatee = formatter.string(from: searchViewModel.selectedDates[0])
+                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: searchViewModel.selectedDates[0]) {
+                        exploreViewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                    }
+                }
+            }
+            
+            // Initiate the regular search
+            exploreViewModel.searchFlightsForDates(
+                origin: searchViewModel.fromIataCode,
+                destination: searchViewModel.toIataCode,
+                returnDate: searchViewModel.isRoundTrip ? exploreViewModel.selectedReturnDatee : "",
+                departureDate: exploreViewModel.selectedDepartureDatee,
+                isDirectSearch: true
+            )
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Header + Search Inputs in a VStack with gradient background
+            ZStack {
+                // MARK: - Original Home Content
                 VStack(spacing: 0) {
-                    headerView
-                        .zIndex(1)
+                    // Header + Search Inputs in a VStack with gradient background
+                    VStack(spacing: 0) {
+                        headerView
+                            .zIndex(1)
 
-                    ZStack {
-                        if isSearchExpanded {
-                            EnhancedSearchInput(searchViewModel: searchViewModel)
+                        ZStack {
+                            if isSearchExpanded {
+                                EnhancedSearchInput(
+                                    searchViewModel: searchViewModel,
+                                    onSearchTap: {
+                                        transformToExploreScreen()
+                                    }
+                                )
                                 .matchedGeometryEffect(id: "searchBox", in: animation)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                                 .gesture(dragGesture)
-                        } else {
-                            HomeCollapsibleSearchInput(
-                                isExpanded: $isSearchExpanded,
-                                searchViewModel: searchViewModel
-                            )
-                            .matchedGeometryEffect(id: "searchBox", in: animation)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                    }
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchExpanded)
-                    .padding(.bottom, 20)
-                }
-                .background(
-                    LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
-                        .ignoresSafeArea(edges: .top)
-                )
-                
-                // IMPROVED: ScrollView with better offset tracking
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Improved GeometryReader for scroll tracking
-                        GeometryReader { geo in
-                            Color.clear
-                                .preference(
-                                    key: ScrollOffsetPreferenceKeyy.self,
-                                    value: geo.frame(in: .named("scrollView")).minY
+                            } else {
+                                HomeCollapsibleSearchInput(
+                                    isExpanded: $isSearchExpanded,
+                                    searchViewModel: searchViewModel
                                 )
-                                .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
-                                    scrollOffset = value
-                                    updateSearchExpandedState()
-                                }
+                                .matchedGeometryEffect(id: "searchBox", in: animation)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
-                        .frame(height: 0)
-
-         
-
-                        // UPDATED: Conditionally show recent search section
-                        conditionalRecentSearchSection
-                        
-                        // Updated dynamic cheap flights section
-                        dynamicCheapFlightsSection
-                        
-                        FeatureCards()
-                        LoginNotifier()
-                        ratingPrompt
-                        BottomSignature()
-                        
-                        // Add extra padding at the bottom for better scrolling
-                        Spacer().frame(height: 20)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchExpanded)
+                        .padding(.bottom, 20)
                     }
-                    .padding(.top, 16)
+                    .background(
+                        LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
+                            .ignoresSafeArea(edges: .top)
+                    )
+                    
+                    // IMPROVED: ScrollView with better offset tracking
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Improved GeometryReader for scroll tracking
+                            GeometryReader { geo in
+                                Color.clear
+                                    .preference(
+                                        key: ScrollOffsetPreferenceKeyy.self,
+                                        value: geo.frame(in: .named("scrollView")).minY
+                                    )
+                                    .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
+                                        scrollOffset = value
+                                        updateSearchExpandedState()
+                                    }
+                            }
+                            .frame(height: 0)
+
+                            // UPDATED: Conditionally show recent search section
+                            conditionalRecentSearchSection
+                            
+                            // Updated dynamic cheap flights section
+                            dynamicCheapFlightsSection
+                            
+                            FeatureCards()
+                            LoginNotifier()
+                            ratingPrompt
+                            BottomSignature()
+                            
+                            // Add extra padding at the bottom for better scrolling
+                            Spacer().frame(height: 20)
+                        }
+                        .padding(.top, 16)
+                    }
+                    .coordinateSpace(name: "scrollView")
                 }
-                .coordinateSpace(name: "scrollView")
+                .opacity(homeContentOpacity)
+                .offset(y: homeContentOffset)
+                
+                // MARK: - Complete ExploreScreen Overlay (Exact Copy)
+                if isShowingExploreScreen {
+                    ZStack(alignment: .top) {
+                        VStack(spacing: 0) {
+                            // Custom navigation bar - Collapsible (Same as ExploreScreen)
+                            if isCollapsed {
+                                CollapsedSearchCard(
+                                    viewModel: exploreViewModel,
+                                    searchCardNamespace: animation,
+                                    onTap: {
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                            isCollapsed = false
+                                        }
+                                    },
+                                    handleBackNavigation: transformBackToHome,
+                                    shouldShowBackButton: true
+                                )
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                            } else {
+                                ExpandedSearchCard(
+                                    viewModel: exploreViewModel,
+                                    selectedTab: $selectedTab,
+                                    isRoundTrip: $isRoundTrip,
+                                    searchCardNamespace: animation,
+                                    handleBackNavigation: transformBackToHome,
+                                    shouldShowBackButton: true,
+                                    onDragCollapse: {
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                            isCollapsed = true
+                                        }
+                                    }
+                                )
+                                .transition(.opacity.combined(with: .scale(scale: 1.05)))
+                            }
+                            
+                            // STICKY HEADER (Same as ExploreScreen)
+                            stickyHeader
+                            
+                            // SCROLLABLE CONTENT (Same as ExploreScreen)
+                            GeometryReader { geometry in
+                                ScrollViewWithOffset(
+                                    offset: $exploreScrollOffset,
+                                    content: {
+                                        VStack(alignment: .center, spacing: 16) {
+                                            // Main content based on current state (Same as ExploreScreen)
+                                            if exploreViewModel.showingDetailedFlightList {
+                                                // Detailed flight list - highest priority
+                                                ModifiedDetailedFlightListView(
+                                                    viewModel: exploreViewModel,
+                                                    isCollapsed: $isCollapsed,
+                                                    showFilterModal: $showFilterModal
+                                                )
+                                                .transition(.move(edge: .trailing))
+                                                .zIndex(1)
+                                                .edgesIgnoringSafeArea(.all)
+                                                .background(Color(.systemBackground))
+                                            } else {
+                                                // Show loading skeletons or other content
+                                                VStack(spacing: 16) {
+                                                    ForEach(0..<5, id: \.self) { _ in
+                                                        DetailedFlightCardSkeleton()
+                                                            .padding(.horizontal)
+                                                    }
+                                                }
+                                                .padding(.top, 20)
+                                            }
+                                        }
+                                        .background(Color("scroll"))
+                                    }
+                                )
+                            }
+                        }
+                        .networkModal {
+                            // Refresh functionality if needed
+                        }
+                        .filterModal(
+                            isPresented: Binding(
+                                get: { showFilterModal },
+                                set: { showFilterModal = $0 }
+                            ),
+                            onClearFilters: {
+                                // Clear filters logic
+                            }
+                        )
+                    }
+                    .background(Color("scroll"))
+                    .opacity(exploreContentOpacity)
+                    .offset(y: exploreContentOffset)
+                    .onChange(of: exploreScrollOffset) { newOffset in
+                        // Collapse when scrolled down more than 50 points and not already collapsed
+                        let shouldCollapse = newOffset > 50
+                        
+                        if shouldCollapse && !isCollapsed {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                isCollapsed = true
+                            }
+                        } else if !shouldCollapse && isCollapsed && newOffset < 20 {
+                            // Expand when scrolled back up
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                isCollapsed = false
+                            }
+                        }
+                    }
+                }
             }
             .navigationDestination(isPresented: $navigateToAccount) {
                 AccountView()
@@ -116,16 +362,81 @@ struct HomeView: View {
             }
         }
         .networkModal {
-                refreshHomeData()
-            }
+            refreshHomeData()
+        }
         .scrollIndicators(.hidden)
     }
     
-    // NEW: Last search indicator
-
+    // MARK: - Sticky Header (Exact Copy from ExploreScreen)
+    private var stickyHeader: some View {
+        VStack(spacing: 0) {
+            // Only show header content when appropriate
+            if exploreContentOpacity > 0.5 {
+                // Animated Title Section with proper sliding
+                HStack {
+                    // Flight Results Title + Filter Tabs (slides in from right)
+                    if exploreViewModel.showingDetailedFlightList {
+                        VStack(spacing: 0) {
+                            // Detailed Flight List Title
+                            if !exploreViewModel.isDirectSearch {
+                                HStack {
+                                    Spacer()
+                                    Text("Flights to \(exploreViewModel.toLocation)")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .padding(.horizontal)
+                                        .padding(.top, 16)
+                                        .padding(.bottom, 8)
+                                    Spacer()
+                                }
+                            }
+                            
+                            // Filter tabs section for detailed flight list
+                            HStack {
+                                FilterButton {
+                                    showFilterModal = true
+                                }
+                                .padding(.leading, 20)
+                                
+                                FlightFilterTabView(
+                                    selectedFilter: .all,
+                                    onSelectFilter: { filter in
+                                        // Handle filter selection
+                                    }
+                                )
+                            }
+                            .padding(.trailing, 16)
+                            .padding(.vertical, 8)
+                            
+                            // Flight count display
+                            if exploreViewModel.isLoadingDetailedFlights || exploreViewModel.totalFlightCount > 0 {
+                                HStack {
+                                    FlightSearchStatusView(
+                                        isLoading: exploreViewModel.isLoadingDetailedFlights,
+                                        flightCount: exploreViewModel.totalFlightCount,
+                                        destinationName: exploreViewModel.toLocation
+                                    )
+                                }
+                                .padding(.horizontal)
+                                .padding(.top, 4)
+                                .padding(.leading, 4)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .background(Color("scroll"))
+                .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2), value: exploreViewModel.showingDetailedFlightList)
+            }
+        }
+        .background(Color("scroll"))
+        .zIndex(1)
+    }
     
     // IMPROVED: Function to update search expanded state based on scroll
     private func updateSearchExpandedState() {
+        // Don't update if showing explore screen
+        guard !isShowingExploreScreen else { return }
+        
         let threshold: CGFloat = -20
         
         // Enhanced spring animation with haptic feedback
@@ -217,7 +528,6 @@ struct HomeView: View {
             }
     }
 
-
     // MARK: - Header View (Updated section from HomeView)
     var headerView: some View {
         HStack {
@@ -296,7 +606,6 @@ struct HomeView: View {
         .padding(.horizontal)
     }
 }
-
 
 // MARK: - Preview
 #Preview {

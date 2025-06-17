@@ -475,7 +475,8 @@ struct EnhancedCurrentLocationButton: View {
 
 
 
-// MARK: - Enhanced Search Input Component (exact UI match)
+
+// MARK: - Enhanced Search Input Component (Updated for in-place transformation)
 struct EnhancedSearchInput: View {
     @State private var swapButtonScale: CGFloat = 1.0
     @State private var searchButtonScale: CGFloat = 1.0
@@ -487,6 +488,9 @@ struct EnhancedSearchInput: View {
 
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
+    
+    // NEW: Callback for search tap
+    let onSearchTap: () -> Void
     
     // ENHANCED: Animation states for location swap
     @State private var swapRotationDegrees: Double = 0
@@ -503,10 +507,16 @@ struct EnhancedSearchInput: View {
     @State private var showDirectFlightsToggle = true
     
     // Animation namespace for matched geometry effects
-       @Namespace private var tripAnimation
+    @Namespace private var tripAnimation
     
     @State private var searchInputScale: CGFloat = 1.0
     @State private var searchInputOffset: CGFloat = 0
+    
+    // Initialize with search callback
+    init(searchViewModel: SharedFlightSearchViewModel, onSearchTap: @escaping () -> Void) {
+        self.searchViewModel = searchViewModel
+        self.onSearchTap = onSearchTap
+    }
     
     var canAddTrip: Bool {
         // Check if the last trip's "To" field is filled (destination selected)
@@ -683,8 +693,7 @@ struct EnhancedSearchInput: View {
         }
     }
 
-       
-    // MARK: - Updated performSearch method in EnhancedSearchInput
+    // MARK: - Updated performSearch method to use callback
     private func performSearch() {
         // MODIFIED: Ensure we always have dates by setting defaults if empty
         if searchViewModel.selectedDates.isEmpty {
@@ -704,14 +713,13 @@ struct EnhancedSearchInput: View {
         }
         
         // NEW: Check for "anytime" or "anywhere" conditions
-        _ = searchViewModel.selectedDates.isEmpty // This should now be false due to above logic
         let isAnywhereSearch = searchViewModel.toLocation == "Anywhere" || searchViewModel.toLocation == "Destination?" || searchViewModel.toIataCode.isEmpty
         
         // If anywhere is selected, navigate to explore screen instead
         if isAnywhereSearch {
             // Clear any search state and navigate to explore mode
             SharedSearchDataStore.shared.isInSearchMode = false
-            SharedSearchDataStore.shared.shouldNavigateToTab = 2 // Navigate to explore tab (index 1)
+            SharedSearchDataStore.shared.shouldNavigateToTab = 2 // Navigate to explore tab
             
             // Clear search execution flags
             SharedSearchDataStore.shared.shouldExecuteSearch = false
@@ -734,21 +742,14 @@ struct EnhancedSearchInput: View {
         if valid {
             showErrorMessage = false
             
-            // Execute search based on trip type
-            if searchViewModel.selectedTab == 2 {
-                // Multi-city search
-                searchViewModel.executeMultiCitySearch()
-            } else {
-                // Regular search (one-way or round-trip)
-                searchViewModel.executeSearch()
-            }
+            // UPDATED: Use callback instead of direct navigation
+            onSearchTap()
         } else {
             withAnimation {
                 showErrorMessage = true
             }
         }
     }
-
     
     enum LocationType {
         case from, to
@@ -795,9 +796,7 @@ struct EnhancedSearchInput: View {
                 childrenAges: $searchViewModel.childrenAges
             )
         }
-        
     }
-    
     
     // MARK: - Updated Trip Type Tabs in EnhancedSearchInput
     private var tripTypeTabs: some View {
@@ -845,8 +844,6 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal, 4)
         .padding(.bottom, 8)
     }
-
-
 
     // MARK: - Fixed Multi-City Interface with Always Visible Add Flight Button
     private var updatedMultiCityInterface: some View {
@@ -1070,7 +1067,6 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal)
     }
 
-    
     private var toLocationButton: some View {
         Button(action: {
             showingToLocationSheet = true
@@ -1135,9 +1131,7 @@ struct EnhancedSearchInput: View {
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 12)
-           
         }
-//        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
     }
     
     private var searchButton: some View {
@@ -1193,23 +1187,6 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, alignment: .leading) // Align left
     }
-
-
-    
-    private var addFlightButton: some View {
-        Button(action: addTrip) {
-            HStack {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.blue)
-                    .font(.system(size: 24))
-                Text("Add flight")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.blue)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-        }
-    }
     
     // MARK: - Sheet Views
     
@@ -1255,6 +1232,7 @@ struct EnhancedSearchInput: View {
             HomeCalendarSheet(searchViewModel: searchViewModel)
         }
     }
+    
     // MARK: - Computed Properties
     
     private var canSearch: Bool {
@@ -1305,53 +1283,52 @@ struct EnhancedSearchInput: View {
     }
     
     private func addTrip() {
-         guard searchViewModel.multiCityTrips.count < 5,
-               let lastTrip = searchViewModel.multiCityTrips.last else { return }
-         
-         let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
-         
-         let newTrip = MultiCityTrip(
-             fromLocation: lastTrip.toLocation,
-             fromIataCode: lastTrip.toIataCode,
-             toLocation: "Where to?",
-             toIataCode: "",
-             date: nextDay
-         )
-         
-         // Native iOS spring animation with haptic feedback
-         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-         impactFeedback.impactOccurred()
-         
-         withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2)) {
-             searchViewModel.multiCityTrips.append(newTrip)
-         }
-         
-         // Add a slight delay and then focus on the new trip's destination
-         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-             // Optional: Auto-focus on the new trip's destination field
-             editingTripIndex = searchViewModel.multiCityTrips.count - 1
-             editingFromOrTo = .to
-             
-             // Add a subtle scale animation to highlight the new row
-             withAnimation(.easeInOut(duration: 0.3)) {
-                 // This could trigger a highlight state if needed
-             }
-         }
-     }
-    
+        guard searchViewModel.multiCityTrips.count < 5,
+              let lastTrip = searchViewModel.multiCityTrips.last else { return }
+        
+        let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
+        
+        let newTrip = MultiCityTrip(
+            fromLocation: lastTrip.toLocation,
+            fromIataCode: lastTrip.toIataCode,
+            toLocation: "Where to?",
+            toIataCode: "",
+            date: nextDay
+        )
+        
+        // Native iOS spring animation with haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2)) {
+            searchViewModel.multiCityTrips.append(newTrip)
+        }
+        
+        // Add a slight delay and then focus on the new trip's destination
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            // Optional: Auto-focus on the new trip's destination field
+            editingTripIndex = searchViewModel.multiCityTrips.count - 1
+            editingFromOrTo = .to
+            
+            // Add a subtle scale animation to highlight the new row
+            withAnimation(.easeInOut(duration: 0.3)) {
+                // This could trigger a highlight state if needed
+            }
+        }
+    }
     
     private func removeTrip(at index: Int) {
-           guard searchViewModel.multiCityTrips.count > 2,
-                 index < searchViewModel.multiCityTrips.count else { return }
-           
-           // Haptic feedback for deletion
-           let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-           impactFeedback.impactOccurred()
-           
-           withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.2)) {
-               searchViewModel.multiCityTrips.remove(at: index)
-           }
-       }
+        guard searchViewModel.multiCityTrips.count > 2,
+              index < searchViewModel.multiCityTrips.count else { return }
+        
+        // Haptic feedback for deletion
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.2)) {
+            searchViewModel.multiCityTrips.remove(at: index)
+        }
+    }
 }
 
 
@@ -1680,6 +1657,7 @@ struct HomeMultiCityLocationSheet: View {
 
 
 // MARK: - Home Collapsible Search Input (matching style)
+// MARK: - Home Collapsible Search Input (Updated for transformation)
 struct HomeCollapsibleSearchInput: View {
     @Binding var isExpanded: Bool
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1690,67 +1668,56 @@ struct HomeCollapsibleSearchInput: View {
                 isExpanded = true
             }
         }) {
+            // Route display
+            HStack(spacing: 8) {
+                // From
+                Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+               Text("-")
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                // To
+                Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 4, height: 4)
+                
+                // Date display (always show, will display "Anytime" when no dates selected)
+                Text(formatDatesForCollapsed())
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                
+                Spacer()
+                
+                Text("Search")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 105)
+                    .frame(height: 44)
+                    .background(
+                        RoundedCornerss(tl: 8, tr: 26, bl: 8, br: 26)
+                            .fill(Color.orange)
+                    )
+            }
+            .padding(4)
+            .padding(.leading,16)
             
-
-                
-                // Route display
-                HStack(spacing: 8) {
-                    // From
-             
-
-                        Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
-                  
-                    
-                   Text("-")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    
-                    // To
- 
-                        Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
-                    
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 4, height: 4)
-   
-                    
-                    // Date display (if selected)
-                    // Date display (always show, will display "Anytime" when no dates selected)
-                    Text(formatDatesForCollapsed())
-                        .font(.system(size: 14))
-                        .foregroundColor(.primary)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Spacer()
-
-                    
-                    Spacer()
-                    
-                    Text("Search")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: 105)
-                                .frame(height: 44)
-                                .background(
-                                    RoundedCorners(tl: 8, tr: 26, bl: 8, br: 26)
-                                        .fill(Color.orange)
-                                )
-                }
-                .padding(4)
-                .padding(.leading,16)
-                
-            .background(Color.white)
-            .cornerRadius(26)
-            .overlay(
-                RoundedRectangle(cornerRadius: 26)
-                    .stroke(Color.orange, lineWidth: 2)
-            )
-            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .background(Color.white)
+        .cornerRadius(26)
+        .overlay(
+            RoundedRectangle(cornerRadius: 26)
+                .stroke(Color.orange, lineWidth: 2)
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         }
         .padding(.horizontal, 16)
     }
@@ -1814,6 +1781,40 @@ struct HomeCollapsibleSearchInput: View {
             // No dates: "Anytime"
             return "Anytime"
         }
+    }
+}
+
+// MARK: - RoundedCorners Helper
+struct RoundedCornerss: Shape {
+    var tl: CGFloat = 0.0
+    var tr: CGFloat = 0.0
+    var bl: CGFloat = 0.0
+    var br: CGFloat = 0.0
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let w = rect.size.width
+        let h = rect.size.height
+
+        // Make sure we do not exceed the size of the rectangle
+        let tr = min(min(self.tr, h/2), w/2)
+        let tl = min(min(self.tl, h/2), w/2)
+        let bl = min(min(self.bl, h/2), w/2)
+        let br = min(min(self.br, h/2), w/2)
+
+        path.move(to: CGPoint(x: w / 2.0, y: 0))
+        path.addLine(to: CGPoint(x: w - tr, y: 0))
+        path.addArc(center: CGPoint(x: w - tr, y: tr), radius: tr, startAngle: Angle(degrees: -90), endAngle: Angle(degrees: 0), clockwise: false)
+        path.addLine(to: CGPoint(x: w, y: h - br))
+        path.addArc(center: CGPoint(x: w - br, y: h - br), radius: br, startAngle: Angle(degrees: 0), endAngle: Angle(degrees: 90), clockwise: false)
+        path.addLine(to: CGPoint(x: bl, y: h))
+        path.addArc(center: CGPoint(x: bl, y: h - bl), radius: bl, startAngle: Angle(degrees: 90), endAngle: Angle(degrees: 180), clockwise: false)
+        path.addLine(to: CGPoint(x: 0, y: tl))
+        path.addArc(center: CGPoint(x: tl, y: tl), radius: tl, startAngle: Angle(degrees: 180), endAngle: Angle(degrees: 270), clockwise: false)
+        path.closeSubpath()
+
+        return path
     }
 }
 
@@ -2504,5 +2505,351 @@ class SearchDebouncer {
 }
 
 
+// MARK: - Search Results Expanded Search Card (Used in results view)
+struct SearchResultsExpandedCard: View {
+    @ObservedObject var viewModel: ExploreViewModel
+    @Binding var selectedTab: Int
+    @Binding var isRoundTrip: Bool
+    let searchCardNamespace: Namespace.ID
+    let handleBackNavigation: () -> Void
+    let shouldShowBackButton: Bool
+    
+    @GestureState private var dragOffset: CGFloat = 0
+    
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .updating($dragOffset) { value, state, _ in
+                state = value.translation.height
+            }
+            .onEnded { value in
+                // Handle back swipe gesture if needed
+                if value.translation.height > 50 {
+                    handleBackNavigation()
+                }
+            }
+    }
+    
+    var body: some View {
+        VStack {
+            VStack(spacing: 0) {
+                // FIXED: Use ZStack for proper centering
+                ZStack {
+                    // Centered trip type tabs - always perfectly centered
+                    TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
+                        .matchedGeometryEffect(id: "tripTabs", in: searchCardNamespace)
+                    
+                    // Back button positioned absolutely on the left
+                    HStack {
+                        if shouldShowBackButton {
+                            Button(action: handleBackNavigation) {
+                                Image(systemName: "chevron.left")
+                                    .foregroundColor(.primary)
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
+                        }
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 15)
+                
+                // Search card with dynamic values - using SearchCard from ExploreComponents
+                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                    .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
+            }
+            .background(
+                ZStack {
+                    // Background fill
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
+                    
+                    // Animated or static stroke based on loading state
+                    if viewModel.isLoading ||
+                       viewModel.isLoadingFlights ||
+                       viewModel.isLoadingDetailedFlights ||
+                       (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil) {
+                        LoadingBorderView()
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange, lineWidth: 2)
+                    }
+                }
+                // FIXED: Move shadow to only the background/border
+                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
+            )
+            .padding()
+            .gesture(dragGesture)
+        }
+        .background(
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    Color("searchcardBackground")
+                        .frame(height: geo.size.height)
+                    Color("scroll")
+                }
+                .edgesIgnoringSafeArea(.all)
+            }
+        )
+    }
+}
 
+
+// MARK: - Additional Helper Components for Transformation
+
+// MARK: - Custom Transition for Search Results
+struct SearchResultsTransition: ViewModifier {
+    let isActive: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .opacity(isActive ? 1 : 0)
+            .offset(y: isActive ? 0 : UIScreen.main.bounds.height * 0.3)
+            .scaleEffect(isActive ? 1 : 0.95)
+    }
+}
+
+extension AnyTransition {
+    static var searchResults: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .bottom)
+                .combined(with: .opacity)
+                .combined(with: .scale(scale: 0.95)),
+            removal: .move(edge: .bottom)
+                .combined(with: .opacity)
+                .combined(with: .scale(scale: 0.95))
+        )
+    }
+}
+
+// MARK: - Enhanced Search Input with Transform Support (Overloaded Initializer)
+extension EnhancedSearchInput {
+    // Original initializer for backward compatibility
+    init(searchViewModel: SharedFlightSearchViewModel) {
+        self.searchViewModel = searchViewModel
+        self.onSearchTap = {
+            // Default behavior - use the original navigation system
+            if searchViewModel.selectedTab == 2 {
+                searchViewModel.executeMultiCitySearch()
+            } else {
+                searchViewModel.executeSearch()
+            }
+        }
+    }
+}
+
+// MARK: - Smooth Animation Extensions
+extension View {
+    func smoothTransform(isActive: Bool, duration: Double = 0.6) -> some View {
+        self.modifier(SmoothTransformModifier(isActive: isActive, duration: duration))
+    }
+}
+
+struct SmoothTransformModifier: ViewModifier {
+    let isActive: Bool
+    let duration: Double
+    
+    func body(content: Content) -> some View {
+        content
+            .animation(.spring(response: duration, dampingFraction: 0.8), value: isActive)
+    }
+}
+
+// MARK: - Search Card Transform States
+struct SearchCardTransform {
+    var scale: CGFloat = 1.0
+    var offset: CGSize = .zero
+    var rotation: Double = 0.0
+    var opacity: Double = 1.0
+    
+    static let expanded = SearchCardTransform()
+    static let collapsed = SearchCardTransform(scale: 0.95, offset: CGSize(width: 0, height: -20), opacity: 0.8)
+    static let hidden = SearchCardTransform(scale: 0.8, offset: CGSize(width: 0, height: -100), opacity: 0)
+}
+
+// MARK: - Home Content States for Animation
+enum HomeContentState {
+    case visible
+    case movingUp
+    case hidden
+    
+    var offset: CGFloat {
+        switch self {
+        case .visible: return 0
+        case .movingUp: return -50
+        case .hidden: return -UIScreen.main.bounds.height
+        }
+    }
+    
+    var opacity: Double {
+        switch self {
+        case .visible: return 1.0
+        case .movingUp: return 0.7
+        case .hidden: return 0.0
+        }
+    }
+    
+    var scale: CGFloat {
+        switch self {
+        case .visible: return 1.0
+        case .movingUp: return 0.98
+        case .hidden: return 0.95
+        }
+    }
+}
+
+// MARK: - Results Content States
+enum ResultsContentState {
+    case hidden
+    case appearing
+    case visible
+    
+    var offset: CGFloat {
+        switch self {
+        case .hidden: return UIScreen.main.bounds.height
+        case .appearing: return UIScreen.main.bounds.height * 0.3
+        case .visible: return 0
+        }
+    }
+    
+    var opacity: Double {
+        switch self {
+        case .hidden: return 0.0
+        case .appearing: return 0.5
+        case .visible: return 1.0
+        }
+    }
+    
+    var scale: CGFloat {
+        switch self {
+        case .hidden: return 0.9
+        case .appearing: return 0.95
+        case .visible: return 1.0
+        }
+    }
+}
+
+// MARK: - Animation Timing Helper
+struct AnimationTiming {
+    static let searchTransform: Double = 0.6
+    static let contentSlide: Double = 0.5
+    static let cardExpansion: Double = 0.4
+    static let resultsAppear: Double = 0.5
+    
+    static func spring(duration: Double) -> Animation {
+        .spring(response: duration, dampingFraction: 0.8, blendDuration: 0.1)
+    }
+    
+    static func easeInOut(duration: Double) -> Animation {
+        .easeInOut(duration: duration)
+    }
+}
+
+// MARK: - Transform Coordinator
+@MainActor
+class SearchTransformCoordinator: ObservableObject {
+    @Published var isTransforming = false
+    @Published var homeContentState: HomeContentState = .visible
+    @Published var resultsContentState: ResultsContentState = .hidden
+    @Published var searchCardTransform: SearchCardTransform = .expanded
+    
+    func performTransformToResults() {
+        guard !isTransforming else { return }
+        
+        isTransforming = true
+        
+        // Phase 1: Scale and move search card
+        withAnimation(AnimationTiming.spring(duration: AnimationTiming.cardExpansion)) {
+            searchCardTransform = .collapsed
+        }
+        
+        // Phase 2: Move home content up
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(AnimationTiming.spring(duration: AnimationTiming.contentSlide)) {
+                self.homeContentState = .hidden
+            }
+        }
+        
+        // Phase 3: Show results content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            withAnimation(AnimationTiming.spring(duration: AnimationTiming.resultsAppear)) {
+                self.resultsContentState = .visible
+                self.searchCardTransform = .expanded
+            }
+        }
+        
+        // Complete transformation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.isTransforming = false
+        }
+    }
+    
+    func performTransformToHome() {
+        guard !isTransforming else { return }
+        
+        isTransforming = true
+        
+        // Phase 1: Hide results content
+        withAnimation(AnimationTiming.spring(duration: AnimationTiming.resultsAppear)) {
+            resultsContentState = .hidden
+            searchCardTransform = .collapsed
+        }
+        
+        // Phase 2: Bring back home content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(AnimationTiming.spring(duration: AnimationTiming.contentSlide)) {
+                self.homeContentState = .visible
+                self.searchCardTransform = .expanded
+            }
+        }
+        
+        // Complete transformation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            self.isTransforming = false
+        }
+    }
+    
+    func reset() {
+        isTransforming = false
+        homeContentState = .visible
+        resultsContentState = .hidden
+        searchCardTransform = .expanded
+    }
+}
+
+// MARK: - Enhanced ScrollView Offset Detection for Better Transformations
+struct TransformableScrollView<Content: View>: View {
+    @Binding var offset: CGFloat
+    @State private var scrollViewHeight: CGFloat = 0
+    let content: () -> Content
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                ZStack {
+                    // Offset detection
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: ScrollOffsetPreferenceKeyy.self,
+                                      value: proxy.frame(in: .named("scrollView")).minY)
+                    }
+                    .frame(height: 0)
+                    
+                    // Actual content
+                    content()
+                }
+                .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
+                    offset = value
+                }
+            }
+            .coordinateSpace(name: "scrollView")
+            .onAppear {
+                scrollViewHeight = geometry.size.height
+            }
+        }
+    }
+}
 
