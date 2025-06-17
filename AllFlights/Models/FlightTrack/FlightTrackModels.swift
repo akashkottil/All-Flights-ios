@@ -102,6 +102,72 @@ enum FlightSearchType {
     case arrival
 }
 
+// MARK: - Schedule Response Models
+struct ScheduleResponse: Codable {
+    let page: Int
+    let totalPages: Int
+    let count: Int
+    let departureAirport: FlightTrackAirport?
+    let arrivalAirport: FlightTrackAirport?
+    let results: [ScheduleResult]
+    
+    enum CodingKeys: String, CodingKey {
+        case page
+        case totalPages = "total_pages"
+        case count
+        case departureAirport = "departure_airport"
+        case arrivalAirport = "arrival_airport"
+        case results
+    }
+}
+
+struct ScheduleResult: Codable, Identifiable {
+    let id = UUID()
+    let airline: ScheduleAirline
+    let flightNumber: String
+    let status: String
+    let operatedBy: String?
+    let departureTime: String
+    let arrivalTime: String
+    let airport: ScheduleAirport
+    
+    enum CodingKeys: String, CodingKey {
+        case airline
+        case flightNumber = "flight_number"
+        case status
+        case operatedBy = "operated_by"
+        case departureTime = "departure_time"
+        case arrivalTime = "arrival_time"
+        case airport
+    }
+}
+
+struct ScheduleAirline: Codable {
+    let name: String
+    let iataCode: String?
+    let icaoCode: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case iataCode = "iata_code"
+        case icaoCode = "icao_code"
+    }
+}
+
+struct ScheduleAirport: Codable {
+    let iataCode: String
+    let icaoCode: String?
+    let name: String
+    let city: String
+    let timezone: FlightTrackTimezone
+    
+    enum CodingKeys: String, CodingKey {
+        case iataCode = "iata_code"
+        case icaoCode = "icao_code"
+        case name, city, timezone
+    }
+}
+
 // MARK: - Tracked Tab Search Types
 enum TrackedSearchType {
     case flight    // User entered airline code

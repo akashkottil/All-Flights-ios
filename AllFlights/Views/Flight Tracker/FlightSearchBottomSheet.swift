@@ -6,6 +6,7 @@ struct trackLocationSheet: View {
     let source: SheetSource
     let searchType: FlightSearchType?
     let onLocationSelected: (FlightTrackAirport) -> Void
+    let onDateSelected: ((String) -> Void)?
     
     @StateObject private var viewModel = AirportSearchViewModel()
     @State private var selectedAirport: FlightTrackAirport?
@@ -495,6 +496,10 @@ struct trackLocationSheet: View {
         )
         .onTapGesture {
             viewModel.selectedDate = value
+            // Notify parent about date selection for tracked tab
+            if source == .trackedTab {
+                onDateSelected?(value)
+            }
         }
     }
     
@@ -547,6 +552,7 @@ extension trackLocationSheet {
         self.source = .trackedTab
         self.searchType = nil
         self.onLocationSelected = { _ in }
+        self.onDateSelected = nil
     }
 }
 
