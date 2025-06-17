@@ -17,6 +17,10 @@ struct HomeView: View {
     @State private var homeContentOffset: CGFloat = 0
     @State private var exploreContentOffset: CGFloat = 0
     
+    // NEW: Enhanced animation states for skeletons and search card
+    @State private var skeletonsVisible = false
+    @State private var searchCardOvershoot = false
+    
     // NEW: Collapsible card states for ExploreScreen
     @State private var isCollapsed = false
     @State private var exploreScrollOffset: CGFloat = 0
@@ -48,9 +52,13 @@ struct HomeView: View {
         cheapFlightsViewModel.fetchCheapFlights()
     }
     
-    // NEW: Complete transformation to ExploreScreen
+    // NEW: Enhanced complete transformation to ExploreScreen with skeleton animations
     private func transformToExploreScreen() {
-        print("🔄 Starting complete transformation to ExploreScreen")
+        print("🔄 Starting enhanced transformation to ExploreScreen")
+        
+        // Reset animation states
+        skeletonsVisible = false
+        searchCardOvershoot = false
         
         // Prevent interaction during transformation
         isShowingExploreScreen = true
@@ -66,11 +74,25 @@ struct HomeView: View {
             transferSearchDataToExplore()
         }
         
-        // Phase 3: Slide in explore content
+        // Phase 3: Slide in explore content with search card (works exactly as before)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 exploreContentOpacity = 1.0
                 exploreContentOffset = 0
+            }
+        }
+        
+        // Phase 4: After search card is settled, add overshoot towards top (earlier and more movement)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) {
+                searchCardOvershoot = true
+            }
+        }
+        
+        // Phase 5: Skeleton cards slide in from bottom with staggered overshoot
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
+                skeletonsVisible = true
             }
         }
     }
@@ -79,14 +101,21 @@ struct HomeView: View {
     private func transformBackToHome() {
         print("🏠 Transforming back to HomeView")
         
-        // Phase 1: Hide explore content
-        withAnimation(.easeInOut(duration: 0.4)) {
-            exploreContentOpacity = 0.0
-            exploreContentOffset = 50
+        // Phase 1: Hide skeletons first
+        withAnimation(.easeOut(duration: 0.3)) {
+            skeletonsVisible = false
         }
         
-        // Phase 2: Show home content
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        // Phase 2: Hide explore content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeInOut(duration: 0.4)) {
+                exploreContentOpacity = 0.0
+                exploreContentOffset = 50
+            }
+        }
+        
+        // Phase 3: Show home content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 homeContentOpacity = 1.0
                 homeContentOffset = 0
@@ -94,13 +123,15 @@ struct HomeView: View {
             }
         }
         
-        // Reset explore view model
+        // Reset explore view model and animation states
         exploreViewModel.resetToInitialState()
         isCollapsed = false
         exploreScrollOffset = 0
+        searchCardOvershoot = false
+        skeletonsVisible = false
     }
     
-    // NEW: Transfer search data to explore view model (same as your current logic)
+    // NEW: Transfer search data to explore view model
     private func transferSearchDataToExplore() {
         // Transfer all search data to the explore view model
         exploreViewModel.fromLocation = searchViewModel.fromLocation
@@ -130,7 +161,7 @@ struct HomeView: View {
         selectedTab = searchViewModel.selectedTab
         isRoundTrip = searchViewModel.isRoundTrip
         
-        // Handle multi-city vs regular search (same as your current logic)
+        // Handle multi-city vs regular search
         if searchViewModel.selectedTab == 2 && !searchViewModel.multiCityTrips.isEmpty {
             // Multi-city search
             exploreViewModel.searchMultiCityFlights()
@@ -239,11 +270,11 @@ struct HomeView: View {
                 .opacity(homeContentOpacity)
                 .offset(y: homeContentOffset)
                 
-                // MARK: - Complete ExploreScreen Overlay (Exact Copy)
+                // MARK: - Complete ExploreScreen Overlay with Enhanced Animations
                 if isShowingExploreScreen {
                     ZStack(alignment: .top) {
                         VStack(spacing: 0) {
-                            // Custom navigation bar - Collapsible (Same as ExploreScreen)
+                            // Custom navigation bar - Collapsible with overshoot animation
                             if isCollapsed {
                                 CollapsedSearchCard(
                                     viewModel: exploreViewModel,
@@ -272,18 +303,21 @@ struct HomeView: View {
                                     }
                                 )
                                 .transition(.opacity.combined(with: .scale(scale: 1.05)))
+                                // Enhanced overshoot animation towards the top after search card is settled
+                                .offset(y: searchCardOvershoot ? -15 : 0)
+                                .animation(.spring(response: 0.7, dampingFraction: 0.65), value: searchCardOvershoot)
                             }
                             
-                            // STICKY HEADER (Same as ExploreScreen)
+                            // STICKY HEADER
                             stickyHeader
                             
-                            // SCROLLABLE CONTENT (Same as ExploreScreen)
+                            // SCROLLABLE CONTENT with Enhanced Skeleton Animations
                             GeometryReader { geometry in
                                 ScrollViewWithOffset(
                                     offset: $exploreScrollOffset,
                                     content: {
                                         VStack(alignment: .center, spacing: 16) {
-                                            // Main content based on current state (Same as ExploreScreen)
+                                            // Main content based on current state
                                             if exploreViewModel.showingDetailedFlightList {
                                                 // Detailed flight list - highest priority
                                                 ModifiedDetailedFlightListView(
@@ -296,11 +330,24 @@ struct HomeView: View {
                                                 .edgesIgnoringSafeArea(.all)
                                                 .background(Color(.systemBackground))
                                             } else {
-                                                // Show loading skeletons or other content
+                                                // Enhanced skeleton cards with slide-in animation
                                                 VStack(spacing: 16) {
-                                                    ForEach(0..<5, id: \.self) { _ in
-                                                        DetailedFlightCardSkeleton()
+                                                    ForEach(0..<5, id: \.self) { index in
+                                                        EnhancedDetailedFlightCardSkeleton()
                                                             .padding(.horizontal)
+                                                            // Enhanced slide-in animation from bottom
+                                                            .offset(y: skeletonsVisible ? 0 : 300)
+                                                            .opacity(skeletonsVisible ? 1 : 0)
+                                                            .scaleEffect(skeletonsVisible ? 1.0 : 0.8)
+                                                            .animation(
+                                                                .spring(
+                                                                    response: 0.8,
+                                                                    dampingFraction: 0.6,
+                                                                    blendDuration: 0.1
+                                                                )
+                                                                .delay(Double(index) * 0.1),
+                                                                value: skeletonsVisible
+                                                            )
                                                     }
                                                 }
                                                 .padding(.top, 20)
@@ -367,7 +414,7 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
     }
     
-    // MARK: - Sticky Header (Exact Copy from ExploreScreen)
+    // MARK: - Sticky Header
     private var stickyHeader: some View {
         VStack(spacing: 0) {
             // Only show header content when appropriate
@@ -528,7 +575,7 @@ struct HomeView: View {
             }
     }
 
-    // MARK: - Header View (Updated section from HomeView)
+    // MARK: - Header View
     var headerView: some View {
         HStack {
             Image("logoHome")
@@ -560,7 +607,7 @@ struct HomeView: View {
         .padding(.bottom, 20)
     }
     
-    // MARK: - Rating Prompt (original style)
+    // MARK: - Rating Prompt
     var ratingPrompt: some View {
         ZStack {
             LinearGradient(

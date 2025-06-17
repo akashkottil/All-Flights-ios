@@ -4179,12 +4179,7 @@ struct PriceSection: View {
 }
 
 
-// MARK: - Enhanced Detailed Flight Card Skeleton
-struct DetailedFlightCardSkeleton: View {
-    var body: some View {
-        EnhancedDetailedFlightCardSkeleton()
-    }
-}
+
 
 
 

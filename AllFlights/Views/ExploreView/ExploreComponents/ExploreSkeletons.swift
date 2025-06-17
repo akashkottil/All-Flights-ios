@@ -2,6 +2,7 @@
 
 import SwiftUICore
 import SwiftUI
+
 struct ShimmerEffect: ViewModifier {
     @State private var phase: CGFloat = 0
     var duration: Double = 1.5
@@ -47,10 +48,10 @@ struct EnhancedSkeletonDestinationCard: View {
     @State private var isAnimating = false
     @State private var breatheScale: CGFloat = 1.0
     @State private var glowOpacity: Double = 0.3
-    @State private var cardAppeared = false  // Keep animation for skeleton
+    @State private var cardAppeared = false
     
     var body: some View {
-        HStack(spacing: 0) { // Remove spacing to eliminate gap between image and content
+        HStack(spacing: 0) {
             // Enhanced image placeholder with gradient - full height and left aligned
             ZStack {
                 Rectangle()
@@ -74,7 +75,7 @@ struct EnhancedSkeletonDestinationCard: View {
                     .foregroundColor(.gray.opacity(0.4))
                     .scaleEffect(breatheScale)
             }
-            .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners
+            .cornerRadius(12, corners: [.topLeft, .bottomLeft])
             
             // Enhanced text placeholders with padding only on the right side
             HStack(spacing: 12) {
@@ -128,9 +129,9 @@ struct EnhancedSkeletonDestinationCard: View {
                         .shimmer(duration: 1.4)
                 }
             }
-            .padding(.leading, 12) // Add padding only on the left of text content
-            .padding(.trailing, 12) // Add padding only on the right
-            .padding(.vertical, 12) // Keep vertical padding
+            .padding(.leading, 12)
+            .padding(.trailing, 12)
+            .padding(.vertical, 12)
         }
         .background(
             RoundedRectangle(cornerRadius: 12)
@@ -141,12 +142,12 @@ struct EnhancedSkeletonDestinationCard: View {
                 )
         )
         .scaleEffect(breatheScale)
-        // KEEP: Slide-in animations for skeleton only
+        // Enhanced slide-in animations for skeleton
         .opacity(cardAppeared ? 1 : 0)
-        .offset(x: cardAppeared ? 0 : 20)
+        .offset(y: cardAppeared ? 0 : 50)
         .animation(
-            .spring(response: 0.6, dampingFraction: 0.8)
-            .delay(Double.random(in: 0...0.3)), // Staggered appearance for skeletons
+            .spring(response: 0.8, dampingFraction: 0.6)
+            .delay(Double.random(in: 0...0.4)),
             value: cardAppeared
         )
         .onAppear {
@@ -165,8 +166,6 @@ struct EnhancedSkeletonDestinationCard: View {
         }
     }
 }
-
-
 
 // MARK: - Enhanced Skeleton Flight Result Card
 struct EnhancedSkeletonFlightResultCard: View {
@@ -418,11 +417,12 @@ struct EnhancedSkeletonFlightResultCard: View {
     }
 }
 
-// MARK: - Enhanced Detailed Flight Card Skeleton
+// MARK: - Enhanced Detailed Flight Card Skeleton with Bottom Slide Animation
 struct EnhancedDetailedFlightCardSkeleton: View {
     @State private var shimmerOffset: CGFloat = -200
     @State private var glowIntensity: Double = 0.3
     @State private var breatheScale: CGFloat = 1.0
+    @State private var cardAppeared = false
     
     var body: some View {
         VStack(spacing: 6) {
@@ -475,7 +475,7 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                         .frame(width: 120, height: 14)
                         .modifier(ShimmerEffectt(offset: shimmerOffset))
                     
-                    // Price with synchronized shimmer (Updated)
+                    // Price with synchronized shimmer
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(
@@ -490,7 +490,6 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                                 )
                             )
                             .frame(width: 100, height: 22)
-                            // Removed the overlay stroke to remove the border
                             .modifier(ShimmerEffectt(offset: shimmerOffset))
                     }
                     
@@ -532,7 +531,23 @@ struct EnhancedDetailedFlightCardSkeleton: View {
             y: 8
         )
         .scaleEffect(breatheScale)
+        // Enhanced bottom slide animation - starts from completely off-screen
+        .opacity(cardAppeared ? 1 : 0)
+        .offset(y: cardAppeared ? 0 : 300)
+        .scaleEffect(cardAppeared ? 1.0 : 0.8)
+        .animation(
+            .spring(
+                response: 0.8,
+                dampingFraction: 0.6,
+                blendDuration: 0.1
+            ),
+            value: cardAppeared
+        )
         .onAppear {
+            // Trigger card appearance immediately
+            withAnimation {
+                cardAppeared = true
+            }
             startPremiumAnimations()
         }
     }
@@ -683,6 +698,7 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     }
 }
 
+// MARK: - Enhanced Shimmer Effect for Synchronized Animation
 struct ShimmerEffectt: ViewModifier {
     var offset: CGFloat
     
@@ -704,10 +720,9 @@ struct ShimmerEffectt: ViewModifier {
     }
 }
 
-
-
-
-
-
-
-
+// MARK: - Simple DetailedFlightCardSkeleton (for compatibility)
+struct DetailedFlightCardSkeleton: View {
+    var body: some View {
+        EnhancedDetailedFlightCardSkeleton()
+    }
+}
