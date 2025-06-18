@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct FlightTrackerScreen: View {
-    @State private var selectedTab = 0 // 0 for Tracked, 1 for Scheduled
+    @State private var selectedTab = 1 // 0 for Tracked, 1 for Scheduled
     @State private var searchText = ""
     @State private var selectedFlightType = 0 // 0 for Departures, 1 for Arrivals
     @State private var showingTrackLocationSheet = false
@@ -89,7 +89,7 @@ struct FlightTrackerScreen: View {
                 // Tracked Tab
                 Button(action: {
                     selectedTab = 0
-                    clearScheduleResults()
+                    clearAllData()
                 }) {
                     Text("Tracked")
                         .font(selectedTab == 0 ? Font.system(size: 13, weight: .bold) : Font.system(size: 13, weight: .regular))
@@ -105,7 +105,7 @@ struct FlightTrackerScreen: View {
                 // Scheduled Tab
                 Button(action: {
                     selectedTab = 1
-                    clearScheduleResults()
+                    clearAllData()
                 }) {
                     Text("Scheduled")
                         .font(selectedTab == 1 ? Font.system(size: 13, weight: .bold) : Font.system(size: 13, weight: .regular))
@@ -132,6 +132,10 @@ struct FlightTrackerScreen: View {
         scheduleResults = []
         scheduleError = nil
         isLoadingSchedules = false
+    }
+    
+    private func clearAllData() {
+        clearScheduleResults()
         // Clear tracked tab data
         trackedDepartureAirport = nil
         trackedArrivalAirport = nil
@@ -148,7 +152,22 @@ struct FlightTrackerScreen: View {
             
             // Show loading, results, or empty state
             if isLoadingSchedules {
-                loadingSchedulesView
+                // Show shimmer loading
+                VStack(spacing: 0) {
+                    flightListHeader
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(0..<6, id: \.self) { index in
+                                FlightRowShimmer()
+                                
+                                if index < 5 {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
             } else if let error = scheduleError {
                 errorView(error)
             } else if !scheduleResults.isEmpty {
@@ -218,14 +237,23 @@ struct FlightTrackerScreen: View {
     }
     
     private var loadingSchedulesView: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            ProgressView()
-                .scaleEffect(1.5)
-            Text("Loading flights...")
-                .font(.system(size: 16))
-                .foregroundColor(.gray)
-            Spacer()
+        VStack(spacing: 0) {
+            // Flight List Header
+            flightListHeader
+            
+            // Shimmer Loading
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(0..<6, id: \.self) { index in
+                        FlightRowShimmer()
+                        
+                        if index < 5 {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
         }
     }
     
@@ -370,9 +398,25 @@ struct FlightTrackerScreen: View {
         HStack(spacing: 12) {
             Button(action: {
                 selectedFlightType = 0
-                // Clear arrival airport when switching to departures
-                selectedArrivalAirport = nil
-                clearScheduleResults()
+                
+                // Transfer airport selection and make API call
+                if let arrivalAirport = selectedArrivalAirport {
+                    // User was on arrival tab, now switching to departure
+                    // Use the arrival airport as departure airport
+                    selectedDepartureAirport = arrivalAirport
+                    selectedArrivalAirport = nil
+                    Task {
+                        await fetchScheduleResults(departureId: arrivalAirport.iataCode, arrivalId: nil)
+                    }
+                } else if let departureAirport = selectedDepartureAirport {
+                    // Already have departure airport, just fetch departures
+                    Task {
+                        await fetchScheduleResults(departureId: departureAirport.iataCode, arrivalId: nil)
+                    }
+                } else {
+                    // No airport selected, clear results
+                    clearScheduleResults()
+                }
             }) {
                 Text("Departures")
                     .font(.system(size: 14, weight: .regular))
@@ -391,9 +435,25 @@ struct FlightTrackerScreen: View {
             
             Button(action: {
                 selectedFlightType = 1
-                // Clear departure airport when switching to arrivals
-                selectedDepartureAirport = nil
-                clearScheduleResults()
+                
+                // Transfer airport selection and make API call
+                if let departureAirport = selectedDepartureAirport {
+                    // User was on departure tab, now switching to arrival
+                    // Use the departure airport as arrival airport
+                    selectedArrivalAirport = departureAirport
+                    selectedDepartureAirport = nil
+                    Task {
+                        await fetchScheduleResults(departureId: nil, arrivalId: departureAirport.iataCode)
+                    }
+                } else if let arrivalAirport = selectedArrivalAirport {
+                    // Already have arrival airport, just fetch arrivals
+                    Task {
+                        await fetchScheduleResults(departureId: nil, arrivalId: arrivalAirport.iataCode)
+                    }
+                } else {
+                    // No airport selected, clear results
+                    clearScheduleResults()
+                }
             }) {
                 Text("Arrivals")
                     .font(.system(size: 14, weight: .medium))
@@ -565,11 +625,15 @@ struct FlightTrackerScreen: View {
             
         case .scheduledDeparture:
             selectedDepartureAirport = airport
+            // Clear arrival airport since we're focusing on departures
+            selectedArrivalAirport = nil
             // Make API call for scheduled departures
             await fetchScheduleResults(departureId: airport.iataCode, arrivalId: nil)
             
         case .scheduledArrival:
             selectedArrivalAirport = airport
+            // Clear departure airport since we're focusing on arrivals
+            selectedDepartureAirport = nil
             // Make API call for scheduled arrivals
             await fetchScheduleResults(departureId: nil, arrivalId: airport.iataCode)
         }
