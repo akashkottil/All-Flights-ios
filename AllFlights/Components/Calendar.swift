@@ -162,20 +162,25 @@ struct CalendarView: View {
         func path(in rect: CGRect) -> Path {
             var path = Path()
             let radius = rect.height / 2
+            let cornerRadius: CGFloat = 6 // Small curve for corners only
             
             // Start from top-left corner with curve
             path.move(to: CGPoint(x: radius, y: 0))
             
-            // Top edge to right
-            path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+            // Top edge to right corner with slight curve
+            path.addLine(to: CGPoint(x: rect.maxX - cornerRadius, y: 0))
+            path.addQuadCurve(to: CGPoint(x: rect.maxX, y: cornerRadius),
+                             control: CGPoint(x: rect.maxX, y: 0))
             
-            // Right edge
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            // Right edge (mostly straight with curved corners)
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cornerRadius))
+            path.addQuadCurve(to: CGPoint(x: rect.maxX - cornerRadius, y: rect.maxY),
+                             control: CGPoint(x: rect.maxX, y: rect.maxY))
             
             // Bottom edge to curve start
             path.addLine(to: CGPoint(x: radius, y: rect.maxY))
             
-            // Left curved edge
+            // Left curved edge (main curve)
             path.addArc(center: CGPoint(x: radius, y: radius),
                        radius: radius,
                        startAngle: .degrees(90),
@@ -191,25 +196,30 @@ struct CalendarView: View {
         func path(in rect: CGRect) -> Path {
             var path = Path()
             let radius = rect.height / 2
+            let cornerRadius: CGFloat = 6 // Small curve for corners only
             
-            // Start from top-left corner
-            path.move(to: CGPoint(x: 0, y: 0))
+            // Start from top-left corner with slight curve
+            path.move(to: CGPoint(x: 0, y: cornerRadius))
             
-            // Top edge to curve start
-            path.addLine(to: CGPoint(x: rect.maxX - radius, y: 0))
+            // Left edge (mostly straight with curved corners)
+            path.addLine(to: CGPoint(x: 0, y: rect.maxY - cornerRadius))
+            path.addQuadCurve(to: CGPoint(x: cornerRadius, y: rect.maxY),
+                             control: CGPoint(x: 0, y: rect.maxY))
             
-            // Right curved edge
+            // Bottom edge to curve start
+            path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.maxY))
+            
+            // Right curved edge (main curve)
             path.addArc(center: CGPoint(x: rect.maxX - radius, y: radius),
                        radius: radius,
-                       startAngle: .degrees(270),
-                       endAngle: .degrees(90),
-                       clockwise: false)
+                       startAngle: .degrees(90),
+                       endAngle: .degrees(270),
+                       clockwise: true)
             
-            // Bottom edge to left
-            path.addLine(to: CGPoint(x: 0, y: rect.maxY))
-            
-            // Left edge
-            path.addLine(to: CGPoint(x: 0, y: 0))
+            // Top edge from curve to left corner with slight curve
+            path.addLine(to: CGPoint(x: cornerRadius, y: 0))
+            path.addQuadCurve(to: CGPoint(x: 0, y: cornerRadius),
+                             control: CGPoint(x: 0, y: 0))
             
             path.closeSubpath()
             return path
@@ -358,6 +368,7 @@ struct CalendarView: View {
                     dismiss()
                 }) {
                     Image(systemName: "xmark")
+                        .foregroundColor(.primary)
                         .font(.headline)
                         .padding()
                 }
@@ -443,7 +454,7 @@ struct CalendarView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .background(
-                                RoundedRectangle(cornerRadius: 8)
+                                RoundedRectangle(cornerRadius: 12)
                                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                             )
                             .padding(.trailing)
@@ -461,7 +472,7 @@ struct CalendarView: View {
                                     .padding(.horizontal)
                                     .frame(maxWidth: .infinity)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 8)
+                                        RoundedRectangle(cornerRadius: 12)
                                             .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                     )
                             }
@@ -490,15 +501,20 @@ struct CalendarView: View {
                                         dateSelection.selectionState = .none
                                     }
                                 }) {
-                                    Image(systemName: "xmark")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
+                                    ZStack{
+                                        Circle()
+                                            .foregroundColor(.gray.opacity(0.2))
+                                            .frame(width:24,height:24)
+                                        Image(systemName: "xmark")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
                                 }
                             }
                             .padding(.horizontal)
                             .padding(.vertical, 10)
                             .background(
-                                RoundedRectangle(cornerRadius: 20)
+                                RoundedRectangle(cornerRadius: 12)
                                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                     .background(Color.white)
                             )
@@ -519,15 +535,21 @@ struct CalendarView: View {
                                     dateSelection.selectedDates.removeLast()
                                     dateSelection.selectionState = .firstDateSelected
                                 }) {
-                                    Image(systemName: "xmark")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
+                                    ZStack{
+                                        Circle()
+                                            .foregroundColor(.gray.opacity(0.2))
+                                            .frame(width:24,height:24)
+                                            
+                                        Image(systemName: "xmark")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
                                 }
                             }
                             .padding(.horizontal)
                             .padding(.vertical, 10)
                             .background(
-                                RoundedRectangle(cornerRadius: 20)
+                                RoundedRectangle(cornerRadius: 12)
                                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                     .background(Color.white)
                             )
@@ -977,8 +999,8 @@ struct CalendarView: View {
                     Text("Continue")
                         .font(.headline)
                         .foregroundColor(.white)
-                        .frame(width: 120, height: 44)
-                        .background(Color(hex: "#0044AB"))
+                        .frame(width: 130, height: 52)
+                        .background(Color("buttonColor"))
                         .cornerRadius(8)
                 }
             }
