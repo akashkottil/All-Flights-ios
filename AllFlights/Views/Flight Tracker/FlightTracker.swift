@@ -22,17 +22,16 @@ struct FlightTrackerScreen: View {
     @State private var isLoadingSchedules = false
     @State private var scheduleError: String?
     
+    // ADDED: Recent search management - simplified for now
+    @State private var displayingRecentResults: [FlightInfo] = []
+    @State private var hasRecentSearch = false
+    
+    // ADDED: Last searched airport storage
+    @State private var lastSearchedAirportData: LastSearchedAirportData?
+    @State private var lastSearchType: FlightSearchType = .departure
+    
     // Network manager
     private let networkManager = FlightTrackNetworkManager.shared
-    
-    let flightData = [
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .expected, delay: "5m Early", airlineColor: .blue),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .expected, delay: "10m Early", airlineColor: .purple),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .landed, delay: "5m Early", airlineColor: .red),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .landed, delay: "10m Early", airlineColor: .blue),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .cancelled, delay: "", airlineColor: .blue),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .landed, delay: "", airlineColor: .purple)
-    ]
     
     var body: some View {
         NavigationView {
@@ -57,17 +56,23 @@ struct FlightTrackerScreen: View {
                     
                     Spacer()
                 }
+                .onAppear {
+                    loadRecentSearchData()
+                    if selectedTab == 1 {
+                        loadLastSearchedAirport()
+                    }
+                }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $showingTrackLocationSheet) {
-                trackLocationSheet(
-                    isPresented: $showingTrackLocationSheet,
-                    source: currentSheetSource,
-                    searchType: currentSearchType,
-                    onLocationSelected: handleLocationSelected,
-                    onDateSelected: currentSheetSource == .trackedTab ? handleDateSelected : nil
-                )
-            }
+        }
+        .sheet(isPresented: $showingTrackLocationSheet) {
+            trackLocationSheet(
+                isPresented: $showingTrackLocationSheet,
+                source: currentSheetSource,
+                searchType: currentSearchType,
+                onLocationSelected: handleLocationSelected,
+                onDateSelected: currentSheetSource == .trackedTab ? handleDateSelected : nil
+            )
         }
     }
     
@@ -145,12 +150,20 @@ struct FlightTrackerScreen: View {
         // Clear scheduled tab data
         selectedDepartureAirport = nil
         selectedArrivalAirport = nil
+        // ADDED: Clear displaying recent results but keep stored recent searches
+        displayingRecentResults = []
         
         // FIXED: Reset currentSheetSource based on current selected tab
         if selectedTab == 0 {
             currentSheetSource = .trackedTab
         } else {
             currentSheetSource = selectedFlightType == 0 ? .scheduledDeparture : .scheduledArrival
+        }
+        
+        // Load recent search data when switching tabs
+        if selectedTab == 1 { // Only load for scheduled tab
+            loadRecentSearchData()
+            loadLastSearchedAirport()
         }
     }
     
@@ -242,11 +255,14 @@ struct FlightTrackerScreen: View {
             } else if let error = scheduleError {
                 errorView(error)
             } else if !scheduleResults.isEmpty {
-                // Show API results
+                // Show API results (current search)
                 scheduleFlightListView
+            } else if !displayingRecentResults.isEmpty {
+                // Show recent search results
+                recentSearchFlightListView
             } else {
-                // Show default flight list (existing hardcoded data)
-                defaultFlightListView
+                // Show empty state for no searches
+                scheduledEmptyStateView
             }
         }
     }
@@ -316,30 +332,54 @@ struct FlightTrackerScreen: View {
         }
     }
     
-    private var defaultFlightListView: some View {
+    private var recentSearchFlightListView: some View {
         VStack(spacing: 0) {
-            // Flight List Header
             flightListHeader
             
-            // Flight List (existing hardcoded data)
+            // Flight List from Recent Search
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(flightData.indices, id: \.self) { index in
+                    ForEach(displayingRecentResults.indices, id: \.self) { index in
                         NavigationLink(destination: FlightDetailScreen(
-                            flightNumber: flightData[index].flightNumber,
+                            flightNumber: displayingRecentResults[index].flightNumber,
                             date: getCurrentDateForAPI()
                         )) {
-                            flightRowContent(flightData[index])
+                            flightRowContent(displayingRecentResults[index])
                         }
                         .buttonStyle(PlainButtonStyle())
                         
-                        if index < flightData.count - 1 {
+                        if index < displayingRecentResults.count - 1 {
                             Divider()
                         }
                     }
                 }
             }
             .padding(.horizontal, 20)
+        }
+    }
+    
+    private var scheduledEmptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            VStack(spacing: 16) {
+                ZStack {
+                    Image("NoFlights")
+                        .frame(width: 92, height: 92)
+                }
+                
+                Text("Search any flights")
+                    .font(.system(size: 22))
+                    .fontWeight(.bold)
+                    .foregroundColor(.black)
+                
+                Text("Find departures and arrivals for any airport")
+                    .font(.system(size: 16))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
         }
     }
     
@@ -375,6 +415,14 @@ struct FlightTrackerScreen: View {
                         Text(selectedAirport.city)
                             .foregroundColor(.black)
                             .font(.system(size: 16, weight: .regular))
+                    } else if let lastAirportData = lastSearchedAirportData {
+                        // ADDED: Show last searched airport if no current selection
+                        Text(lastAirportData.iataCode)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(lastAirportData.city)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16, weight: .regular))
                     } else {
                         Text("Select departure airport")
                             .foregroundColor(.gray)
@@ -387,6 +435,14 @@ struct FlightTrackerScreen: View {
                             .font(.system(size: 14, weight: .semibold))
                         Text(selectedAirport.city)
                             .foregroundColor(.black)
+                            .font(.system(size: 16, weight: .regular))
+                    } else if let lastAirportData = lastSearchedAirportData {
+                        // ADDED: Show last searched airport if no current selection
+                        Text(lastAirportData.iataCode)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(lastAirportData.city)
+                            .foregroundColor(.gray)
                             .font(.system(size: 16, weight: .regular))
                     } else {
                         Text("Select arrival airport")
@@ -441,6 +497,11 @@ struct FlightTrackerScreen: View {
                     Task {
                         await fetchScheduleResults(departureId: departureAirport.iataCode, arrivalId: nil)
                     }
+                } else if let lastAirportData = lastSearchedAirportData {
+                    // ADDED: Use last searched airport for departures
+                    Task {
+                        await fetchScheduleResults(departureId: lastAirportData.iataCode, arrivalId: nil)
+                    }
                 } else {
                     // No airport selected, clear results
                     clearScheduleResults()
@@ -478,6 +539,11 @@ struct FlightTrackerScreen: View {
                     // Already have arrival airport, just fetch arrivals
                     Task {
                         await fetchScheduleResults(departureId: nil, arrivalId: arrivalAirport.iataCode)
+                    }
+                } else if let lastAirportData = lastSearchedAirportData {
+                    // ADDED: Use last searched airport for arrivals
+                    Task {
+                        await fetchScheduleResults(departureId: nil, arrivalId: lastAirportData.iataCode)
                     }
                 } else {
                     // No airport selected, clear results
@@ -662,6 +728,8 @@ struct FlightTrackerScreen: View {
             selectedDepartureAirport = airport
             // Clear arrival airport since we're focusing on departures
             selectedArrivalAirport = nil
+            // ADDED: Save as last searched airport
+            saveLastSearchedAirport(airport, searchType: .departure)
             // Make API call for scheduled departures
             await fetchScheduleResults(departureId: airport.iataCode, arrivalId: nil)
             
@@ -669,6 +737,8 @@ struct FlightTrackerScreen: View {
             selectedArrivalAirport = airport
             // Clear departure airport since we're focusing on arrivals
             selectedDepartureAirport = nil
+            // ADDED: Save as last searched airport
+            saveLastSearchedAirport(airport, searchType: .arrival)
             // Make API call for scheduled arrivals
             await fetchScheduleResults(departureId: nil, arrivalId: airport.iataCode)
         }
@@ -738,6 +808,8 @@ struct FlightTrackerScreen: View {
     private func fetchScheduleResults(departureId: String?, arrivalId: String?, date: String? = nil) async {
         isLoadingSchedules = true
         scheduleError = nil
+        // Clear displaying recent results when making new search
+        displayingRecentResults = []
         
         do {
             let response = try await networkManager.searchSchedules(
@@ -751,6 +823,11 @@ struct FlightTrackerScreen: View {
                 convertScheduleToFlightInfo(scheduleResult, departureAirport: response.departureAirport, arrivalAirport: response.arrivalAirport)
             }
             
+            // ADDED: Save successful search results locally (simplified)
+            if !scheduleResults.isEmpty {
+                saveCurrentSearchLocally()
+            }
+            
         } catch {
             scheduleError = error.localizedDescription
             scheduleResults = []
@@ -758,6 +835,117 @@ struct FlightTrackerScreen: View {
         }
         
         isLoadingSchedules = false
+    }
+    
+    // ADDED: Save current search locally (simplified version)
+    private func saveCurrentSearchLocally() {
+        // Simple local storage - just save the current results
+        displayingRecentResults = scheduleResults
+        hasRecentSearch = true
+        
+        // Save to UserDefaults for persistence
+        if let data = try? JSONEncoder().encode(scheduleResults.map { flight in
+            [
+                "flightNumber": flight.flightNumber,
+                "airline": flight.airline,
+                "destination": flight.destination,
+                "destinationName": flight.destinationName,
+                "time": flight.time,
+                "scheduledTime": flight.scheduledTime,
+                "status": flight.status.displayText,
+                "delay": flight.delay
+            ]
+        }) {
+            UserDefaults.standard.set(data, forKey: "LastFlightSearch")
+            UserDefaults.standard.set(true, forKey: "HasRecentSearch")
+        }
+    }
+    
+    // ADDED: Load recent search data on app launch
+    private func loadRecentSearchData() {
+        // Load from UserDefaults
+        hasRecentSearch = UserDefaults.standard.bool(forKey: "HasRecentSearch")
+        
+        if hasRecentSearch,
+           let data = UserDefaults.standard.data(forKey: "LastFlightSearch"),
+           let flightDicts = try? JSONDecoder().decode([[String: String]].self, from: data) {
+            
+            displayingRecentResults = flightDicts.compactMap { dict in
+                guard let flightNumber = dict["flightNumber"],
+                      let airline = dict["airline"],
+                      let destination = dict["destination"],
+                      let destinationName = dict["destinationName"],
+                      let time = dict["time"],
+                      let scheduledTime = dict["scheduledTime"],
+                      let statusString = dict["status"],
+                      let delay = dict["delay"] else { return nil }
+                
+                let status: FlightStatus
+                switch statusString.lowercased() {
+                case "expected": status = .expected
+                case "landed": status = .landed
+                case "cancelled": status = .cancelled
+                default: status = .expected
+                }
+                
+                return FlightInfo(
+                    flightNumber: flightNumber,
+                    airline: airline,
+                    destination: destination,
+                    destinationName: destinationName,
+                    time: time,
+                    scheduledTime: scheduledTime,
+                    status: status,
+                    delay: delay,
+                    airlineColor: .blue
+                )
+            }
+        }
+    }
+    
+    // ADDED: Save last searched airport
+    private func saveLastSearchedAirport(_ airport: FlightTrackAirport, searchType: FlightSearchType) {
+        lastSearchType = searchType
+        
+        // Save to UserDefaults using Codable
+        let airportData = LastSearchedAirportData(
+            iataCode: airport.iataCode,
+            name: airport.name,
+            city: airport.city,
+            country: airport.country,
+            searchType: searchType == .departure ? "departure" : "arrival"
+        )
+        
+        lastSearchedAirportData = airportData
+        
+        if let data = try? JSONEncoder().encode(airportData) {
+            UserDefaults.standard.set(data, forKey: "LastSearchedAirport")
+        }
+    }
+    
+    // ADDED: Load last searched airport
+    private func loadLastSearchedAirport() {
+        guard let data = UserDefaults.standard.data(forKey: "LastSearchedAirport"),
+              let airportData = try? JSONDecoder().decode(LastSearchedAirportData.self, from: data) else {
+            return
+        }
+        
+        // Store the airport data for display and usage
+        lastSearchedAirportData = airportData
+        lastSearchType = airportData.searchType == "departure" ? .departure : .arrival
+        
+        // Auto-populate and fetch results based on current filter
+        if selectedFlightType == 0 && lastSearchType == .departure {
+            // Current filter is departures and last search was departure
+            Task {
+                await fetchScheduleResults(departureId: airportData.iataCode, arrivalId: nil)
+            }
+        } else if selectedFlightType == 1 && lastSearchType == .arrival {
+            // Current filter is arrivals and last search was arrival
+            Task {
+                await fetchScheduleResults(departureId: nil, arrivalId: airportData.iataCode)
+            }
+        }
     }
     
     private func convertScheduleToFlightInfo(_ schedule: ScheduleResult, departureAirport: FlightTrackAirport?, arrivalAirport: FlightTrackAirport?) -> FlightInfo {
@@ -826,6 +1014,14 @@ struct FlightTrackerScreen: View {
 }
 
 // MARK: - Supporting Models and Extensions
+struct LastSearchedAirportData: Codable {
+    let iataCode: String
+    let name: String
+    let city: String
+    let country: String
+    let searchType: String
+}
+
 struct FlightInfo {
     let flightNumber: String
     let airline: String
