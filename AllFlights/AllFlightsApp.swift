@@ -1,17 +1,13 @@
-//
-//  AllFlightsApp.swift
-//  AllFlights
-//
-//  Created by Swalih Zamnoon P M on 14/05/25.
-//
-
 import SwiftUI
 
 @main
-struct AllFlightsApp: App {
+struct FlightDealsApp: App {
+    @StateObject private var onboardingManager = OnboardingManager.shared
+    
     var body: some Scene {
         WindowGroup {
-            RootTabView()
+            ContentView()
+                .environmentObject(onboardingManager)
         }
     }
 }
