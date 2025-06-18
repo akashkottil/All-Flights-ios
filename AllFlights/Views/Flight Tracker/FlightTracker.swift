@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct FlightTrackerScreen: View {
-    @State private var selectedTab = 1 // 0 for Tracked, 1 for Scheduled
+    @State private var selectedTab = 0 // FIXED: Default to Tracked tab (0) instead of Scheduled (1)
     @State private var searchText = ""
     @State private var selectedFlightType = 0 // 0 for Departures, 1 for Arrivals
     @State private var showingTrackLocationSheet = false
-    @State private var currentSheetSource: SheetSource = .trackedTab
+    @State private var currentSheetSource: SheetSource = .trackedTab // FIXED: Default to tracked tab
     @State private var currentSearchType: FlightSearchType? = nil
     
     // Selected airport data
@@ -89,6 +89,7 @@ struct FlightTrackerScreen: View {
                 // Tracked Tab
                 Button(action: {
                     selectedTab = 0
+                    currentSheetSource = .trackedTab // FIXED: Reset sheet source when switching to tracked tab
                     clearAllData()
                 }) {
                     Text("Tracked")
@@ -105,6 +106,7 @@ struct FlightTrackerScreen: View {
                 // Scheduled Tab
                 Button(action: {
                     selectedTab = 1
+                    currentSheetSource = .scheduledDeparture // FIXED: Reset sheet source when switching to scheduled tab
                     clearAllData()
                 }) {
                     Text("Scheduled")
@@ -143,6 +145,13 @@ struct FlightTrackerScreen: View {
         // Clear scheduled tab data
         selectedDepartureAirport = nil
         selectedArrivalAirport = nil
+        
+        // FIXED: Reset currentSheetSource based on current selected tab
+        if selectedTab == 0 {
+            currentSheetSource = .trackedTab
+        } else {
+            currentSheetSource = selectedFlightType == 0 ? .scheduledDeparture : .scheduledArrival
+        }
     }
     
     private var trackedTabContent: some View {
@@ -416,6 +425,7 @@ struct FlightTrackerScreen: View {
         HStack(spacing: 12) {
             Button(action: {
                 selectedFlightType = 0
+                currentSheetSource = .scheduledDeparture // FIXED: Update sheet source for departures
                 
                 // Transfer airport selection and make API call
                 if let arrivalAirport = selectedArrivalAirport {
@@ -453,6 +463,7 @@ struct FlightTrackerScreen: View {
             
             Button(action: {
                 selectedFlightType = 1
+                currentSheetSource = .scheduledArrival // FIXED: Update sheet source for arrivals
                 
                 // Transfer airport selection and make API call
                 if let departureAirport = selectedDepartureAirport {
@@ -606,10 +617,18 @@ struct FlightTrackerScreen: View {
     
     // MARK: - Helper Methods
     
+    // FIXED: Enhanced openTrackLocationSheet method with proper state management
     private func openTrackLocationSheet(source: SheetSource) {
-        currentSheetSource = source
-        currentSearchType = selectedFlightType == 0 ? .departure : .arrival
-        showingTrackLocationSheet = true
+        // Force state update before showing sheet
+        DispatchQueue.main.async {
+            self.currentSheetSource = source
+            self.currentSearchType = self.selectedFlightType == 0 ? .departure : .arrival
+            
+            // Small delay to ensure state is properly updated
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                self.showingTrackLocationSheet = true
+            }
+        }
     }
     
     private func handleLocationSelected(_ airport: FlightTrackAirport) {
