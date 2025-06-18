@@ -2,13 +2,15 @@ import SwiftUI
 import Combine
 import CoreLocation
 
-// MARK: - Enhanced HomeView with Complete ExploreScreen Transformation
+// MARK: - Enhanced HomeView with Gradual Search Card Collapse
 struct HomeView: View {
-    @State private var isSearchExpanded = true
     @State private var navigateToAccount = false
     @Namespace private var animation
     @GestureState private var dragOffset: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
+    
+    // NEW: Dynamic height calculation based on scroll offset
+    @State private var searchCardHeight: CGFloat = 1.0 // Progress from 0.0 (collapsed) to 1.0 (expanded)
     
     // NEW: State for complete transformation to ExploreScreen
     @State private var isShowingExploreScreen = false
@@ -51,148 +53,6 @@ struct HomeView: View {
         // Refresh cheap flights data
         cheapFlightsViewModel.fetchCheapFlights()
     }
-    
-    // NEW: Enhanced complete transformation to ExploreScreen with skeleton animations
-    private func transformToExploreScreen() {
-        print("🔄 Starting enhanced transformation to ExploreScreen")
-        
-        // Reset animation states
-        skeletonsVisible = false
-        searchCardOvershoot = false
-        
-        // Prevent interaction during transformation
-        isShowingExploreScreen = true
-        
-        // Phase 1: Fade out home content and prepare explore content
-        withAnimation(.easeInOut(duration: 0.4)) {
-            homeContentOpacity = 0.0
-            homeContentOffset = -50
-        }
-        
-        // Phase 2: Transfer search data and initialize explore
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            transferSearchDataToExplore()
-        }
-        
-        // Phase 3: Slide in explore content with search card (works exactly as before)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                exploreContentOpacity = 1.0
-                exploreContentOffset = 0
-            }
-        }
-        
-        // Phase 4: After search card is settled, add overshoot towards top (earlier and more movement)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) {
-                searchCardOvershoot = true
-            }
-        }
-        
-        // Phase 5: Skeleton cards slide in from bottom with staggered overshoot
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
-                skeletonsVisible = true
-            }
-        }
-    }
-    
-    // NEW: Transform back to HomeView
-    private func transformBackToHome() {
-        print("🏠 Transforming back to HomeView")
-        
-        // Phase 1: Hide skeletons first
-        withAnimation(.easeOut(duration: 0.3)) {
-            skeletonsVisible = false
-        }
-        
-        // Phase 2: Hide explore content
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.easeInOut(duration: 0.4)) {
-                exploreContentOpacity = 0.0
-                exploreContentOffset = 50
-            }
-        }
-        
-        // Phase 3: Show home content
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                homeContentOpacity = 1.0
-                homeContentOffset = 0
-                isShowingExploreScreen = false
-            }
-        }
-        
-        // Reset explore view model and animation states
-        exploreViewModel.resetToInitialState()
-        isCollapsed = false
-        exploreScrollOffset = 0
-        searchCardOvershoot = false
-        skeletonsVisible = false
-    }
-    
-    // NEW: Transfer search data to explore view model
-    private func transferSearchDataToExplore() {
-        // Transfer all search data to the explore view model
-        exploreViewModel.fromLocation = searchViewModel.fromLocation
-        exploreViewModel.toLocation = searchViewModel.toLocation
-        exploreViewModel.fromIataCode = searchViewModel.fromIataCode
-        exploreViewModel.toIataCode = searchViewModel.toIataCode
-        exploreViewModel.dates = searchViewModel.selectedDates
-        exploreViewModel.isRoundTrip = searchViewModel.isRoundTrip
-        exploreViewModel.adultsCount = searchViewModel.adultsCount
-        exploreViewModel.childrenCount = searchViewModel.childrenCount
-        exploreViewModel.childrenAges = searchViewModel.childrenAges
-        exploreViewModel.selectedCabinClass = searchViewModel.selectedCabinClass
-        exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
-        
-        // Set the selected origin and destination codes
-        exploreViewModel.selectedOriginCode = searchViewModel.fromIataCode
-        exploreViewModel.selectedDestinationCode = searchViewModel.toIataCode
-        
-        // Mark as direct search to show detailed flight list
-        exploreViewModel.isDirectSearch = true
-        exploreViewModel.showingDetailedFlightList = true
-        
-        // Store direct flights preference
-        exploreViewModel.directFlightsOnlyFromHome = searchViewModel.directFlightsOnly
-        
-        // Sync tab states
-        selectedTab = searchViewModel.selectedTab
-        isRoundTrip = searchViewModel.isRoundTrip
-        
-        // Handle multi-city vs regular search
-        if searchViewModel.selectedTab == 2 && !searchViewModel.multiCityTrips.isEmpty {
-            // Multi-city search
-            exploreViewModel.searchMultiCityFlights()
-        } else {
-            // Regular search - format dates for API
-            if !searchViewModel.selectedDates.isEmpty {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                
-                if searchViewModel.selectedDates.count >= 2 {
-                    let sortedDates = searchViewModel.selectedDates.sorted()
-                    exploreViewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
-                    exploreViewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
-                } else if searchViewModel.selectedDates.count == 1 {
-                    exploreViewModel.selectedDepartureDatee = formatter.string(from: searchViewModel.selectedDates[0])
-                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: searchViewModel.selectedDates[0]) {
-                        exploreViewModel.selectedReturnDatee = formatter.string(from: nextDay)
-                    }
-                }
-            }
-            
-            // Initiate the regular search
-            exploreViewModel.searchFlightsForDates(
-                origin: searchViewModel.fromIataCode,
-                destination: searchViewModel.toIataCode,
-                returnDate: searchViewModel.isRoundTrip ? exploreViewModel.selectedReturnDatee : "",
-                departureDate: exploreViewModel.selectedDepartureDatee,
-                isDirectSearch: true
-            )
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -204,27 +64,15 @@ struct HomeView: View {
                         headerView
                             .zIndex(1)
 
-                        ZStack {
-                            if isSearchExpanded {
-                                EnhancedSearchInput(
-                                    searchViewModel: searchViewModel,
-                                    onSearchTap: {
-                                        transformToExploreScreen()
-                                    }
-                                )
-                                .matchedGeometryEffect(id: "searchBox", in: animation)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                                .gesture(dragGesture)
-                            } else {
-                                HomeCollapsibleSearchInput(
-                                    isExpanded: $isSearchExpanded,
-                                    searchViewModel: searchViewModel
-                                )
-                                .matchedGeometryEffect(id: "searchBox", in: animation)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        // NEW: Enhanced Dynamic Height Search Input with gradual collapse
+                        EnhancedDynamicSearchInput(
+                            searchViewModel: searchViewModel,
+                            heightProgress: searchCardHeight,
+                            onSearchTap: {
+                                transformToExploreScreen()
                             }
-                        }
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchExpanded)
+                        )
+                        .gesture(dragGesture)
                         .padding(.bottom, 20)
                     }
                     .background(
@@ -244,7 +92,7 @@ struct HomeView: View {
                                     )
                                     .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
                                         scrollOffset = value
-                                        updateSearchExpandedState()
+                                        updateSearchCardHeight()
                                     }
                             }
                             .frame(height: 0)
@@ -479,30 +327,230 @@ struct HomeView: View {
         .zIndex(1)
     }
     
-    // IMPROVED: Function to update search expanded state based on scroll
-    private func updateSearchExpandedState() {
+    // NEW: Function to update search card height based on scroll - IMPROVED LOGIC
+    private func updateSearchCardHeight() {
         // Don't update if showing explore screen
         guard !isShowingExploreScreen else { return }
         
-        let threshold: CGFloat = -20
+        let scrollThreshold: CGFloat = 100 // How much scroll triggers full collapse
+        // Calculate progress: 1.0 at top, 0.0 when scrolled down by threshold
+        let progress = max(0, min(1, (scrollOffset + scrollThreshold) / scrollThreshold))
         
-        // Enhanced spring animation with haptic feedback
-        if scrollOffset < threshold && isSearchExpanded {
-            // Collapsing - subtle haptic feedback
+        // Add subtle haptic feedback when crossing certain thresholds
+        let previousHeight = searchCardHeight
+        
+        withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
+            searchCardHeight = progress
+        }
+        
+        // Haptic feedback at key transition points
+        if previousHeight > 0.5 && progress <= 0.5 {
+            // Collapsed
             let selectionFeedback = UISelectionFeedbackGenerator()
             selectionFeedback.selectionChanged()
-            
-            withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
-                isSearchExpanded = false
+        } else if previousHeight <= 0.5 && progress > 0.5 {
+            // Expanded
+            let selectionFeedback = UISelectionFeedbackGenerator()
+            selectionFeedback.selectionChanged()
+        }
+    }
+    
+    // NEW: Enhanced complete transformation to ExploreScreen with skeleton animations
+    private func transformToExploreScreen() {
+        print("🔄 Starting enhanced transformation to ExploreScreen")
+        
+        // Reset animation states
+        skeletonsVisible = false
+        searchCardOvershoot = false
+        
+        // Prevent interaction during transformation
+        isShowingExploreScreen = true
+        
+        // Phase 1: Fade out home content and prepare explore content
+        withAnimation(.easeInOut(duration: 0.4)) {
+            homeContentOpacity = 0.0
+            homeContentOffset = -50
+        }
+        
+        // Phase 2: Transfer search data and initialize explore
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            transferSearchDataToExplore()
+        }
+        
+        // Phase 3: Slide in explore content with search card (works exactly as before)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                exploreContentOpacity = 1.0
+                exploreContentOffset = 0
             }
-        } else if scrollOffset > 0 && !isSearchExpanded {
-            // Expanding
-            withAnimation(.interpolatingSpring(stiffness: 280, damping: 25)) {
-                isSearchExpanded = true
+        }
+        
+        // Phase 4: After search card is settled, add overshoot towards top (earlier and more movement)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) {
+                searchCardOvershoot = true
+            }
+        }
+        
+        // Phase 5: Skeleton cards slide in from bottom with staggered overshoot
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
+                skeletonsVisible = true
             }
         }
     }
+    
+    // NEW: Transform back to HomeView
+    private func transformBackToHome() {
+        print("🏠 Transforming back to HomeView")
+        
+        // Phase 1: Hide skeletons first
+        withAnimation(.easeOut(duration: 0.3)) {
+            skeletonsVisible = false
+        }
+        
+        // Phase 2: Hide explore content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeInOut(duration: 0.4)) {
+                exploreContentOpacity = 0.0
+                exploreContentOffset = 50
+            }
+        }
+        
+        // Phase 3: Show home content and reset search card height
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                homeContentOpacity = 1.0
+                homeContentOffset = 0
+                isShowingExploreScreen = false
+                // Reset search card to expanded state
+                searchCardHeight = 1.0
+            }
+        }
+        
+        // Reset explore view model and animation states
+        exploreViewModel.resetToInitialState()
+        isCollapsed = false
+        exploreScrollOffset = 0
+        searchCardOvershoot = false
+        skeletonsVisible = false
+    }
+    
+    // NEW: Transfer search data to explore view model
+    private func transferSearchDataToExplore() {
+        // Transfer all search data to the explore view model
+        exploreViewModel.fromLocation = searchViewModel.fromLocation
+        exploreViewModel.toLocation = searchViewModel.toLocation
+        exploreViewModel.fromIataCode = searchViewModel.fromIataCode
+        exploreViewModel.toIataCode = searchViewModel.toIataCode
+        exploreViewModel.dates = searchViewModel.selectedDates
+        exploreViewModel.isRoundTrip = searchViewModel.isRoundTrip
+        exploreViewModel.adultsCount = searchViewModel.adultsCount
+        exploreViewModel.childrenCount = searchViewModel.childrenCount
+        exploreViewModel.childrenAges = searchViewModel.childrenAges
+        exploreViewModel.selectedCabinClass = searchViewModel.selectedCabinClass
+        exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
+        
+        // Set the selected origin and destination codes
+        exploreViewModel.selectedOriginCode = searchViewModel.fromIataCode
+        exploreViewModel.selectedDestinationCode = searchViewModel.toIataCode
+        
+        // Mark as direct search to show detailed flight list
+        exploreViewModel.isDirectSearch = true
+        exploreViewModel.showingDetailedFlightList = true
+        
+        // Store direct flights preference
+        exploreViewModel.directFlightsOnlyFromHome = searchViewModel.directFlightsOnly
+        
+        // Sync tab states
+        selectedTab = searchViewModel.selectedTab
+        isRoundTrip = searchViewModel.isRoundTrip
+        
+        // Handle multi-city vs regular search
+        if searchViewModel.selectedTab == 2 && !searchViewModel.multiCityTrips.isEmpty {
+            // Multi-city search
+            exploreViewModel.searchMultiCityFlights()
+        } else {
+            // Regular search - format dates for API
+            if !searchViewModel.selectedDates.isEmpty {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                if searchViewModel.selectedDates.count >= 2 {
+                    let sortedDates = searchViewModel.selectedDates.sorted()
+                    exploreViewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                    exploreViewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+                } else if searchViewModel.selectedDates.count == 1 {
+                    exploreViewModel.selectedDepartureDatee = formatter.string(from: searchViewModel.selectedDates[0])
+                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: searchViewModel.selectedDates[0]) {
+                        exploreViewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                    }
+                }
+            }
+            
+            // Initiate the regular search
+            exploreViewModel.searchFlightsForDates(
+                origin: searchViewModel.fromIataCode,
+                destination: searchViewModel.toIataCode,
+                returnDate: searchViewModel.isRoundTrip ? exploreViewModel.selectedReturnDatee : "",
+                departureDate: exploreViewModel.selectedDepartureDatee,
+                isDirectSearch: true
+            )
+        }
+    }
 
+    // MARK: - Drag Gesture for manual search card manipulation
+    var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .updating($dragOffset) { value, state, _ in
+                state = value.translation.height
+            }
+            .onEnded { value in
+                if value.translation.height < -20 {
+                    // Drag up - collapse
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        searchCardHeight = 0.3
+                    }
+                } else if value.translation.height > 20 {
+                    // Drag down - expand
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        searchCardHeight = 1.0
+                    }
+                }
+            }
+    }
+
+    // MARK: - Header View
+    var headerView: some View {
+        HStack {
+            Image("logoHome")
+                .resizable()
+                .frame(width: 28, height: 28)
+                .cornerRadius(6)
+                .padding(.trailing, 4)
+
+            Text("All Flights")
+                .font(.system(size: 22))
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+
+            Spacer()
+
+            Button(action: {
+                SharedSearchDataStore.shared.enterAccountNavigation()
+                navigateToAccount = true
+            }) {
+                Image("homeProfile")
+                    .resizable()
+                    .frame(width: 36, height: 36)
+                    .cornerRadius(6)
+            }
+        }
+        .padding(.horizontal, 25)
+        .padding(.top, 20)
+        .padding(.bottom, 20)
+    }
+    
     // MARK: - UPDATED: Conditional Recent Search Section
     @ViewBuilder
     private var conditionalRecentSearchSection: some View {
@@ -515,7 +563,6 @@ struct HomeView: View {
                         .fontWeight(.semibold)
                     Spacer()
                     Button(action: {
-                        // UPDATED: Animate the section away when clearing
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             recentSearchManager.clearAllRecentSearches()
                         }
@@ -558,53 +605,6 @@ struct HomeView: View {
 
             DynamicCheapFlights(viewModel: cheapFlightsViewModel)
         }
-    }
-
-    // MARK: - Drag Gesture for collapsing SearchInput
-    var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .global)
-            .updating($dragOffset) { value, state, _ in
-                state = value.translation.height
-            }
-            .onEnded { value in
-                if value.translation.height < -20 {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                        isSearchExpanded = false
-                    }
-                }
-            }
-    }
-
-    // MARK: - Header View
-    var headerView: some View {
-        HStack {
-            Image("logoHome")
-                .resizable()
-                .frame(width: 28, height: 28)
-                .cornerRadius(6)
-                .padding(.trailing, 4)
-
-            Text("All Flights")
-                .font(.system(size: 22))
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-
-            Spacer()
-
-            Button(action: {
-                // Set account navigation state before navigating
-                SharedSearchDataStore.shared.enterAccountNavigation()
-                navigateToAccount = true
-            }) {
-                Image("homeProfile")
-                    .resizable()
-                    .frame(width: 36, height: 36)
-                    .cornerRadius(6)
-            }
-        }
-        .padding(.horizontal, 25)
-        .padding(.top, 20)
-        .padding(.bottom, 20)
     }
     
     // MARK: - Rating Prompt
