@@ -3044,7 +3044,7 @@ struct FlightDetailCard: View {
                         Text(isDirectFlight ? "Direct" : "\((connectionSegments?.count ?? 1) - 1) Stop")
 
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(isDirectFlight ? .green : .primary)
+                            .foregroundColor(isDirectFlight ? Color("darkGreen") : Color("darkGray"))
                     }
                     
                     Text("|").opacity(0.5)
@@ -3052,17 +3052,17 @@ struct FlightDetailCard: View {
                     HStack(spacing: 4) {
                         Text(flightDuration)
                             .font(.system(size: 14))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                     Text("|").opacity(0.5)
                     
                     HStack(spacing: 4) {
                         Image(systemName: "carseat.right.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                         Text(flightClass)
                             .font(.system(size: 14))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -3178,7 +3178,7 @@ struct DirectFlightView: View {
                                 .font(.system(size: 14, weight: .medium))
                             Text("Terminal \(departureTerminal)")
                                 .font(.system(size: 13))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.secondary)
                         }
                         
                         Spacer()
@@ -3268,7 +3268,7 @@ struct DirectFlightView: View {
                                 .font(.system(size: 14, weight: .medium))
                             Text("Terminal \(arrivalTerminal)")
                                 .font(.system(size: 13))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.secondary)
                         }
                         
                         Spacer()
@@ -5373,7 +5373,7 @@ struct GoodToKnowSection: View {
                         Spacer()
                         
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                             .font(.system(size: 14))
                     }
                     .padding(.horizontal)
@@ -5614,7 +5614,8 @@ struct DealsSection: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
                             .padding(16)
-                            .background(Color.orange)
+                            .padding(.horizontal,10)
+                            .background(Color("buttonColor"))
                             .cornerRadius(12)
                     }
                     .buttonStyle(BorderlessButtonStyle()) // This helps with button responsiveness
