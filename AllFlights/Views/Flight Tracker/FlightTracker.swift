@@ -20,6 +20,12 @@ struct FlightTrackerScreen: View {
     // ADDED: Recently viewed flights for tracked tab
     @State private var recentlyViewedFlights: [TrackedFlightData] = []
     
+    // ADDED: Cached flight results for better performance
+    @State private var cachedDepartureResults: [FlightInfo] = []
+    @State private var cachedArrivalResults: [FlightInfo] = []
+    @State private var currentCachedAirport: FlightTrackAirport?
+    @State private var lastCachedDate: String?
+    
     // Schedule data
     @State private var scheduleResults: [FlightInfo] = []
     @State private var isLoadingSchedules = false
@@ -157,6 +163,11 @@ struct FlightTrackerScreen: View {
         // Clear current session selected airports (but keep lastSearchedAirportData)
         selectedDepartureAirport = nil
         selectedArrivalAirport = nil
+        // ADDED: Clear cached results when switching tabs
+        cachedDepartureResults = []
+        cachedArrivalResults = []
+        currentCachedAirport = nil
+        lastCachedDate = nil
         // Clear displaying recent results but keep stored recent searches
         displayingRecentResults = []
         
@@ -548,31 +559,13 @@ struct FlightTrackerScreen: View {
     private var departureArrivalFilter: some View {
         HStack(spacing: 12) {
             Button(action: {
+                // Switch to departures
+                let previousFlightType = selectedFlightType
                 selectedFlightType = 0
                 currentSheetSource = .scheduledDeparture
                 
-                // Handle tab switching logic with automatic fetching
-                if let arrivalAirport = selectedArrivalAirport {
-                    // User was on arrival tab, now switching to departure
-                    selectedDepartureAirport = arrivalAirport
-                    selectedArrivalAirport = nil
-                    Task {
-                        await fetchScheduleResults(departureId: arrivalAirport.iataCode, arrivalId: nil)
-                    }
-                } else if let departureAirport = selectedDepartureAirport {
-                    // Already have departure airport, just fetch departures
-                    Task {
-                        await fetchScheduleResults(departureId: departureAirport.iataCode, arrivalId: nil)
-                    }
-                } else if let lastAirportData = lastSearchedAirportData,
-                          (lastAirportData.searchType == "departure" || lastAirportData.searchType == "both") {
-                    // Use last searched airport for departures
-                    Task {
-                        await fetchScheduleResults(departureId: lastAirportData.iataCode, arrivalId: nil)
-                    }
-                } else {
-                    clearScheduleResults()
-                }
+                // ENHANCED: Smart location swapping and caching logic
+                switchToFlightType(.departure, from: previousFlightType)
             }) {
                 Text("Departures")
                     .font(.system(size: 14, weight: .regular))
@@ -590,31 +583,13 @@ struct FlightTrackerScreen: View {
             }
             
             Button(action: {
+                // Switch to arrivals
+                let previousFlightType = selectedFlightType
                 selectedFlightType = 1
                 currentSheetSource = .scheduledArrival
                 
-                // Handle tab switching logic with automatic fetching
-                if let departureAirport = selectedDepartureAirport {
-                    // User was on departure tab, now switching to arrival
-                    selectedArrivalAirport = departureAirport
-                    selectedDepartureAirport = nil
-                    Task {
-                        await fetchScheduleResults(departureId: nil, arrivalId: departureAirport.iataCode)
-                    }
-                } else if let arrivalAirport = selectedArrivalAirport {
-                    // Already have arrival airport, just fetch arrivals
-                    Task {
-                        await fetchScheduleResults(departureId: nil, arrivalId: arrivalAirport.iataCode)
-                    }
-                } else if let lastAirportData = lastSearchedAirportData,
-                          (lastAirportData.searchType == "arrival" || lastAirportData.searchType == "both") {
-                    // Use last searched airport for arrivals
-                    Task {
-                        await fetchScheduleResults(departureId: nil, arrivalId: lastAirportData.iataCode)
-                    }
-                } else {
-                    clearScheduleResults()
-                }
+                // ENHANCED: Smart location swapping and caching logic
+                switchToFlightType(.arrival, from: previousFlightType)
             }) {
                 Text("Arrivals")
                     .font(.system(size: 14, weight: .medium))
@@ -749,6 +724,101 @@ struct FlightTrackerScreen: View {
     
     // MARK: - Helper Methods
     
+    // ADDED: Smart flight type switching with caching
+    private func switchToFlightType(_ targetType: FlightSearchType, from previousType: Int) {
+        let currentDate = getCurrentDateForAPI()
+        
+        // Determine which airport to use
+        var airportToUse: FlightTrackAirport?
+        
+        if targetType == .departure {
+            // Switching to departures
+            if let departureAirport = selectedDepartureAirport {
+                airportToUse = departureAirport
+            } else if let arrivalAirport = selectedArrivalAirport {
+                // Swap: use arrival airport as departure
+                airportToUse = arrivalAirport
+                selectedDepartureAirport = arrivalAirport
+                selectedArrivalAirport = nil
+                print("🔄 Swapped arrival airport (\(arrivalAirport.iataCode)) to departure")
+            } else if let lastAirportData = lastSearchedAirportData {
+                // Use last searched airport
+                let airport = FlightTrackAirport(
+                    iataCode: lastAirportData.iataCode,
+                    icaoCode: nil,
+                    name: lastAirportData.name,
+                    country: lastAirportData.country,
+                    countryCode: "",
+                    isInternational: nil,
+                    isMajor: nil,
+                    city: lastAirportData.city,
+                    location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                    timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+                )
+                selectedDepartureAirport = airport
+                airportToUse = airport
+            }
+        } else {
+            // Switching to arrivals
+            if let arrivalAirport = selectedArrivalAirport {
+                airportToUse = arrivalAirport
+            } else if let departureAirport = selectedDepartureAirport {
+                // Swap: use departure airport as arrival
+                airportToUse = departureAirport
+                selectedArrivalAirport = departureAirport
+                selectedDepartureAirport = nil
+                print("🔄 Swapped departure airport (\(departureAirport.iataCode)) to arrival")
+            } else if let lastAirportData = lastSearchedAirportData {
+                // Use last searched airport
+                let airport = FlightTrackAirport(
+                    iataCode: lastAirportData.iataCode,
+                    icaoCode: nil,
+                    name: lastAirportData.name,
+                    country: lastAirportData.country,
+                    countryCode: "",
+                    isInternational: nil,
+                    isMajor: nil,
+                    city: lastAirportData.city,
+                    location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                    timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+                )
+                selectedArrivalAirport = airport
+                airportToUse = airport
+            }
+        }
+        
+        guard let airport = airportToUse else {
+            clearScheduleResults()
+            return
+        }
+        
+        // Check if we can use cached data
+        let isSameAirport = currentCachedAirport?.iataCode == airport.iataCode
+        let isSameDate = lastCachedDate == currentDate
+        
+        if isSameAirport && isSameDate {
+            // Use cached data
+            if targetType == .departure && !cachedDepartureResults.isEmpty {
+                scheduleResults = cachedDepartureResults
+                print("📋 Using cached departure results for \(airport.iataCode)")
+                return
+            } else if targetType == .arrival && !cachedArrivalResults.isEmpty {
+                scheduleResults = cachedArrivalResults
+                print("📋 Using cached arrival results for \(airport.iataCode)")
+                return
+            }
+        }
+        
+        // Make API call if no cached data available
+        Task {
+            if targetType == .departure {
+                await fetchScheduleResults(departureId: airport.iataCode, arrivalId: nil)
+            } else {
+                await fetchScheduleResults(departureId: nil, arrivalId: airport.iataCode)
+            }
+        }
+    }
+    
     private func openTrackLocationSheet(source: SheetSource) {
         // Force state update before showing sheet
         DispatchQueue.main.async {
@@ -788,6 +858,10 @@ struct FlightTrackerScreen: View {
             }
             
         case .scheduledDeparture:
+            // ADDED: Clear cache if location is different
+            if selectedDepartureAirport?.iataCode != airport.iataCode {
+                clearCache()
+            }
             selectedDepartureAirport = airport
             selectedArrivalAirport = nil
             // Save as last searched airport
@@ -796,6 +870,10 @@ struct FlightTrackerScreen: View {
             await fetchScheduleResults(departureId: airport.iataCode, arrivalId: nil)
             
         case .scheduledArrival:
+            // ADDED: Clear cache if location is different
+            if selectedArrivalAirport?.iataCode != airport.iataCode {
+                clearCache()
+            }
             selectedArrivalAirport = airport
             selectedDepartureAirport = nil
             // Save as last searched airport
@@ -879,6 +957,36 @@ struct FlightTrackerScreen: View {
                 convertScheduleToFlightInfo(scheduleResult, departureAirport: response.departureAirport, arrivalAirport: response.arrivalAirport)
             }
             
+            // ADDED: Cache the results based on search type
+            let currentDate = getCurrentDateForAPI()
+            if let airportId = departureId ?? arrivalId {
+                // Update cache info
+                if currentCachedAirport?.iataCode != airportId {
+                    currentCachedAirport = FlightTrackAirport(
+                        iataCode: airportId,
+                        icaoCode: nil,
+                        name: "",
+                        country: "",
+                        countryCode: "",
+                        isInternational: nil,
+                        isMajor: nil,
+                        city: "",
+                        location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                        timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+                    )
+                }
+                lastCachedDate = currentDate
+                
+                // Cache results based on type
+                if departureId != nil {
+                    cachedDepartureResults = scheduleResults
+                    print("💾 Cached departure results for \(airportId) (\(scheduleResults.count) flights)")
+                } else {
+                    cachedArrivalResults = scheduleResults
+                    print("💾 Cached arrival results for \(airportId) (\(scheduleResults.count) flights)")
+                }
+            }
+            
             if !scheduleResults.isEmpty {
                 saveCurrentSearchLocally()
             }
@@ -890,6 +998,15 @@ struct FlightTrackerScreen: View {
         }
         
         isLoadingSchedules = false
+    }
+    
+    // ADDED: Clear cache helper method
+    private func clearCache() {
+        cachedDepartureResults = []
+        cachedArrivalResults = []
+        currentCachedAirport = nil
+        lastCachedDate = nil
+        print("🗑️ Cache cleared")
     }
     
     private func saveCurrentSearchLocally() {
@@ -982,13 +1099,29 @@ struct FlightTrackerScreen: View {
         lastSearchedAirportData = airportData
         lastSearchType = airportData.searchType == "departure" ? .departure : .arrival
         
-        // Auto-fetch results if we have last searched data and no current selection
+        // ADDED: Auto-fetch results if we have last searched data and no current selection
         if selectedDepartureAirport == nil && selectedArrivalAirport == nil {
+            // Create airport object from saved data
+            let airport = FlightTrackAirport(
+                iataCode: airportData.iataCode,
+                icaoCode: nil,
+                name: airportData.name,
+                country: airportData.country,
+                countryCode: "",
+                isInternational: nil,
+                isMajor: nil,
+                city: airportData.city,
+                location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+            )
+            
             if selectedFlightType == 0 && (airportData.searchType == "departure" || airportData.searchType == "both") {
+                selectedDepartureAirport = airport
                 Task {
                     await fetchScheduleResults(departureId: airportData.iataCode, arrivalId: nil)
                 }
             } else if selectedFlightType == 1 && (airportData.searchType == "arrival" || airportData.searchType == "both") {
+                selectedArrivalAirport = airport
                 Task {
                     await fetchScheduleResults(departureId: nil, arrivalId: airportData.iataCode)
                 }
@@ -1157,6 +1290,11 @@ enum FlightStatus {
         case .cancelled: return .red
         }
     }
+}
+
+enum FlightTrackSearchType {
+    case departure
+    case arrival
 }
 
 #Preview {

@@ -231,32 +231,7 @@ class FlightTrackNetworkManager {
     }
     
     // MARK: - Test Method (Remove after testing)
-    public func testFlightNumberParsing() {
-        let testCases = [
-            "6E 703",   // ✅ Should be: 6E, 703
-            "6E703",    // ✅ Should be: 6E, 703
-            "6E674",    // ✅ Should be: 6E, 674 (NOT 6E6, 74)
-            "9I508",    // ✅ Should be: 9I, 508 (NOT 9I5, 08)
-            "6E171",    // ✅ Should be: 6E, 171 (NOT 6E1, 71)
-            "G9427",    // ✅ Should be: G9, 427 (NOT G, 9427)
-            "3L126",    // ✅ Should be: 3L, 126 (NOT 3L1, 26)
-            "UL 168",   // ✅ Should be: UL, 168
-            "AI 131",   // ✅ Should be: AI, 131
-        ]
-        
-        let separator = String(repeating: "=", count: 50)
-        print("\n" + separator)
-        print("🧪 FLIGHT NUMBER PARSING TEST")
-        print(separator)
-        
-        for testCase in testCases {
-            let (airline, flight) = parseFlightNumber(testCase)
-            let status = airline.count == 2 ? "✅ PASS" : "❌ FAIL"
-            print("\(status) '\(testCase)' → '\(airline)' + '\(flight)'")
-        }
-        
-        print(separator + "\n")
-    }
+    
 }
 
 // MARK: - Network Errors
