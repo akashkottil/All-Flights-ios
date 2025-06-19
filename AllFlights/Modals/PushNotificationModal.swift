@@ -8,6 +8,7 @@ struct PushNotificationModal: View {
     let onLater: () -> Void
     
     @State private var isRequesting = false
+    @State private var showNotificationAnimation = false
     
     var body: some View {
         ZStack {
@@ -15,25 +16,39 @@ struct PushNotificationModal: View {
                 Spacer()
                 Spacer()
                 
-                // Notification bell icon - you can replace with your custom image
-                Image("pushNotificationModal") // Replace with your actual image name
-                    .font(.system(size: 60))
-                    .foregroundColor(.blue)
+                // Animated notification images with zoom in/out effect
+                ZStack {
+                    // First image (notification inside phone) - shown initially and during zoom in
+                    Image("pushNotificationModal1")
+                        .opacity(showNotificationAnimation ? 0 : 1)
+                        .scaleEffect(showNotificationAnimation ? 1.2 : 1.0)
+                        .animation(.easeInOut(duration: 0.8), value: showNotificationAnimation)
+                    
+                    // Second image (notification outside phone) - shown during zoom out
+                    Image("pushNotificationModal2")
+                        .opacity(showNotificationAnimation ? 1 : 0)
+                        .scaleEffect(showNotificationAnimation ? 1.0 : 1.2)
+                        .animation(.easeInOut(duration: 0.8).delay(0.4), value: showNotificationAnimation)
+                }
                 
                 VStack(spacing: 16) {
                     Text("Enable\nPush Notification")
                         .font(.title)
                         .fontWeight(.bold)
-                        .multilineTextAlignment(.center)
+                        .multilineTextAlignment(.leading)
                         .foregroundColor(.primary)
                         .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        
                     
-                    Text("We'll send you alerts when new deals become available so that you can book your flight at the best price.")
+                    Text("We'll send you alerts when new deals become\navailable so that you can book your flight at the best price.")
                         .font(.body)
-                        .multilineTextAlignment(.center)
+                        .multilineTextAlignment(.leading)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
-                        .lineSpacing(2)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                       
                 }
                 
                 VStack(spacing: 12) {
@@ -54,15 +69,16 @@ struct PushNotificationModal: View {
                                     .tint(.white)
                             }
                             Text(isRequesting ? "Requesting..." : "Allow")
+                                .fontWeight(.bold)
                         }
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .frame(width:332,height:52)
+                      
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.orange)
+                                .fill(Color("buttonColor"))
                         )
-                        .shadow(color: Color.orange.opacity(0.3), radius: 8, x: 0, y: 4)
+                        
                     }
                     .disabled(isRequesting)
                     
@@ -71,7 +87,8 @@ struct PushNotificationModal: View {
                         onLater()
                     }) {
                         Text("Later")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.primary)
+                            .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                     }
@@ -102,6 +119,12 @@ struct PushNotificationModal: View {
             )
         )
         .ignoresSafeArea()
+        .onAppear {
+            // Start the zoom in/transition/zoom out animation after modal appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                showNotificationAnimation = true
+            }
+        }
     }
 }
 
@@ -148,22 +171,38 @@ struct PushNotificationModalModifier: ViewModifier {
             // Main content
             content
             
-            // Overlay modal directly (NO sheet)
+            // Blue overlay layer (appears when modal is shown)
+            if showModal {
+                Color.blue
+                    .opacity(0.4)
+                    .ignoresSafeArea()
+                    .zIndex(998) // Just below the modal
+                    .transition(.opacity)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
+            }
+            
+            // Push notification modal (top layer)
             if showModal {
                 PushNotificationModal(
                     isPresented: $showModal,
                     onAllow: {
                         notificationManager.requestPermission { granted in
-                            showModal = false
+                            // Dismiss both modal and blue overlay together
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                showModal = false
+                            }
                             onAllow()
                         }
                     },
                     onLater: {
-                        showModal = false
+                        // Dismiss both modal and blue overlay together
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                            showModal = false
+                        }
                         onLater()
                     }
                 )
-                .zIndex(999)
+                .zIndex(999) // Top layer
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
             }
@@ -202,5 +241,3 @@ extension View {
         ))
     }
 }
-
-
