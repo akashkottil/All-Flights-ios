@@ -50,7 +50,7 @@ struct FlightDetailScreen: View {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 2) {
                         if let flightDetail = flightDetail {
-                            Text("\(flightDetail.departure.airport.city) - \(flightDetail.arrival.airport.city)")
+                            Text("\(flightDetail.departure.airport.city ?? flightDetail.departure.airport.name) - \(flightDetail.arrival.airport.city ?? flightDetail.arrival.airport.name)")  // FIXED: Handle optional city
                                 .font(.system(size: 18))
                                 .fontWeight(.bold)
                         } else {
@@ -92,7 +92,7 @@ struct FlightDetailScreen: View {
             id: "\(flightNumber)_\(date)",
             flightNumber: flight.flightIata,
             airlineName: flight.airline.name,
-            status: flight.status,
+            status: flight.status ?? "Unknown",  // FIXED: Handle optional status
             departureTime: formatTime(flight.departure.scheduled.local),
             departureAirport: flight.departure.airport.iataCode,
             departureDate: formatDateOnly(flight.departure.scheduled.local),
@@ -150,7 +150,7 @@ struct FlightDetailScreen: View {
                             .foregroundColor(.gray)
                     }
                     Spacer()
-                    Text(flight.status)
+                    Text(flight.status ?? "Unknown")
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.rainForest)
@@ -300,7 +300,7 @@ struct FlightDetailScreen: View {
                 // Status Cards
                 VStack(spacing: 12) {
                     flightStatusCard(
-                        title: "\(flight.departure.airport.city), \(flight.departure.airport.country)",
+                        title: "\(flight.departure.airport.city ?? flight.departure.airport.name), \(flight.departure.airport.country ?? "Unknown")",  // FIXED: Handle optional fields
                         gateTime: formatTime(flight.departure.scheduled.local),
                         estimatedGateTime: flight.departure.estimated?.local != nil ? formatTime(flight.departure.estimated?.local) : nil,
                         gateStatus: flight.departure.actual != nil ? "Departed" : "On time",
@@ -313,7 +313,7 @@ struct FlightDetailScreen: View {
                         .padding(.vertical,20)
                     
                     flightStatusCard(
-                        title: "\(flight.arrival.airport.city), \(flight.arrival.airport.country)",
+                        title: "\(flight.arrival.airport.city ?? flight.arrival.airport.name), \(flight.arrival.airport.country ?? "Unknown")",  // FIXED: Handle optional fields
                         gateTime: formatTime(flight.arrival.scheduled.local),
                         estimatedGateTime: flight.arrival.estimated?.local != nil ? formatTime(flight.arrival.estimated?.local) : nil,
                         gateStatus: flight.arrival.actual != nil ? "Arrived" : (flight.arrival.estimated != nil ? getArrivalStatus(scheduled: flight.arrival.scheduled.local ?? "", estimated: flight.arrival.estimated?.local ?? "") : "On time"),
@@ -726,7 +726,7 @@ struct AirlinesInfo: View {
             HStack{
                 VStack {
                     Text("ATC Callsign")
-                    Text(airline.callsign)
+                    Text(airline.callsign ?? "N/A")  // FIXED: Handle optional callsign
                         .fontWeight(.bold)
                 }
                 .padding()
@@ -738,7 +738,7 @@ struct AirlinesInfo: View {
                 
                 VStack {
                     Text("Fleet Size")
-                    Text("\(airline.totalAircrafts)")
+                    Text("\(airline.totalAircrafts ?? 0)")  // FIXED: Handle optional totalAircrafts
                         .fontWeight(.bold)
                 }
                 .padding()
@@ -750,7 +750,7 @@ struct AirlinesInfo: View {
                 
                 VStack {
                     Text("Fleet Age")
-                    Text("\(String(format: "%.1f", airline.averageFleetAge))y")
+                    Text("\(String(format: "%.1f", airline.averageFleetAge ?? 0.0))y")  // FIXED: Handle optional averageFleetAge
                         .fontWeight(.bold)
                 }
                 .padding()
@@ -792,7 +792,7 @@ struct AboutDestination: View {
                     Text("29°C") // You might want to integrate weather API
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("Weather in \(flight.arrival.airport.city)")
+                    Text("Weather in \(flight.arrival.airport.city ?? flight.arrival.airport.name)")  // FIXED: Handle optional city
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.white.opacity(0.7))
                 }
