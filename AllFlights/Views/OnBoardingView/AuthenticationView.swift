@@ -5,15 +5,26 @@ struct AuthenticationView: View {
     
     var body: some View {
         ZStack {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color("homeGrad"),
-                    .white
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            // White background for full screen
+            Color.white
+                .ignoresSafeArea()
+            
+            // Half-screen gradient using GeometryReader for responsiveness
+            GeometryReader { geometry in
+                VStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color("homeGrad"),
+                            .white
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: geometry.size.height / 2)
+                    
+                    Spacer()
+                }
+            }
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
