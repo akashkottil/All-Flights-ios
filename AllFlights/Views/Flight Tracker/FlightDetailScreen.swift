@@ -6,6 +6,7 @@ struct FlightDetailScreen: View {
     // Flight parameters
     let flightNumber: String
     let date: String
+    let onFlightViewed: ((TrackedFlightData) -> Void)?
     
     // State for API data
     @State private var flightDetail: FlightDetail?
@@ -14,12 +15,18 @@ struct FlightDetailScreen: View {
     
     private let networkManager = FlightTrackNetworkManager.shared
 
+    // ADDED: Default initializer for backward compatibility
+    init(flightNumber: String, date: String, onFlightViewed: ((TrackedFlightData) -> Void)? = nil) {
+        self.flightNumber = flightNumber
+        self.date = date
+        self.onFlightViewed = onFlightViewed
+    }
+
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
                     if isLoading {
-                        // FIXED: Use FlightDetailsShimmer instead of basic loading view
                         FlightDetailsShimmer()
                     } else if let error = error {
                         errorView(error)
@@ -71,6 +78,33 @@ struct FlightDetailScreen: View {
                 await fetchFlightDetails()
             }
         }
+        .onDisappear {
+            // ADDED: Add flight to recently viewed when user leaves this screen
+            if let flightDetail = flightDetail, let onFlightViewed = onFlightViewed {
+                addToRecentlyViewed(flightDetail)
+            }
+        }
+    }
+    
+    // ADDED: Add flight to recently viewed when screen is dismissed
+    private func addToRecentlyViewed(_ flight: FlightDetail) {
+        let trackedFlight = TrackedFlightData(
+            id: "\(flightNumber)_\(date)",
+            flightNumber: flight.flightIata,
+            airlineName: flight.airline.name,
+            status: flight.status,
+            departureTime: formatTime(flight.departure.scheduled.local),
+            departureAirport: flight.departure.airport.iataCode,
+            departureDate: formatDateOnly(flight.departure.scheduled.local),
+            arrivalTime: formatTime(flight.arrival.scheduled.local),
+            arrivalAirport: flight.arrival.airport.iataCode,
+            arrivalDate: formatDateOnly(flight.arrival.scheduled.local),
+            duration: calculateDuration(departure: flight.departure.scheduled.local, arrival: flight.arrival.scheduled.local),
+            flightType: "Direct", // You might want to determine this based on actual data
+            date: date
+        )
+        
+        onFlightViewed?(trackedFlight)
     }
     
     private func errorView(_ message: String) -> some View {
@@ -293,7 +327,7 @@ struct FlightDetailScreen: View {
                 
                 AboutDestination(flight: flight)
                 
-                // Notification & Delete
+                // Notification & Delete section (keeping original design)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Notification")
@@ -528,7 +562,7 @@ struct FlightDetailScreen: View {
             formatter.dateFormat = format
             if let date = formatter.date(from: timeString) {
                 let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "dd MMM, EEE"
+                dateFormatter.dateFormat = "dd MMM"
                 return dateFormatter.string(from: date)
             }
         }
@@ -672,7 +706,7 @@ struct FlightDetailScreen: View {
     }
 }
 
-// MARK: - Updated supporting views
+// MARK: - Supporting Views (keeping original design)
 
 struct AirlinesInfo: View {
     let airline: FlightDetailAirline
