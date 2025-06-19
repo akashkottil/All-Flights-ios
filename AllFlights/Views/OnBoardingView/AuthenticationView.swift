@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AuthenticationView: View {
     @StateObject private var onboardingManager = OnboardingManager.shared
+    @State private var isChecked = true
     
     var body: some View {
         ZStack {
@@ -121,14 +122,22 @@ struct AuthenticationView: View {
                         
                         // Terms text
                         HStack {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 12))
-                                .padding(10)
-                                .background(Color.blue.opacity(0.1))
-                                .clipShape(Rectangle())
-                                .cornerRadius(4)
-                                .frame(width: 22, height: 22)
+                            Button(action: {
+                                isChecked.toggle()
+                            }) {
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.blue.opacity(0.1))
+                                        .frame(width: 22, height: 22)
+                                        .cornerRadius(4)
+                                    
+                                    if isChecked {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                            .font(.system(size: 12))
+                                    }
+                                }
+                            }
                             
                             Text("By creating or logging into an account you're agreeing with our terms and conditions and privacy statement")
                                 .font(.system(size: 12))
