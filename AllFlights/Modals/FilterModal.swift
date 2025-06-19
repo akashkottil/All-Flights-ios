@@ -95,6 +95,7 @@ struct FilterModal: View {
 
 // MARK: - Filter Modal Modifier
 struct FilterModalModifier: ViewModifier {
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared // ADD: Access shared data
     @Binding var showModal: Bool
     let onClearFilters: () -> Void
     let onEditFilters: () -> Void
@@ -114,6 +115,13 @@ struct FilterModalModifier: ViewModifier {
                 .zIndex(999)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
+            }
+        }
+        .onChange(of: showModal) { _, isVisible in // ADD: Track modal visibility
+            if isVisible {
+                sharedSearchData.showModal()
+            } else {
+                sharedSearchData.hideModal()
             }
         }
     }

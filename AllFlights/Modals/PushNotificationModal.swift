@@ -160,6 +160,7 @@ class PushNotificationManager: ObservableObject {
 // MARK: - Push Notification Modal Modifier
 struct PushNotificationModalModifier: ViewModifier {
     @StateObject private var notificationManager = PushNotificationManager.shared
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared // ADD: Access shared data
     @State private var showModal = false
     
     let shouldShow: Bool
@@ -176,7 +177,7 @@ struct PushNotificationModalModifier: ViewModifier {
                 Color.blue
                     .opacity(0.4)
                     .ignoresSafeArea()
-                    .zIndex(998) // Just below the modal
+                    .zIndex(998)
                     .transition(.opacity)
                     .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
             }
@@ -187,7 +188,6 @@ struct PushNotificationModalModifier: ViewModifier {
                     isPresented: $showModal,
                     onAllow: {
                         notificationManager.requestPermission { granted in
-                            // Dismiss both modal and blue overlay together
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                 showModal = false
                             }
@@ -195,20 +195,18 @@ struct PushNotificationModalModifier: ViewModifier {
                         }
                     },
                     onLater: {
-                        // Dismiss both modal and blue overlay together
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                             showModal = false
                         }
                         onLater()
                     }
                 )
-                .zIndex(999) // Top layer
+                .zIndex(999)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
             }
         }
         .onAppear {
-            // Show modal if permission is not determined and shouldShow is true
             if shouldShow && notificationManager.permissionStatus == .notDetermined {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
@@ -222,6 +220,13 @@ struct PushNotificationModalModifier: ViewModifier {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                     showModal = true
                 }
+            }
+        }
+        .onChange(of: showModal) { _, isVisible in // ADD: Track modal visibility
+            if isVisible {
+                sharedSearchData.showModal()
+            } else {
+                sharedSearchData.hideModal()
             }
         }
     }

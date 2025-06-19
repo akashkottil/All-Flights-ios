@@ -35,11 +35,12 @@ struct RootTabView: View {
             
             // Custom Tab Bar - hide when in explore navigation, search mode, OR account navigation
             if !sharedSearchData.isInSearchMode &&
-               !sharedSearchData.isInExploreNavigation &&
-               !sharedSearchData.isInAccountNavigation {
-                CustomTabBar(selectedTab: $selectedTab)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+                           !sharedSearchData.isInExploreNavigation &&
+                           !sharedSearchData.isInAccountNavigation &&
+                           !sharedSearchData.isAnyModalVisible { // ADD: Hide when modal is visible
+                            CustomTabBar(selectedTab: $selectedTab)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
         }
         .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInSearchMode)
         .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInExploreNavigation)

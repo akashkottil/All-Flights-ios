@@ -116,6 +116,7 @@ class NetworkMonitor: ObservableObject {
 // MARK: - Network Modal Modifier (FIXED - No Sheet)
 struct NetworkModalModifier: ViewModifier {
     @StateObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var sharedSearchData = SharedSearchDataStore.shared // ADD: Access shared data
     @State private var showModal = false
     @State private var wasConnected = true
     
@@ -137,12 +138,13 @@ struct NetworkModalModifier: ViewModifier {
         .onChange(of: networkMonitor.isConnected) { _, isConnected in
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 if wasConnected && !isConnected {
-                    // Connection lost - show modal
+                    // Connection lost - show modal and update shared state
                     showModal = true
+                    sharedSearchData.showModal() // ADD: Update shared state
                 } else if !wasConnected && isConnected {
-                    // Connection restored - ONLY NOW dismiss modal
+                    // Connection restored - hide modal and update shared state
                     showModal = false
-                    // Auto refresh happens, but modal stays until connection is actually back
+                    sharedSearchData.hideModal() // ADD: Update shared state
                     onRetry()
                 }
                 wasConnected = isConnected
