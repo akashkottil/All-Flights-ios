@@ -9,34 +9,66 @@ enum TrackedSearchResultType {
 
 struct TrackedDetailsScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @Namespace private var searchCardNamespace
     
     // ADDED: Accept dynamic data instead of hardcoded
     let flightDetail: FlightDetail?
     let scheduleResults: [ScheduleResult]
     let searchType: TrackedSearchResultType
     
-    // ADDED: Computed properties for header title
-    private var headerTitle: String {
+    // ADDED: Computed properties for dynamic header values
+    private var fromText: String {
         if let flightDetail = flightDetail {
-            let depCode = flightDetail.departure.airport.iataCode
-            let arrCode = flightDetail.arrival.airport.iataCode
-            let date = formatHeaderDate(flightDetail.departure.scheduled.local)
-            return "\(depCode) - \(arrCode) \(date)"
+            return flightDetail.departure.airport.iataCode
         } else if let firstFlight = scheduleResults.first {
-            let airport = firstFlight.airport
-            let date = formatHeaderDate(firstFlight.departureTime)
-            return "\(airport.iataCode) Flights \(date)"
+            return firstFlight.airport.iataCode
         } else {
-            return "Flight Details"
+            return "---"
         }
+    }
+    
+    private var toText: String {
+        if let flightDetail = flightDetail {
+            return flightDetail.arrival.airport.iataCode
+        } else if !scheduleResults.isEmpty {
+            return "Flights"
+        } else {
+            return "---"
+        }
+    }
+    
+    private var dateText: String {
+        if let flightDetail = flightDetail {
+            return formatHeaderDate(flightDetail.departure.scheduled.local)
+        } else if let firstFlight = scheduleResults.first {
+            return formatHeaderDate(firstFlight.departureTime)
+        } else {
+            return "--"
+        }
+    }
+    
+    private var passengerCount: Int {
+        return 1 // Default value, you can make this dynamic if needed
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Custom Header
-            CustomHeaderView(title: headerTitle) {
-                dismiss()
-            }
+            // UPDATED: Use TrackCollapseHeader instead of CustomHeaderView
+            TrackCollapseHeader(
+                fromText: fromText,
+                toText: toText,
+                dateText: dateText,
+                passengerCount: passengerCount,
+                searchCardNamespace: searchCardNamespace,
+                onTap: {
+                    // Handle tap action - could expand/collapse or navigate
+                    print("Header tapped")
+                },
+                handleBackNavigation: {
+                    dismiss()
+                },
+                shouldShowBackButton: true
+            )
             
             // Main Content
             ScrollView {
@@ -75,7 +107,7 @@ struct TrackedDetailsScreen: View {
     // MARK: - Helper Methods
     
     private func formatHeaderDate(_ dateString: String?) -> String {
-        guard let dateString = dateString else { return "" }
+        guard let dateString = dateString else { return "--" }
         
         let formatter = DateFormatter()
         let formats = [
@@ -93,7 +125,7 @@ struct TrackedDetailsScreen: View {
                 return headerFormatter.string(from: date)
             }
         }
-        return ""
+        return "--"
     }
 }
 
@@ -504,55 +536,6 @@ struct ScheduleFlightCard: View {
         let minutes = Int(duration.truncatingRemainder(dividingBy: 3600)) / 60
         
         return "\(hours)h \(minutes)min"
-    }
-}
-
-// MARK: - Keep the existing CustomHeaderView unchanged
-struct CustomHeaderView: View {
-    let title: String
-    let onBackTap: () -> Void
-    
-    var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                // Header background with proper safe area
-                ZStack {
-                    // Dark blue background extending to top
-                    Color(red: 0.15, green: 0.25, blue: 0.45)
-                        .ignoresSafeArea(edges: .top)
-                    
-                    VStack {
-                        // Header content
-                        HStack(spacing: 0) {
-                            // Back button
-                            Button(action: onBackTap) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                            }
-                            
-                            Spacer()
-                            
-                            // Title
-                            Text(title)
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                            
-                            Spacer()
-                            
-                            // Invisible spacer to balance layout
-                            Color.clear
-                                .frame(width: 44, height: 44)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
-                    }
-                }
-                .frame(height: geometry.safeAreaInsets.top + 20)
-            }
-        }
-        .frame(height: 10) // Total header height
     }
 }
 
