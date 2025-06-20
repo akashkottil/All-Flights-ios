@@ -97,12 +97,15 @@ struct SingleRowCard:View {
                         .fill(Color(.systemBackground))
                     
                     // Animated or static stroke based on loading state
-                    if viewModel.isLoading || viewModel.isLoadingFlights {
-                        LoadingBorderView()
-                    } else {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 1)
-                    }
+                    if viewModel.isLoading ||
+                                          viewModel.isLoadingFlights ||
+                                          (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) ||
+                                          (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil && !viewModel.isDataCached) {
+                                           LoadingBorderView()
+                                       } else {
+                                           RoundedRectangle(cornerRadius: 12)
+                                               .stroke(Color.orange, lineWidth: 2)
+                                       }
                 }
             )
             .padding()
