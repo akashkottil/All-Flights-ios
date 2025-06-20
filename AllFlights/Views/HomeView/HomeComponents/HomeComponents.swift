@@ -2388,15 +2388,16 @@ struct ExploreScreenWithSearchData: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemBackground))
                     
+                    // Animated or static stroke based on loading state
                     if viewModel.isLoading ||
-                                          viewModel.isLoadingFlights ||
-                                          (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) ||
-                                          (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil && !viewModel.isDataCached) {
-                                           LoadingBorderView()
-                                       } else {
-                                           RoundedRectangle(cornerRadius: 12)
-                                               .stroke(Color.orange, lineWidth: 2)
-                                       }                }
+                       viewModel.isLoadingFlights ||
+                       (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) {
+                        LoadingBorderView()
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange, lineWidth: 2)
+                    }
+                }
             )
             .padding()
             
@@ -2505,102 +2506,6 @@ class SearchDebouncer {
         value = nextValue()
     }
 }
-
-
-// MARK: - Search Results Expanded Search Card (Used in results view)
-struct SearchResultsExpandedCard: View {
-    @ObservedObject var viewModel: ExploreViewModel
-    @Binding var selectedTab: Int
-    @Binding var isRoundTrip: Bool
-    let searchCardNamespace: Namespace.ID
-    let handleBackNavigation: () -> Void
-    let shouldShowBackButton: Bool
-    
-    @GestureState private var dragOffset: CGFloat = 0
-    
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .global)
-            .updating($dragOffset) { value, state, _ in
-                state = value.translation.height
-            }
-            .onEnded { value in
-                // Handle back swipe gesture if needed
-                if value.translation.height > 50 {
-                    handleBackNavigation()
-                }
-            }
-    }
-    
-    var body: some View {
-        VStack {
-            VStack(spacing: 0) {
-                // FIXED: Use ZStack for proper centering
-                ZStack {
-                    // Centered trip type tabs - always perfectly centered
-                    TripTypeTabView(selectedTab: $selectedTab, isRoundTrip: $isRoundTrip, viewModel: viewModel)
-                        .matchedGeometryEffect(id: "tripTabs", in: searchCardNamespace)
-                    
-                    // Back button positioned absolutely on the left
-                    HStack {
-                        if shouldShowBackButton {
-                            Button(action: handleBackNavigation) {
-                                Image(systemName: "chevron.left")
-                                    .foregroundColor(.primary)
-                                    .font(.system(size: 18, weight: .semibold))
-                            }
-                            .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
-                        }
-                        Spacer()
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 15)
-                
-                // Search card with dynamic values - using SearchCard from ExploreComponents
-                SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
-                    .padding(.horizontal)
-                    .padding(.vertical, 4)
-                    .matchedGeometryEffect(id: "searchContent", in: searchCardNamespace)
-            }
-            .background(
-                ZStack {
-                    // Background fill
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemBackground))
-                        .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
-                    
-                    // Animated or static stroke based on loading state
-                    if viewModel.isLoading ||
-                                          viewModel.isLoadingFlights ||
-                                          (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) ||
-                                          (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil && !viewModel.isDataCached) {
-                                           LoadingBorderView()
-                                       } else {
-                                           RoundedRectangle(cornerRadius: 12)
-                                               .stroke(Color.orange, lineWidth: 2)
-                                       }
-                }
-                // FIXED: Move shadow to only the background/border
-                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
-            )
-            .padding()
-            .gesture(dragGesture)
-        }
-        .background(
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    Color("searchcardBackground")
-                        .frame(height: geo.size.height)
-                    Color("scroll")
-                }
-                .edgesIgnoringSafeArea(.all)
-            }
-        )
-    }
-}
-
-
-// MARK: - Additional Helper Components for Transformation
 
 // MARK: - Custom Transition for Search Results
 struct SearchResultsTransition: ViewModifier {

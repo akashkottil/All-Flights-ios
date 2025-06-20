@@ -523,11 +523,15 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-
-              
-                
                 // Store the last poll response for filter operations
                 self.lastPollResponse = pollResponse
+                
+                // 🚨 FIX: Set hasInitialResultsLoaded to true as soon as we receive ANY results
+                // This ensures the loading border stops showing immediately when results arrive
+                if !pollResponse.results.isEmpty {
+                    self.hasInitialResultsLoaded = true
+                    print("✅ Initial results loaded: \(pollResponse.results.count) flights received")
+                }
                 
                 // CRITICAL: Check for initial empty results with cache = true
                 if pollResponse.cache && pollResponse.count == 0 && self.isFirstLoad {
@@ -537,6 +541,8 @@ class ExploreViewModel: ObservableObject {
                     self.showNoResultsModal = true
                     self.hasMoreFlights = false
                     self.detailedFlightError = nil // Clear error message since modal will handle it
+                    // 🚨 FIX: Also set hasInitialResultsLoaded for empty results to stop loading border
+                    self.hasInitialResultsLoaded = true
                 }
                 // CRITICAL: Normal handling for other cache scenarios
                 else if pollResponse.cache {
@@ -556,6 +562,13 @@ class ExploreViewModel: ObservableObject {
                     // Backend still processing - continue loading
                     self.hasMoreFlights = true
                     print("🔄 Initial search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
+                    
+                    // 🚨 FIX: Set hasInitialResultsLoaded even when backend is still processing
+                    // if we have received some results - this stops the loading border
+                    if !pollResponse.results.isEmpty {
+                        self.hasInitialResultsLoaded = true
+                        print("✅ Initial results received while backend processing: \(pollResponse.results.count) flights")
+                    }
                     
                     // FIXED: Only schedule retry if we haven't received substantial results yet
                     if pollResponse.results.isEmpty || pollResponse.results.count < 3 {
