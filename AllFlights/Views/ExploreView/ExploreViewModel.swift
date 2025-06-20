@@ -5,6 +5,7 @@ import Alamofire
 
 
 class ExploreViewModel: ObservableObject {
+    @Published var hasInitialResultsLoaded = false
     private static var cachedDestinations: [ExploreDestination]? = nil
     @Published var destinations: [ExploreDestination] = []
     @Published var isLoading = false
@@ -470,7 +471,12 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-                // 🚨 ADD THIS NEW CONDITION CHECK FOR MODAL:
+                // ADDED: Mark that we have initial results
+                self.hasInitialResultsLoaded = !pollResponse.results.isEmpty
+                
+                // Store the last poll response for filter operations
+                self.lastPollResponse = pollResponse
+                
                 // CRITICAL: Check for initial empty results with cache = true
                 if pollResponse.cache && pollResponse.count == 0 && self.isFirstLoad {
                     // This is an initial empty result - show modal
@@ -497,11 +503,20 @@ class ExploreViewModel: ObservableObject {
                     // Backend still processing - continue loading
                     self.hasMoreFlights = true
                     print("🔄 Initial search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
-                    self.scheduleRetryAfterDelay()
+                    
+                    // FIXED: Only schedule retry if we haven't received substantial results yet
+                    if pollResponse.results.isEmpty || pollResponse.results.count < 3 {
+                        self.scheduleRetryAfterDelay()
+                    }
                 }
                 
                 // 🚨 ADD THIS: Mark that we've completed the first load
                 self.isFirstLoad = false
+                
+                // FIXED: Stop loading immediately if we have results or if backend is done processing
+                if !pollResponse.results.isEmpty || pollResponse.cache {
+                    self.isLoadingDetailedFlights = false
+                }
             }
         )
         .store(in: &cancellables)

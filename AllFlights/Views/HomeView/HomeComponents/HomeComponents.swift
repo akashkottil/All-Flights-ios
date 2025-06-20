@@ -2569,14 +2569,14 @@ struct SearchResultsExpandedCard: View {
                     
                     // Animated or static stroke based on loading state
                     if viewModel.isLoading ||
-                       viewModel.isLoadingFlights ||
-                       viewModel.isLoadingDetailedFlights ||
-                       (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil) {
-                        LoadingBorderView()
-                    } else {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 2)
-                    }
+                                          viewModel.isLoadingFlights ||
+                                          (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) ||
+                                          (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil && !viewModel.isDataCached) {
+                                           LoadingBorderView()
+                                       } else {
+                                           RoundedRectangle(cornerRadius: 12)
+                                               .stroke(Color.orange, lineWidth: 2)
+                                       }
                 }
                 // FIXED: Move shadow to only the background/border
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)

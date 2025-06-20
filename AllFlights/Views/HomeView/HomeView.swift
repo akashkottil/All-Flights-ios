@@ -4,6 +4,10 @@ import CoreLocation
 
 // MARK: - Enhanced HomeView with Gradual Search Card Collapse
 struct HomeView: View {
+    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .all
+    @State private var showingDetailedFlightFilterSheet = false
+    @State private var hasAppliedInitialDirectFilter = false
+    
     @State private var navigateToAccount = false
     @Namespace private var animation
     @GestureState private var dragOffset: CGFloat = 0
@@ -52,6 +56,60 @@ struct HomeView: View {
     @State private var selectedMonthTab = 0
     @State private var isRoundTrip: Bool = true
     @State private var showFilterModal = false
+    
+    private func applyDetailedFlightFilterOption(_ filter: FlightFilterTabView.FilterOption) {
+        print("🔧 Applying detailed flight filter: \(filter.rawValue)")
+        
+        var filterRequest: FlightFilterRequest? = nil
+        
+        switch filter {
+        case .all:
+            filterRequest = FlightFilterRequest()
+            
+        case .best:
+            filterRequest = FlightFilterRequest()
+            
+        case .cheapest:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "price"
+            filterRequest!.sortOrder = "asc"
+            
+        case .fastest:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.sortBy = "duration"
+            filterRequest!.sortOrder = "asc"
+            
+        case .direct:
+            filterRequest = FlightFilterRequest()
+            filterRequest!.stopCountMax = 0
+        }
+        
+        // Apply the filter if we have one
+        if let request = filterRequest {
+            exploreViewModel.applyPollFilters(filterRequest: request)
+        }
+    }
+    
+    private func applyInitialDirectFilterIfNeeded() {
+        if exploreViewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
+            print("🔧 Applying initial direct filter from HomeView toggle")
+            selectedDetailedFlightFilter = .direct
+            hasAppliedInitialDirectFilter = true
+            applyDetailedFlightFilterOption(.direct)
+        }
+    }
+
+    private func clearAllFiltersInHomeExploreScreen() {
+        print("🧹 Clearing all filters in HomeView ExploreScreen")
+        
+        selectedDetailedFlightFilter = .all
+        exploreViewModel.filterSheetState = ExploreViewModel.FilterSheetState()
+        
+        let emptyFilter = FlightFilterRequest()
+        exploreViewModel.applyPollFilters(filterRequest: emptyFilter)
+        
+        print("✅ All filters cleared in HomeView ExploreScreen")
+    }
     
     private func refreshHomeData() {
         // Refresh cheap flights data
@@ -219,9 +277,12 @@ struct HomeView: View {
                                 set: { showFilterModal = $0 }
                             ),
                             onClearFilters: {
-                                // Clear filters logic
+                                clearAllFiltersInHomeExploreScreen()
                             }
                         )
+                        .sheet(isPresented: $showingDetailedFlightFilterSheet) {
+                            FlightFilterSheet(viewModel: exploreViewModel)
+                        }
                     }
                     .background(Color("scroll"))
                     .opacity(exploreContentOpacity)
@@ -300,6 +361,7 @@ struct HomeView: View {
                         }
                     }
                 }
+        
         .scrollIndicators(.hidden)
     }
     
@@ -326,17 +388,18 @@ struct HomeView: View {
                                 }
                             }
                             
-                            // Filter tabs section for detailed flight list
+                            // FIXED: Filter tabs section for detailed flight list
                             HStack {
                                 FilterButton {
-                                    showFilterModal = true
+                                    showingDetailedFlightFilterSheet = true
                                 }
                                 .padding(.leading, 20)
                                 
                                 FlightFilterTabView(
-                                    selectedFilter: .all,
+                                    selectedFilter: selectedDetailedFlightFilter,
                                     onSelectFilter: { filter in
-                                        // Handle filter selection
+                                        selectedDetailedFlightFilter = filter
+                                        applyDetailedFlightFilterOption(filter)
                                     }
                                 )
                             }
@@ -358,6 +421,9 @@ struct HomeView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
+                        .onAppear {
+                            applyInitialDirectFilterIfNeeded()
+                        }
                     }
                 }
                 .background(Color("scroll"))
@@ -367,6 +433,7 @@ struct HomeView: View {
         .background(Color("scroll"))
         .zIndex(1)
     }
+
     
     // NEW: Function to update search card height based on scroll - IMPROVED LOGIC
     private func updateSearchCardHeight() {
@@ -478,6 +545,8 @@ struct HomeView: View {
     }
     
     // NEW: Transfer search data to explore view model
+    // Replace the existing transferSearchDataToExplore method in HomeView with this updated version:
+
     private func transferSearchDataToExplore() {
         // Transfer all search data to the explore view model
         exploreViewModel.fromLocation = searchViewModel.fromLocation
@@ -502,6 +571,11 @@ struct HomeView: View {
         
         // Store direct flights preference
         exploreViewModel.directFlightsOnlyFromHome = searchViewModel.directFlightsOnly
+        
+        // ADDED: Reset filter states for new search
+        exploreViewModel.resetFilterSheetStateForNewSearch()
+        selectedDetailedFlightFilter = .all
+        hasAppliedInitialDirectFilter = false
         
         // Sync tab states
         selectedTab = searchViewModel.selectedTab
