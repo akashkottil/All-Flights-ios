@@ -372,6 +372,8 @@ class ExploreViewModel: ObservableObject {
                 
                 switch response.result {
                 case .success(let searchResponse):
+                    // In searchMultiCityFlightsWithPagination success block
+                    self.hasInitialResultsLoaded = true
                     print("Multi-city search successful, got searchId: \(searchResponse.searchId)")
                     self.currentSearchId = searchResponse.searchId
                     
@@ -521,8 +523,8 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-                // ADDED: Mark that we have initial results
-                self.hasInitialResultsLoaded = !pollResponse.results.isEmpty
+
+              
                 
                 // Store the last poll response for filter operations
                 self.lastPollResponse = pollResponse
@@ -548,6 +550,7 @@ class ExploreViewModel: ObservableObject {
                     } else {
                         self.hasMoreFlights = pollResponse.next != nil
                     }
+                    self.hasInitialResultsLoaded = true
                     print("✅ Initial search complete (cached): \(pollResponse.results.count)/\(pollResponse.count) flights, hasMore: \(self.hasMoreFlights)")
                 } else {
                     // Backend still processing - continue loading

@@ -2351,8 +2351,10 @@ struct DetailedFlightCardWrapper: View {
             let outboundLastSegment = outboundLeg.segments.last!
             
             Button(action: onTap) {
+                let isMultiCitySearch = viewModel.multiCityTrips.count >= 2
+                let hasMultipleLegs = result.legs.count >= 2
                 // Check if this is a multi-city trip (more than 2 legs)
-                if result.legs.count > 2 {
+                if isMultiCitySearch && hasMultipleLegs {
                     // Multi-city trip - show all legs in one card
                     MultiCityModernFlightCard(
                         result: result,
