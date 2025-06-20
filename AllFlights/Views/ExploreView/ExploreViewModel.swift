@@ -82,6 +82,52 @@ class ExploreViewModel: ObservableObject {
     @Published var showNoResultsModal = false
     @Published var isInitialEmptyResult = false
     
+    // 🔥 ADD: Save search to recent searches when search is executed in ExploreViewModel
+    private func saveSearchToRecentAndLastSearch() {
+        // Only save valid searches
+        guard !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty &&
+              fromLocation != "Departure?" && toLocation != "Destination?" &&
+              fromLocation != "Where from?" && toLocation != "Where to?" else {
+            print("⚠️ Skipping search save - invalid data")
+            return
+        }
+        
+        // Save to recent searches
+        RecentSearchManager.shared.addRecentSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: selectedOriginCode,
+            toIataCode: selectedDestinationCode,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            cabinClass: selectedCabinClass,
+            isRoundTrip: isRoundTrip,
+            selectedTab: isRoundTrip ? 0 : 1, // Determine tab based on trip type
+            departureDate: dates.first,
+            returnDate: dates.count > 1 ? dates[1] : nil
+        )
+        
+        // Save to last search
+        LastSearchManager.shared.saveLastSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: selectedOriginCode,
+            toIataCode: selectedDestinationCode,
+            selectedDates: dates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: isRoundTrip ? 0 : 1,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips,
+            directFlightsOnly: directFlightsOnlyFromHome
+        )
+        
+        print("✅ Search saved from ExploreViewModel: \(selectedOriginCode) → \(selectedDestinationCode)")
+    }
+    
     func handleTryDifferentSearch() {
         print("🔄 User requested different search from modal")
         showNoResultsModal = false
@@ -277,6 +323,8 @@ class ExploreViewModel: ObservableObject {
         selectedOriginCode = multiCityTrips.first?.fromIataCode ?? ""
         selectedDestinationCode = multiCityTrips.last?.toIataCode ?? ""
         
+        saveSearchToRecentAndLastSearch()
+        
         // Create request payload using the existing searchFlights method
         var legs: [[String: String]] = []
         
@@ -410,6 +458,8 @@ class ExploreViewModel: ObservableObject {
         hasMoreFlights = true
         isLoadingMoreFlights = false
         isFirstLoad = true
+        
+        saveSearchToRecentAndLastSearch()
         
         // IMPORTANT: Reset filters for new search
         _currentFilterRequest = nil

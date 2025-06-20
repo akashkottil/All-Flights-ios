@@ -119,6 +119,8 @@ class SharedSearchDataStore: ObservableObject {
             self.shouldExecuteSearch = true
             self.searchTimestamp = Date()
         }
+        
+        print("🔍 Search execution triggered from SharedSearchDataStore")
     }
     
     // Navigate to explore and show cities for a specific country

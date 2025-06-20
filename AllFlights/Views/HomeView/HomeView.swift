@@ -135,7 +135,7 @@ struct HomeView: View {
                             }
                         )
                         .gesture(dragGesture)
-                        .padding(.bottom, 20)
+                        
                     }
                     .background(
                         LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
