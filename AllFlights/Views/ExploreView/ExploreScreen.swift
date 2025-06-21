@@ -669,7 +669,7 @@ struct ExploreScreen: View {
         VStack(spacing: 16) {
             // Destination cards (destinations/cities) - removed title and filter tabs
             if !viewModel.isLoading && viewModel.errorMessage == nil {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     ForEach(viewModel.destinations) { destination in
                         APIDestinationCard(
                             item: destination,
@@ -685,22 +685,24 @@ struct ExploreScreen: View {
                                 }
                             }
                         )
-                        .padding(.horizontal)
+                        .padding(.horizontal,10)
                         .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                     }
                 }
+                .padding(.top,20)
                 .padding(.bottom, 16)
             }
             
             // Loading display
             if viewModel.isLoading {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     ForEach(0..<5, id: \.self) { _ in
                         SkeletonDestinationCard()
-                            .padding(.horizontal)
+                            .padding(.horizontal,10)
                             .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                     }
                 }
+                .padding(.top,20)
                 .padding(.bottom, 16)
             }
         }

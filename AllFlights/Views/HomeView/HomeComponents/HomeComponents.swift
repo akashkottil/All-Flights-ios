@@ -474,7 +474,7 @@ struct EnhancedCurrentLocationButton: View {
         case .locating:
             return "Getting Your Location..."
         case .geocoding:
-            return "Finding Your District..."
+            return "Finding Your Airport..."
         case .success:
             return "Location Found!"
         case .error:
