@@ -138,6 +138,20 @@ struct ExploreScreen: View {
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
     
+    // NEW: Computed property for filtered destinations based on selected filter tab
+    private var filteredDestinations: [ExploreDestination] {
+        switch selectedFilterTab {
+        case 0: // Cheapest flights (default)
+            return viewModel.destinations.sorted { $0.price < $1.price }
+        case 1: // Direct Flights
+            return viewModel.destinations.filter { $0.is_direct }.sorted { $0.price < $1.price }
+        case 2: // Suggested for you
+            return viewModel.destinations.shuffled()
+        default:
+            return viewModel.destinations.sorted { $0.price < $1.price }
+        }
+    }
+    
     // MODIFIED: Updated back navigation to handle "Anywhere" destination
     private func handleBackNavigation() {
         print("=== Back Navigation Debug ===")
@@ -670,7 +684,8 @@ struct ExploreScreen: View {
             // Destination cards (destinations/cities) - removed title and filter tabs
             if !viewModel.isLoading && viewModel.errorMessage == nil {
                 VStack(spacing: 10) {
-                    ForEach(viewModel.destinations) { destination in
+                    // UPDATED: Use filteredDestinations instead of viewModel.destinations
+                    ForEach(filteredDestinations) { destination in
                         APIDestinationCard(
                             item: destination,
                             viewModel: viewModel,

@@ -1415,7 +1415,7 @@ struct FlightResultCard: View {
 
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
-    @State private var cardScale: CGFloat = 1.0  // Start at normal scale
+    @State private var cardScale: CGFloat = 1.0
     @State private var isPressed = false
     let item: ExploreDestination
     let viewModel: ExploreViewModel
@@ -1438,7 +1438,7 @@ struct APIDestinationCard: View {
                 onTap()
             }
         }) {
-            HStack(spacing: 0) { // Remove spacing to eliminate gap between image and content
+            HStack(spacing: 0) {
                 // OPTIMIZED AsyncImage with full height and left alignment
                 CachedAsyncImage(
                     url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")
@@ -1448,13 +1448,13 @@ struct APIDestinationCard: View {
                         .scaledToFill()
                         .frame(width: 88, height: 88)
                         .clipped()
-                        .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners to match container
+                        .cornerRadius(12, corners: [.topLeft, .bottomLeft])
                 } placeholder: {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 88, height: 88)
-                            .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners
+                            .cornerRadius(12, corners: [.topLeft, .bottomLeft])
                         
                         VStack(spacing: 3) {
                             Image(systemName: viewModel.showingCities ? "building.2" : "globe")
@@ -1471,11 +1471,9 @@ struct APIDestinationCard: View {
                 // Content text with padding only on the right side
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        
-                        
                         Text(item.location.name)
                             .font(.system(size: 18, weight: .semibold))
-                            .padding(.bottom,2)
+                            .padding(.bottom, 2)
                         
                         Text(item.is_direct ? "Direct" : "Connecting")
                             .font(.system(size: 12))
@@ -1488,14 +1486,14 @@ struct APIDestinationCard: View {
                         Text("Starting from")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
-                            .padding(.bottom,2)
+                            .padding(.bottom, 2)
                         Text(viewModel.formatPrice(item.price))
                             .font(.system(size: 20, weight: .bold))
                     }
                 }
-                .padding(.leading, 12) // Add padding only on the left of text content
-                .padding(.trailing, 12) // Add padding only on the right
-                .padding(.vertical, 12) // Keep vertical padding
+                .padding(.leading, 12)
+                .padding(.trailing, 12)
+                .padding(.vertical, 12)
             }
             .background(
                 RoundedRectangle(cornerRadius: 12)
@@ -1504,9 +1502,8 @@ struct APIDestinationCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(cardScale)
-        // REMOVED: All slide-in animations (opacity, offset, cardAppeared state)
         .shadow(color: Color.black.opacity(isPressed ? 0.15 : 0.05), radius: isPressed ? 8 : 4, x: 0, y: isPressed ? 4 : 2)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed) // Only animate press state
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                 isPressed = pressing
