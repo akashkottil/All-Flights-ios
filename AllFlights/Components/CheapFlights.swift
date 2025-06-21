@@ -176,11 +176,11 @@ struct OriginalStyleCheapFlightCard: View {
             // Text content with fixed width container
             VStack(alignment: .leading, spacing: 4) {
                 Text(destination.location.name)
-                    .font(.system(size: 13))
-                    .foregroundColor(.black)
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
                     .fontWeight(.medium)
-                    .lineLimit(2) // Prevent text overflow
-                    .multilineTextAlignment(.leading)
+                    .lineLimit(1) // Prevent text overflow
+                   
                 
                 Text(destination.is_direct ? "Direct" : "Connecting")
                     .font(.system(size: 12))
