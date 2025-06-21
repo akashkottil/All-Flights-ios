@@ -1615,8 +1615,7 @@ struct HomeMultiCityLocationSheet: View {
             }
             .padding(.horizontal)
             
-            Divider()
-                .padding(.top)
+Spacer()
             
             // Results section with recent searches
             if isSearching {
@@ -2018,7 +2017,7 @@ struct HomeFromLocationSearchSheet: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
             
-            Divider()
+            Spacer()
             
             // Results section with recent searches
             if isSearching {
@@ -2216,8 +2215,7 @@ struct HomeToLocationSearchSheet: View {
             }
             .padding(.horizontal)
             
-            Divider()
-                .padding(.top)
+            Spacer()
             
             // Results section with recent searches (NO ANYWHERE OPTION)
             if isSearching {
@@ -2259,8 +2257,7 @@ struct HomeToLocationSearchSheet: View {
                             selectAnywhereLocation()
                         }
                     
-                    Divider()
-                        .padding(.horizontal)
+                    Spacer()
                     
                     RecentLocationSearchView(
                         onLocationSelected: { result in
@@ -2284,8 +2281,7 @@ struct HomeToLocationSearchSheet: View {
                             selectAnywhereLocation()
                         }
                     
-                    Divider()
-                        .padding(.horizontal)
+                    Spacer()
                     
                     RecentLocationSearchView(
                         onLocationSelected: { result in

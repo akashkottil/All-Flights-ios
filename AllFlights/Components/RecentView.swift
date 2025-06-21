@@ -52,7 +52,7 @@ struct RecentLocationSearchView: View {
                         }
                         .font(.system(size: 14))
                         .foregroundColor(.blue)
-                        .fontWeight(.medium)
+                        .fontWeight(.bold)
                     }
                 }
                 .padding(.horizontal)

@@ -634,7 +634,7 @@ struct SearchCard: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 
-                Divider()
+               Spacer()
                 
                 // Results section
                 if isSearching {
@@ -826,8 +826,7 @@ struct SearchCard: View {
                 }
                 .padding(.horizontal)
                 
-                Divider()
-                    .padding(.top)
+                Spacer()
                 
                 // Results section with Anywhere option
                 if isSearching {
@@ -848,8 +847,7 @@ struct SearchCard: View {
                                     selectAnywhereLocation()
                                 }
                             
-                            Divider()
-                                .padding(.horizontal)
+                           Spacer()
                             
                             ForEach(results) { result in
                                 LocationResultRow(result: result)
@@ -867,8 +865,7 @@ struct SearchCard: View {
                                 selectAnywhereLocation()
                             }
                         
-                        Divider()
-                            .padding(.horizontal)
+                        Spacer()
                         
                         RecentLocationSearchView(
                             onLocationSelected: { result in
@@ -891,8 +888,7 @@ struct SearchCard: View {
                                 selectAnywhereLocation()
                             }
                         
-                        Divider()
-                            .padding(.horizontal)
+                        Spacer()
                         
                         RecentLocationSearchView(
                             onLocationSelected: { result in
