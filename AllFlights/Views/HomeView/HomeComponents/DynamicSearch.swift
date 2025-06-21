@@ -437,7 +437,7 @@ struct EnhancedDynamicSearchInput: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                        .foregroundColor(isSwapping ? Color.blue.opacity(0.8) : Color.blue)
+                        .foregroundColor(Color.blue)
                         .rotationEffect(.degrees(swapRotationDegrees))
                         .scaleEffect(isSwapping ? 1.1 : 1.0)
                         .animation(.interpolatingSpring(stiffness: 200, damping: 15), value: swapRotationDegrees)
@@ -779,6 +779,9 @@ struct EnhancedDynamicSearchInput: View {
         }
     }
     
+
+    @State private var isRotated = false
+
     private func animatedSwapLocations() {
         guard !isSwapping else { return }
         
@@ -804,7 +807,9 @@ struct EnhancedDynamicSearchInput: View {
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                swapRotationDegrees += 180
+                // Toggle rotation between 0 and 180 degrees
+                isRotated.toggle()
+                swapRotationDegrees = isRotated ? 180 : 0
             }
         }
         
@@ -833,7 +838,7 @@ struct EnhancedDynamicSearchInput: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 swapButtonScale = 1.0
-                swapRotationDegrees += 180
+                // Remove this line: swapRotationDegrees += 180
             }
         }
         
