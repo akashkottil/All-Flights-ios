@@ -23,6 +23,9 @@ struct ExploreScreen: View {
     
     @State private var hasAppliedInitialDirectFilter = false
     
+    // ADD: State for native swipe gesture
+    @State private var dragAmount = CGSize.zero
+    
     private func applyInitialDirectFilterIfNeeded() {
         if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
             print("🔧 Applying initial direct filter from HomeView toggle")
@@ -510,6 +513,38 @@ struct ExploreScreen: View {
         .sheet(isPresented: $showingDetailedFlightFilterSheet) {
             FlightFilterSheet(viewModel: viewModel)
         }
+        // ADD: Native-like edge swipe gesture for back navigation
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    // Only respond to swipes starting from the very left edge (like native iOS)
+                    if value.startLocation.x < 20 && value.translation.width > 0 {
+                        dragAmount = value.translation
+                    }
+                }
+                .onEnded { value in
+                    // Native-like behavior: shorter distance needed + velocity consideration
+                    let shouldGoBack = value.startLocation.x < 20 &&
+                                      (value.translation.width > 50 ||
+                                       (value.translation.width > 30 && value.predictedEndTranslation.width > 80))
+                    
+                    if shouldGoBack {
+                        // Add haptic feedback like native iOS
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
+                        handleBackNavigation()
+                    }
+                    
+                    // Smooth spring animation back to original position
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        dragAmount = .zero
+                    }
+                }
+        )
+        // ADD: More responsive visual feedback like native iOS
+        .offset(x: dragAmount.width > 0 ? min(dragAmount.width * 0.4, 80) : 0)
+        .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.86), value: dragAmount)
+        
         // Keep all your existing onAppear and onChange modifiers...
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
