@@ -34,7 +34,7 @@ struct RootTabView: View {
             }
             
             // Custom Tab Bar - hide when in explore navigation, search mode, OR account navigation
-            if !sharedSearchData.isInSearchMode &&
+            if !sharedSearchData.isDirectFromHome &&
                            !sharedSearchData.isInExploreNavigation &&
                            !sharedSearchData.isInAccountNavigation &&
                            !sharedSearchData.isAnyModalVisible { // ADD: Hide when modal is visible

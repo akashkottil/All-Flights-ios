@@ -466,6 +466,8 @@ struct HomeView: View {
     private func transformToExploreScreen() {
         print("🔄 Starting enhanced transformation to ExploreScreen")
         
+        SharedSearchDataStore.shared.isDirectFromHome = true
+        
         // Reset animation states
         skeletonsVisible = false
         searchCardOvershoot = false
@@ -510,6 +512,8 @@ struct HomeView: View {
     // NEW: Transform back to HomeView
     private func transformBackToHome() {
         print("🏠 Transforming back to HomeView")
+        
+        SharedSearchDataStore.shared.isDirectFromHome = false
         
         // Phase 1: Hide skeletons first
         withAnimation(.easeOut(duration: 0.3)) {

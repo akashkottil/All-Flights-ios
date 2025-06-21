@@ -11,6 +11,8 @@ class SharedSearchDataStore: ObservableObject {
     @Published var shouldExecuteSearch = false
     @Published var searchTimestamp = Date()
     
+    @Published var isDirectFromHome = false
+    
     // Tab bar visibility control
     @Published var isInSearchMode = false
     @Published var isInExploreNavigation = false
