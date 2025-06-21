@@ -11,6 +11,7 @@ class OnboardingManager: ObservableObject {
     
     private let firstLaunchKey = "app_first_launch"
     private let onboardingCompletedKey = "onboarding_completed"
+    private let pushNotificationShownKey = "push_notification_shown" // NEW: Track if modal was already shown
     
     private init() {
         // Check if this is the first launch
@@ -23,21 +24,36 @@ class OnboardingManager: ObservableObject {
         }
     }
     
+    // NEW: Check if push notification modal was already shown
+    private var hasPushNotificationBeenShown: Bool {
+        return UserDefaults.standard.bool(forKey: pushNotificationShownKey)
+    }
+    
+    // NEW: Mark push notification modal as shown
+    private func markPushNotificationAsShown() {
+        UserDefaults.standard.set(true, forKey: pushNotificationShownKey)
+    }
+    
     func completeAuthentication() {
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: onboardingCompletedKey)
-        // Show push notification modal after authentication
-        shouldShowPushNotificationModal = true
+        // Only show push notification modal if it hasn't been shown before
+        if !hasPushNotificationBeenShown {
+            shouldShowPushNotificationModal = true
+        }
     }
     
     func skipAuthentication() {
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: onboardingCompletedKey)
-        // Show push notification modal even when skipping authentication
-        shouldShowPushNotificationModal = true
+        // Only show push notification modal if it hasn't been shown before
+        if !hasPushNotificationBeenShown {
+            shouldShowPushNotificationModal = true
+        }
     }
     
     func pushNotificationModalDismissed() {
         shouldShowPushNotificationModal = false
+        markPushNotificationAsShown() // NEW: Mark as shown when dismissed
     }
 }

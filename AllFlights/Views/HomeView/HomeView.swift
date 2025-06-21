@@ -325,42 +325,41 @@ struct HomeView: View {
             refreshHomeData()
         }
         .pushNotificationModal(
-                    shouldShow: showPushModal,
-                    onAllow: {
-                        print("User allowed notifications")
-                        showPushModal = false
-                        onboardingManager.pushNotificationModalDismissed()
-                    },
-                    onLater: {
-                        print("User chose later")
-                        showPushModal = false
-                        onboardingManager.pushNotificationModalDismissed()
-                    }
-                )
-                .onAppear {
-                    // Only show on app launch (when coming from ContentView), not on tab navigation
-                    if !hasAppearedFromAppLaunch {
-                        hasAppearedFromAppLaunch = true
-                        
-                        // Show modal if onboarding manager requests it (after auth flow)
-                        // OR if it's a subsequent app launch (not first launch)
-                        if onboardingManager.shouldShowPushNotificationModal ||
-                           (!onboardingManager.isFirstLaunch && onboardingManager.hasCompletedOnboarding) {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                showPushModal = true
-                            }
-                        }
+            shouldShow: showPushModal,
+            onAllow: {
+                print("User allowed notifications")
+                showPushModal = false
+                onboardingManager.pushNotificationModalDismissed()
+            },
+            onLater: {
+                print("User chose later")
+                showPushModal = false
+                onboardingManager.pushNotificationModalDismissed()
+            }
+        )
+        .onAppear {
+            // Only show on app launch (when coming from ContentView), not on tab navigation
+            if !hasAppearedFromAppLaunch {
+                hasAppearedFromAppLaunch = true
+                
+                // UPDATED: Only show if onboarding manager specifically requests it
+                // This will only be true immediately after completing/skipping onboarding
+                if onboardingManager.shouldShowPushNotificationModal {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showPushModal = true
                     }
                 }
-                .onChange(of: onboardingManager.shouldShowPushNotificationModal) { _, shouldShow in
-                    // Show if onboarding manager specifically requests it
-                    // (after authentication or "Maybe Later" is clicked)
-                    if shouldShow {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            showPushModal = true
-                        }
-                    }
+            }
+        }
+        .onChange(of: onboardingManager.shouldShowPushNotificationModal) { _, shouldShow in
+            // Show if onboarding manager specifically requests it
+            // (after authentication or "Maybe Later" is clicked)
+            if shouldShow {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showPushModal = true
                 }
+            }
+        }
         
         .scrollIndicators(.hidden)
     }
