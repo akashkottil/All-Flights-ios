@@ -724,18 +724,18 @@ struct ExploreScreen: View {
     }
     
     private var flightResultsContent: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             // Flight results content - removed title and month selector since they're sticky
             if viewModel.isLoadingFlights {
-                ForEach(0..<3, id: \.self) { _ in
+                ForEach(0..<3, id: \.self) { index in
                     SkeletonFlightResultCard()
-                        .padding(.bottom, 8)
+                        .padding(.top, index == 0 ? 40 : 0)
                         .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
-                .padding(.top, 40)
+
             } else if viewModel.flightResults.isEmpty {
                 // FIXED: Keep your auto-reload logic but prevent glitching with better state management
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     if viewModel.errorMessage != nil {
                         // Show error state
                         Image(systemName: "airplane.circle")
@@ -811,7 +811,7 @@ struct ExploreScreen: View {
                         tripDuration: viewModel.calculateTripDuration(result),
                         viewModel: viewModel
                     )
-                    .padding(.bottom, 8)
+
                     .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
             }
