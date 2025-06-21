@@ -9,6 +9,7 @@ struct PushNotificationModal: View {
     
     @State private var isRequesting = false
     @State private var showNotificationAnimation = false
+    @State private var showInitialImage = false // NEW: Control initial image appearance
     
     var body: some View {
         ZStack {
@@ -20,15 +21,19 @@ struct PushNotificationModal: View {
                 ZStack {
                     // First image (notification inside phone) - shown initially and during zoom in
                     Image("pushNotificationModal1")
-                        .opacity(showNotificationAnimation ? 0 : 1)
+                        .opacity(showNotificationAnimation ? 0 : (showInitialImage ? 1 : 0)) // MODIFIED: Hide initially
                         .scaleEffect(showNotificationAnimation ? 1.2 : 1.0)
+                        .offset(y: showInitialImage ? 0 : 100) // NEW: Start from bottom
                         .animation(.easeInOut(duration: 0.8), value: showNotificationAnimation)
+                        .animation(.easeOut(duration: 0.3), value: showInitialImage) // NEW: Fast bottom-up animation
                     
                     // Second image (notification outside phone) - shown during zoom out
                     Image("pushNotificationModal2")
                         .opacity(showNotificationAnimation ? 1 : 0)
                         .scaleEffect(showNotificationAnimation ? 1.0 : 0.8)
+                        .offset(y: showInitialImage ? 0 : 100) // NEW: Start from bottom
                         .animation(.easeInOut(duration: 0.8).delay(0.4), value: showNotificationAnimation)
+                        .animation(.easeOut(duration: 0.3), value: showInitialImage) // NEW: Fast bottom-up animation
                 }
                 
                 VStack(spacing: 16) {
@@ -123,7 +128,12 @@ struct PushNotificationModal: View {
         )
         .ignoresSafeArea()
         .onAppear {
-            // Start the zoom in/transition/zoom out animation after modal appears
+            // NEW: Show initial image fast from bottom when modal appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showInitialImage = true
+            }
+            
+            // Start the zoom in/transition/zoom out animation after image appears
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 showNotificationAnimation = true
             }
@@ -172,13 +182,15 @@ struct PushNotificationModalModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         ZStack {
-            // Main content
+            // Main content with blur effect when modal is shown
             content
+                .blur(radius: showModal ? 5 : 0)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showModal)
             
-            // Blue overlay layer (appears when modal is shown)
+            // Subtle overlay layer (appears when modal is shown)
             if showModal {
                 Color.blue
-                    .opacity(0.4)
+                    .opacity(0.2)
                     .ignoresSafeArea()
                     .zIndex(998)
                     .transition(.opacity)
