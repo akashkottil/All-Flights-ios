@@ -15,10 +15,8 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     
     private let locationManager = CLLocationManager()
     private var completion: ((Result<LocationResult, LocationError>) -> Void)?
-    // FIX 1: Make cancellables mutable
     private var cancellables = Set<AnyCancellable>()
     
-    // FIX 2: Make LocationState conform to Equatable
     enum LocationState: Equatable {
         case idle
         case requesting
@@ -27,7 +25,6 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         case success
         case error(LocationError)
         
-        // Add Equatable conformance
         static func == (lhs: LocationState, rhs: LocationState) -> Bool {
             switch (lhs, rhs) {
             case (.idle, .idle), (.requesting, .requesting), (.locating, .locating), (.geocoding, .geocoding), (.success, .success):
@@ -44,7 +41,7 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         case permissionDenied
         case locationUnavailable
         case geocodingFailed
-        case airportNotFound
+        case cityNotFound
         case timeout
         
         var errorDescription: String? {
@@ -55,8 +52,8 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
                 return "Unable to get your location. Please try again."
             case .geocodingFailed:
                 return "Unable to determine your location."
-            case .airportNotFound:
-                return "No nearby airports found."
+            case .cityNotFound:
+                return "No nearby cities found."
             case .timeout:
                 return "Location request timed out. Please try again."
             }
@@ -67,6 +64,7 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         let locationName: String
         let airportCode: String
         let coordinates: CLLocationCoordinate2D
+        let cityName: String? // Add city name from API
     }
     
     override init() {
@@ -79,36 +77,52 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     func getCurrentLocation(completion: @escaping (Result<LocationResult, LocationError>) -> Void) {
         self.completion = completion
         
-        switch locationManager.authorizationStatus {
-        case .notDetermined:
-            locationState = .requesting
-            locationManager.requestWhenInUseAuthorization()
-        case .denied, .restricted:
-            locationState = .error(.permissionDenied)
-            completion(.failure(.permissionDenied))
-        case .authorizedWhenInUse, .authorizedAlways:
-            startLocationUpdate()
-        @unknown default:
-            locationState = .error(.locationUnavailable)
-            completion(.failure(.locationUnavailable))
+        // FIXED: Check authorization status without calling locationServicesEnabled on main thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                switch self.locationManager.authorizationStatus {
+                case .notDetermined:
+                    self.locationState = .requesting
+                    self.locationManager.requestWhenInUseAuthorization()
+                case .denied, .restricted:
+                    self.locationState = .error(.permissionDenied)
+                    completion(.failure(.permissionDenied))
+                case .authorizedWhenInUse, .authorizedAlways:
+                    self.startLocationUpdate()
+                @unknown default:
+                    self.locationState = .error(.locationUnavailable)
+                    completion(.failure(.locationUnavailable))
+                }
+            }
         }
     }
     
     private func startLocationUpdate() {
-        guard CLLocationManager.locationServicesEnabled() else {
-            locationState = .error(.locationUnavailable)
-            completion?(.failure(.locationUnavailable))
-            return
-        }
-        
-        locationState = .locating
-        locationManager.requestLocation()
-        
-        // Set timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
-            if case .locating = self.locationState {
-                self.locationState = .error(.timeout)
-                self.completion?(.failure(.timeout))
+        // FIXED: Check location services on background thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            let isLocationServicesEnabled = CLLocationManager.locationServicesEnabled()
+            
+            DispatchQueue.main.async {
+                guard isLocationServicesEnabled else {
+                    self.locationState = .error(.locationUnavailable)
+                    self.completion?(.failure(.locationUnavailable))
+                    return
+                }
+                
+                self.locationState = .locating
+                self.locationManager.requestLocation()
+                
+                // Set timeout
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+                    if case .locating = self.locationState {
+                        self.locationState = .error(.timeout)
+                        self.completion?(.failure(.timeout))
+                    }
+                }
             }
         }
     }
@@ -144,18 +158,18 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
                 let locationName = self.createLocationName(from: placemark)
                 self.locationName = locationName
                 
-                // Find nearest airport
-                self.findNearestAirport(to: location.coordinate) { result in
+                // MODIFIED: Find nearest city instead of airport
+                self.findNearestCity(to: location.coordinate, placemark: placemark) { result in
                     DispatchQueue.main.async {
                         switch result {
-                        case .success(let airportCode):
-                            self.nearestAirportCode = airportCode
+                        case .success(let cityCode):
+                            self.nearestAirportCode = cityCode.0
                             self.locationState = .success
                             
                             let locationResult = LocationResult(
                                 locationName: locationName,
-                                airportCode: airportCode,
-                                coordinates: location.coordinate
+                                airportCode: cityCode.0,
+                                coordinates: location.coordinate, cityName: cityCode.1
                             )
                             self.completion?(.success(locationResult))
                             
@@ -193,79 +207,161 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     // MARK: - Helper Methods
     
     private func createLocationName(from placemark: CLPlacemark) -> String {
-        var components: [String] = []
-        
-        if let locality = placemark.locality {
-            components.append(locality)
-        } else if let subAdministrativeArea = placemark.subAdministrativeArea {
-            components.append(subAdministrativeArea)
+        // Prioritize district (subAdministrativeArea) over locality for your use case
+        if let district = placemark.subAdministrativeArea {
+            return district
+        } else if let locality = placemark.locality {
+            return locality
+        } else if let administrativeArea = placemark.administrativeArea {
+            return administrativeArea
+        } else {
+            return "Current Location"
         }
-        
-        if let administrativeArea = placemark.administrativeArea {
-            components.append(administrativeArea)
-        }
-        
-        if let country = placemark.country {
-            components.append(country)
-        }
-        
-        return components.isEmpty ? "Current Location" : components.joined(separator: ", ")
     }
     
-    private func findNearestAirport(to coordinate: CLLocationCoordinate2D, completion: @escaping (Result<String, LocationError>) -> Void) {
-        // Use the existing autocomplete API to find airports near the location
-        let searchQuery = "\(locationName.components(separatedBy: ",").first ?? "airport")"
+    // MODIFIED: New method to find nearest city using specific API endpoint
+    private func findNearestCity(to coordinate: CLLocationCoordinate2D, placemark: CLPlacemark, completion: @escaping (Result<(String, String?), LocationError>) -> Void) {
+        // Get the district name from the placemark (subAdministrativeArea is typically the district)
+        let districtName = placemark.subAdministrativeArea ?? placemark.locality ?? "Current Location"
         
-        ExploreAPIService.shared.fetchAutocomplete(query: searchQuery)
+        // Get country code from placemark (ISO country code)
+        let countryCode = placemark.isoCountryCode ?? "IN" // Default to India if not available
+        
+        // Use the specific autocomplete API with district name and country
+        searchDistrictWithAPI(district: districtName, countryCode: countryCode) { result in
+            completion(result)
+        }
+    }
+    
+    // New method to call the specific autocomplete API
+    private func searchDistrictWithAPI(district: String, countryCode: String, completion: @escaping (Result<(String, String?), LocationError>) -> Void) {
+        // Construct the API URL
+        guard let encodedDistrict = district.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://staging.plane.lascade.com/api/autocomplete/?country=\(countryCode)&search=\(encodedDistrict)&language=en-GB") else {
+            completion(.failure(.cityNotFound))
+            return
+        }
+        
+        // Create URL request
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        // Make the API call
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("API Error: \(error.localizedDescription)")
+                    // Fallback to original method if this API fails
+                    self.fallbackToOriginalAPI(district: district, completion: completion)
+                    return
+                }
+                
+                guard let data = data else {
+                    print("No data received from API")
+                    self.fallbackToOriginalAPI(district: district, completion: completion)
+                    return
+                }
+                
+                do {
+                    // Parse the JSON response with the correct structure
+                    if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                       let dataArray = json["data"] as? [[String: Any]] {
+                        
+                        // Take the first result and get both iataCode and cityName
+                        if let firstResult = dataArray.first,
+                           let iataCode = firstResult["iataCode"] as? String,
+                           !iataCode.isEmpty {
+                            
+                            let cityName = firstResult["cityName"] as? String
+                            print("Found IATA code from API: \(iataCode), City: \(cityName ?? "N/A")")
+                            completion(.success((iataCode, cityName)))
+                            return
+                        }
+                        
+                        // If no iataCode found in first result, try other results
+                        for item in dataArray {
+                            if let iataCode = item["iataCode"] as? String, !iataCode.isEmpty {
+                                let cityName = item["cityName"] as? String
+                                print("Found IATA code from API (fallback): \(iataCode), City: \(cityName ?? "N/A")")
+                                completion(.success((iataCode, cityName)))
+                                return
+                            }
+                        }
+                        
+                        // If no IATA code found at all, fallback
+                        print("No IATA code found in API response")
+                        self.fallbackToOriginalAPI(district: district, completion: completion)
+                        
+                    } else {
+                        print("Unexpected JSON structure")
+                        self.fallbackToOriginalAPI(district: district, completion: completion)
+                    }
+                    
+                } catch {
+                    print("JSON parsing error: \(error.localizedDescription)")
+                    self.fallbackToOriginalAPI(district: district, completion: completion)
+                }
+            }
+        }.resume()
+    }
+    
+    // Fallback method using the original ExploreAPIService
+    private func fallbackToOriginalAPI(district: String, completion: @escaping (Result<(String, String?), LocationError>) -> Void) {
+        ExploreAPIService.shared.fetchAutocomplete(query: district)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { result in
                     if case .failure = result {
-                        completion(.failure(.airportNotFound))
+                        // If both APIs fail, generate a fallback code
+                        let fallbackCode = self.generateFallbackCityCode(from: district)
+                        completion(.success((fallbackCode, district)))
                     }
                 },
-                receiveValue: { airports in
-                    // Find the closest airport
-                    let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-                    
-                    var closestAirport: AutocompleteResult?
-                    var closestDistance: Double = Double.infinity
-                    
-                    for airport in airports.filter({ $0.type == "airport" }) {
-                        if let lat = Double(airport.coordinates.latitude),
-                           let lon = Double(airport.coordinates.longitude) {
-                            let airportLocation = CLLocation(latitude: lat, longitude: lon)
-                            let distance = currentLocation.distance(from: airportLocation)
-                            
-                            if distance < closestDistance {
-                                closestDistance = distance
-                                closestAirport = airport
-                            }
-                        }
+                receiveValue: { results in
+                    // First, try to find a city result
+                    if let cityResult = results.first(where: { $0.type == "city" }) {
+                        completion(.success((cityResult.iataCode, cityResult.cityName)))
+                        return
                     }
                     
-                    if let airport = closestAirport {
-                        completion(.success(airport.iataCode))
+                    // If no city found, try to find any result
+                    if let firstResult = results.first {
+                        completion(.success((firstResult.iataCode, firstResult.cityName)))
                     } else {
-                        // Fallback to city search if no airports found
-                        if let cityAirport = airports.first(where: { $0.type == "city" }) {
-                            completion(.success(cityAirport.iataCode))
-                        } else {
-                            completion(.failure(.airportNotFound))
-                        }
+                        // Generate fallback code
+                        let fallbackCode = self.generateFallbackCityCode(from: district)
+                        completion(.success((fallbackCode, district)))
                     }
                 }
             )
-            .store(in: &cancellables) // FIX 3: Now cancellables is mutable
+            .store(in: &cancellables)
+    }
+    
+    // Helper method to generate a fallback district code
+    private func generateFallbackCityCode(from districtName: String) -> String {
+        // Clean the district name and take first 3 characters, or use "LOC" as ultimate fallback
+        let cleanedName = districtName.uppercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "-", with: "")
+        
+        if cleanedName.count >= 3 {
+            return String(cleanedName.prefix(3))
+        } else if !cleanedName.isEmpty {
+            return cleanedName + String(repeating: "X", count: 3 - cleanedName.count)
+        } else {
+            return "LOC"
+        }
     }
 }
 
-// MARK: - Enhanced Current Location Button (Fixed)
+
+// MARK: - Enhanced Current Location Button (Updated to use cityName from API)
 struct EnhancedCurrentLocationButton: View {
     @StateObject private var locationManager = CurrentLocationManager.shared
     @State private var isAnimating = false
     @State private var buttonScale: CGFloat = 1.0
-    @State private var iconRotation: Double = 0
+    @State private var pulseScale: CGFloat = 1.0
     @State private var showError = false
     @State private var errorMessage = ""
     
@@ -276,35 +372,31 @@ struct EnhancedCurrentLocationButton: View {
             HStack(spacing: 12) {
                 ZStack {
                     if case .locating = locationManager.locationState {
-                        // Animated location icon
                         Image(systemName: "location.fill")
                             .foregroundColor(.blue)
-                            .scaleEffect(isAnimating ? 1.2 : 1.0)
+                            .scaleEffect(pulseScale)
+                            .animation(
+                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                                value: pulseScale
+                            )
+                    } else if case .geocoding = locationManager.locationState {
+                        Image(systemName: "location.magnifyingglass")
+                            .foregroundColor(.blue)
+                            .offset(y: isAnimating ? -3 : 0)
+                            .animation(
+                                .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
+                                value: isAnimating
+                            )
+                    } else if case .requesting = locationManager.locationState {
+                        Image(systemName: "location.circle")
+                            .foregroundColor(.orange)
+                            .scaleEffect(isAnimating ? 1.1 : 1.0)
                             .opacity(isAnimating ? 0.7 : 1.0)
                             .animation(
                                 .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
                                 value: isAnimating
                             )
-                    } else if case .geocoding = locationManager.locationState {
-                        // Spinning icon for geocoding
-                        Image(systemName: "location.magnifyingglass")
-                            .foregroundColor(.blue)
-                            .rotationEffect(.degrees(iconRotation))
-                            .animation(
-                                .linear(duration: 1.0).repeatForever(autoreverses: false),
-                                value: iconRotation
-                            )
-                    } else if case .requesting = locationManager.locationState {
-                        // Permission requesting state
-                        Image(systemName: "location.circle")
-                            .foregroundColor(.orange)
-                            .scaleEffect(isAnimating ? 1.1 : 1.0)
-                            .animation(
-                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                                value: isAnimating
-                            )
                     } else {
-                        // Default state
                         Image(systemName: "location.fill")
                             .foregroundColor(.blue)
                     }
@@ -317,7 +409,6 @@ struct EnhancedCurrentLocationButton: View {
                             .foregroundColor(.blue)
                             .fontWeight(.medium)
                         
-                        // FIX 4: Simplified condition check
                         if isLocationLoading {
                             Spacer()
                             ProgressView()
@@ -327,7 +418,7 @@ struct EnhancedCurrentLocationButton: View {
                     }
                     
                     if case .geocoding = locationManager.locationState {
-                        Text("Finding nearest airport...")
+                        Text("Finding Airport near you...")
                             .font(.caption)
                             .foregroundColor(.gray)
                             .transition(.opacity.combined(with: .move(edge: .leading)))
@@ -360,7 +451,7 @@ struct EnhancedCurrentLocationButton: View {
         } message: {
             Text(errorMessage)
         }
-        .onChange(of: locationManager.locationState) { _, newState in // FIX 5: Updated onChange syntax
+        .onChange(of: locationManager.locationState) { _, newState in
             handleLocationStateChange(newState)
         }
     }
@@ -383,7 +474,7 @@ struct EnhancedCurrentLocationButton: View {
         case .locating:
             return "Getting Your Location..."
         case .geocoding:
-            return "Processing Location..."
+            return "Finding Your District..."
         case .success:
             return "Location Found!"
         case .error:
@@ -407,11 +498,9 @@ struct EnhancedCurrentLocationButton: View {
     }
     
     private func handleLocationRequest() {
-        // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        // Button press animation
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
             buttonScale = 0.95
         }
@@ -422,11 +511,9 @@ struct EnhancedCurrentLocationButton: View {
             }
         }
         
-        // Start location request
         locationManager.getCurrentLocation { result in
             switch result {
             case .success(let locationResult):
-                // Success animation
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                     buttonScale = 1.05
                 }
@@ -439,11 +526,9 @@ struct EnhancedCurrentLocationButton: View {
                 }
                 
             case .failure(let error):
-                // Error handling
                 errorMessage = error.localizedDescription
                 showError = true
                 
-                // Error animation
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
                     buttonScale = 0.95
                 }
@@ -460,21 +545,18 @@ struct EnhancedCurrentLocationButton: View {
     private func handleLocationStateChange(_ newState: CurrentLocationManager.LocationState) {
         switch newState {
         case .locating:
+            pulseScale = 1.2
             isAnimating = true
         case .geocoding:
-            iconRotation = 360
+            isAnimating = true
         case .requesting:
             isAnimating = true
         case .success, .error, .idle:
             isAnimating = false
-            iconRotation = 0
+            pulseScale = 1.0
         }
     }
 }
-
-
-
-
 
 // MARK: - Enhanced Search Input Component (Updated for in-place transformation)
 struct EnhancedSearchInput: View {
@@ -1820,8 +1902,7 @@ struct RoundedCornerss: Shape {
 
 
 
-// MARK: - Updated Home Location Search Sheets with Recent Searches
-
+// MARK: - Corrected Home From Location Search Sheet
 struct HomeFromLocationSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1904,9 +1985,11 @@ struct HomeFromLocationSearchSheet: View {
             EnhancedCurrentLocationButton { locationResult in
                 // Handle successful location selection with animation
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    searchViewModel.fromLocation = locationResult.locationName
+                    // FIXED: Use cityName from API if available, otherwise use locationName
+                    let displayName = locationResult.cityName ?? locationResult.locationName
+                    searchViewModel.fromLocation = displayName
                     searchViewModel.fromIataCode = locationResult.airportCode
-                    searchText = locationResult.locationName
+                    searchText = displayName
                 }
                 
                 // Add to recent searches
@@ -1914,8 +1997,8 @@ struct HomeFromLocationSearchSheet: View {
                     iataCode: locationResult.airportCode,
                     airportName: "Current Location",
                     type: "airport",
-                    displayName: locationResult.locationName,
-                    cityName: locationResult.locationName.components(separatedBy: ",").first ?? "",
+                    displayName: locationResult.cityName ?? locationResult.locationName,
+                    cityName: locationResult.cityName ?? locationResult.locationName.components(separatedBy: ",").first ?? "",
                     countryName: locationResult.locationName.components(separatedBy: ",").last ?? "",
                     countryCode: "IN",
                     imageUrl: "",
@@ -2016,8 +2099,6 @@ struct HomeFromLocationSearchSheet: View {
     private func shouldShowNoResults() -> Bool {
         return results.isEmpty && !searchText.isEmpty && !showRecentSearches
     }
-    
-
     
     private func selectLocation(result: AutocompleteResult) {
         // IMPORTANT: Add to recent searches before processing
