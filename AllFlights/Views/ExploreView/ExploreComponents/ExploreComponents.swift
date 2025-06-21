@@ -319,12 +319,11 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 
 
-
-// MARK: - Search Card Component (Updated with Conditional Multi-City)
+// MARK: - Search Card Component (Updated with Separate From/To Sheets)
 struct SearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
-    @State private var showingSearchSheet = false
-    @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
+    @State private var showingFromLocationSheet = false  // Separate state for FROM sheet
+    @State private var showingToLocationSheet = false    // Separate state for TO sheet
     @State private var showingCalendar = false
     
     // ADD: State for swap animation
@@ -366,8 +365,7 @@ struct SearchCard: View {
                             HStack {
                                 // From button - takes available space on left
                                 Button(action: {
-                                    initialFocus = .origin
-                                    showingSearchSheet = true
+                                    showingFromLocationSheet = true  // Show FROM sheet
                                 }) {
                                     HStack {
                                         Image("carddeparture")
@@ -382,13 +380,9 @@ struct SearchCard: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .zIndex(1) // Above the line
                                 
-                              
-                                
-                                
                                 // To button - takes available space on right
                                 Button(action: {
-                                    initialFocus = .destination
-                                    showingSearchSheet = true
+                                    showingToLocationSheet = true  // Show TO sheet
                                 }) {
                                     HStack {
                                         Image("carddestination")
@@ -482,8 +476,13 @@ struct SearchCard: View {
                     }
                     .zIndex(1) // Ensure VStack content is above the background line
                 }
-                .sheet(isPresented: $showingSearchSheet) {
-                    LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
+                // UPDATED: Separate sheet presentations for FROM and TO
+                .sheet(isPresented: $showingFromLocationSheet) {
+                    ExploreFromLocationSearchSheet(viewModel: viewModel)
+                        .presentationDetents([.large])
+                }
+                .sheet(isPresented: $showingToLocationSheet) {
+                    ExploreToLocationSearchSheet(viewModel: viewModel)
                         .presentationDetents([.large])
                 }
                 .sheet(isPresented: $showingCalendar, onDismiss: {
@@ -525,7 +524,478 @@ struct SearchCard: View {
                 }
             }
         }
-    // MARK: - Helper Methods
+    
+    // MARK: - NEW: Separate FROM Location Search Sheet for Explore
+    struct ExploreFromLocationSearchSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @ObservedObject var viewModel: ExploreViewModel
+        @State private var searchText = ""
+        @State private var results: [AutocompleteResult] = []
+        @State private var isSearching = false
+        @State private var searchError: String? = nil
+        @FocusState private var isTextFieldFocused: Bool
+        @State private var cancellables = Set<AnyCancellable>()
+        @State private var showRecentSearches = true
+        
+        // Add recent search manager
+        @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
+        
+        private let searchDebouncer = SearchDebouncer(delay: 0.3)
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("From Where?")  // FROM specific title
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Empty space to balance the X button
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.clear)
+                }
+                .padding()
+                
+                // Search bar
+                HStack {
+                    ZStack(alignment: .trailing) {
+                        TextField("Origin City, Airport or place", text: $searchText)
+                            .padding(12)
+                            .padding(.trailing, !searchText.isEmpty ? 40 : 12)
+                            .background(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange, lineWidth: 2)
+                            )
+                            .cornerRadius(8)
+                            .focused($isTextFieldFocused)
+                            .onChange(of: searchText) {
+                                handleTextChange()
+                            }
+                        
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                results = []
+                                showRecentSearches = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 18))
+                            }
+                            .padding(.trailing, 12)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Current location button
+                EnhancedCurrentLocationButton { locationResult in
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        let displayName = locationResult.cityName ?? locationResult.locationName
+                        viewModel.fromLocation = displayName
+                        viewModel.fromIataCode = locationResult.airportCode
+                        searchText = displayName
+                    }
+                    
+                    let autocompleteResult = AutocompleteResult(
+                        iataCode: locationResult.airportCode,
+                        airportName: "Current Location",
+                        type: "airport",
+                        displayName: locationResult.cityName ?? locationResult.locationName,
+                        cityName: locationResult.cityName ?? locationResult.locationName.components(separatedBy: ",").first ?? "",
+                        countryName: locationResult.locationName.components(separatedBy: ",").last ?? "",
+                        countryCode: "IN",
+                        imageUrl: "",
+                        coordinates: AutocompleteCoordinates(
+                            latitude: String(locationResult.coordinates.latitude),
+                            longitude: String(locationResult.coordinates.longitude)
+                        )
+                    )
+                    
+                    recentSearchManager.addRecentSearch(autocompleteResult, searchType: .departure)
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        dismiss()
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                
+                Divider()
+                
+                // Results section
+                if isSearching {
+                    VStack {
+                        ProgressView()
+                        Text("Searching...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    Spacer()
+                } else if let error = searchError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding()
+                    Spacer()
+                } else if !results.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(results) { result in
+                                LocationResultRow(result: result)
+                                    .onTapGesture {
+                                        selectLocation(result: result)
+                                    }
+                            }
+                        }
+                    }
+                } else if showRecentSearches && searchText.isEmpty {
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: .departure
+                    )
+                    Spacer()
+                } else if shouldShowNoResults() {
+                    Image("noresultIcon")
+                    Text("No result found. Search something else.")
+                        .foregroundColor(.gray)
+                        .padding()
+                    Spacer()
+                } else {
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: .departure
+                    )
+                    Spacer()
+                }
+            }
+            .background(Color.white)
+            .onAppear {
+                isTextFieldFocused = true
+            }
+        }
+        
+        private func handleTextChange() {
+            showRecentSearches = searchText.isEmpty
+            
+            if !searchText.isEmpty {
+                searchDebouncer.debounce {
+                    searchLocations(query: searchText)
+                }
+            } else {
+                results = []
+            }
+        }
+        
+        private func shouldShowNoResults() -> Bool {
+            return results.isEmpty && !searchText.isEmpty && !showRecentSearches
+        }
+        
+        private func selectLocation(result: AutocompleteResult) {
+            recentSearchManager.addRecentSearch(result, searchType: .departure)
+            
+            if !viewModel.toIataCode.isEmpty && result.iataCode == viewModel.toIataCode {
+                searchError = "Origin and destination cannot be the same"
+                return
+            }
+            
+            viewModel.fromLocation = result.cityName
+            viewModel.fromIataCode = result.iataCode
+            searchText = result.cityName
+            dismiss()
+        }
+        
+        private func searchLocations(query: String) {
+            guard !query.isEmpty else {
+                results = []
+                return
+            }
+            
+            isSearching = true
+            searchError = nil
+            
+            ExploreAPIService.shared.fetchAutocomplete(query: query)
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { completion in
+                    isSearching = false
+                    if case .failure(let error) = completion {
+                        searchError = error.localizedDescription
+                    }
+                }, receiveValue: { results in
+                    self.results = results
+                })
+                .store(in: &cancellables)
+        }
+    }
+
+    // MARK: - NEW: Separate TO Location Search Sheet for Explore
+    struct ExploreToLocationSearchSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @ObservedObject var viewModel: ExploreViewModel
+        @State private var searchText = ""
+        @State private var results: [AutocompleteResult] = []
+        @State private var isSearching = false
+        @State private var searchError: String? = nil
+        @FocusState private var isTextFieldFocused: Bool
+        @State private var cancellables = Set<AnyCancellable>()
+        @State private var showRecentSearches = true
+        
+        // Add recent search manager
+        @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
+        
+        private let searchDebouncer = SearchDebouncer(delay: 0.3)
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Where to?")  // TO specific title
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Empty space to balance the X button
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.clear)
+                }
+                .padding()
+                
+                // Search bar
+                HStack {
+                    ZStack(alignment: .trailing) {
+                        TextField("Destination City, Airport or place", text: $searchText)
+                            .padding(12)
+                            .padding(.trailing, !searchText.isEmpty ? 40 : 12)
+                            .background(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange, lineWidth: 2)
+                            )
+                            .cornerRadius(8)
+                            .focused($isTextFieldFocused)
+                            .onChange(of: searchText) {
+                                handleTextChange()
+                            }
+                        
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                results = []
+                                showRecentSearches = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 18))
+                            }
+                            .padding(.trailing, 12)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                Divider()
+                    .padding(.top)
+                
+                // Results section with Anywhere option
+                if isSearching {
+                    VStack {
+                        ProgressView()
+                        Text("Searching...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    Spacer()
+                } else if !results.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            // Anywhere option at top of search results
+                            AnywhereOptionRow()
+                                .onTapGesture {
+                                    selectAnywhereLocation()
+                                }
+                            
+                            Divider()
+                                .padding(.horizontal)
+                            
+                            ForEach(results) { result in
+                                LocationResultRow(result: result)
+                                    .onTapGesture {
+                                        selectLocation(result: result)
+                                    }
+                            }
+                        }
+                    }
+                } else if showRecentSearches && searchText.isEmpty {
+                    VStack(spacing: 0) {
+                        // Anywhere option at top of recent searches
+                        AnywhereOptionRow()
+                            .onTapGesture {
+                                selectAnywhereLocation()
+                            }
+                        
+                        Divider()
+                            .padding(.horizontal)
+                        
+                        RecentLocationSearchView(
+                            onLocationSelected: { result in
+                                selectLocation(result: result)
+                            },
+                            showAnywhereOption: false,
+                            searchType: .destination
+                        )
+                    }
+                    Spacer()
+                } else if shouldShowNoResults() {
+                    Text("No results found")
+                        .foregroundColor(.gray)
+                        .padding()
+                    Spacer()
+                } else {
+                    VStack(spacing: 0) {
+                        AnywhereOptionRow()
+                            .onTapGesture {
+                                selectAnywhereLocation()
+                            }
+                        
+                        Divider()
+                            .padding(.horizontal)
+                        
+                        RecentLocationSearchView(
+                            onLocationSelected: { result in
+                                selectLocation(result: result)
+                            },
+                            showAnywhereOption: false,
+                            searchType: .destination
+                        )
+                    }
+                    Spacer()
+                }
+            }
+            .background(Color.white)
+            .onAppear {
+                isTextFieldFocused = true
+            }
+        }
+        
+        private func handleTextChange() {
+            showRecentSearches = searchText.isEmpty
+            
+            if !searchText.isEmpty {
+                searchDebouncer.debounce {
+                    searchLocations(query: searchText)
+                }
+            } else {
+                results = []
+            }
+        }
+        
+        private func selectAnywhereLocation() {
+            // Reset to initial explore state (country list screen)
+            viewModel.goBackToCountries()
+            viewModel.toLocation = "Anywhere"
+            viewModel.toIataCode = ""
+            viewModel.hasSearchedFlights = false
+            viewModel.showingDetailedFlightList = false
+            viewModel.flightResults = []
+            viewModel.detailedFlightResults = []
+            dismiss()
+        }
+        
+        private func shouldShowNoResults() -> Bool {
+            return results.isEmpty && !searchText.isEmpty && !showRecentSearches
+        }
+        
+        private func selectLocation(result: AutocompleteResult) {
+            recentSearchManager.addRecentSearch(result, searchType: .destination)
+            
+            if !viewModel.fromIataCode.isEmpty && result.iataCode == viewModel.fromIataCode {
+                searchError = "Origin and destination cannot be the same"
+                return
+            }
+            
+            viewModel.toLocation = result.cityName
+            viewModel.toIataCode = result.iataCode
+            searchText = result.cityName
+            dismiss()
+        }
+        
+        private func searchLocations(query: String) {
+            guard !query.isEmpty else {
+                results = []
+                return
+            }
+            
+            isSearching = true
+            searchError = nil
+            
+            ExploreAPIService.shared.fetchAutocomplete(query: query)
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { completion in
+                    isSearching = false
+                    if case .failure(let error) = completion {
+                        searchError = error.localizedDescription
+                    }
+                }, receiveValue: { results in
+                    self.results = results
+                })
+                .store(in: &cancellables)
+        }
+    }
+
+    // MARK: - Helper Debouncer Class (if not already defined)
+    class SearchDebouncer {
+        private let delay: TimeInterval
+        private var workItem: DispatchWorkItem?
+        
+        init(delay: TimeInterval) {
+            self.delay = delay
+        }
+        
+        func debounce(action: @escaping () -> Void) {
+            workItem?.cancel()
+            
+            let workItem = DispatchWorkItem(block: action)
+            self.workItem = workItem
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        }
+    }
+    
+    // MARK: - All the existing helper methods remain exactly the same
     
     private func animatedSwapLocations() {
         // Only allow swap if both locations are set and not "Anywhere"
@@ -688,7 +1158,6 @@ struct SearchCard: View {
     }
     
     private func getDateTextColor() -> Color {
- 
         return .primary
     }
     
