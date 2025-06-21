@@ -717,7 +717,7 @@ struct ExploreScreen: View {
     private var exploreMainContent: some View {
         VStack(spacing: 16) {
             // Destination cards (destinations/cities) - removed title and filter tabs
-            if !viewModel.isLoading && viewModel.errorMessage == nil {
+            if !viewModel.isLoading  {
                 VStack(spacing: 10) {
                     // UPDATED: Use filteredDestinations instead of viewModel.destinations
                     ForEach(filteredDestinations) { destination in
