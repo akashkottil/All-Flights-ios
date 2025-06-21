@@ -27,19 +27,22 @@ struct PushNotificationModal: View {
                     // Second image (notification outside phone) - shown during zoom out
                     Image("pushNotificationModal2")
                         .opacity(showNotificationAnimation ? 1 : 0)
-                        .scaleEffect(showNotificationAnimation ? 1.0 : 1.2)
+                        .scaleEffect(showNotificationAnimation ? 1.0 : 0.8)
                         .animation(.easeInOut(duration: 0.8).delay(0.4), value: showNotificationAnimation)
                 }
                 
                 VStack(spacing: 16) {
-                    Text("Enable\nPush Notification")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
-                        .foregroundColor(.primary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        
+                    HStack {
+                        Text("Enable\nPush Notification")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.leading)
+                            .foregroundColor(.primary)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 8)
+                        Spacer()
+                    }
                     
                     Text("We'll send you alerts when new deals become\navailable so that you can book your flight at the best price.")
                         .font(.body)
