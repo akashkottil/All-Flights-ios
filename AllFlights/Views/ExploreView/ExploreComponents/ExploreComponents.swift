@@ -239,7 +239,7 @@ struct CollapsedSearchCard: View {
                     .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 1)
+                            .stroke(Color.orange, lineWidth: 2)
                     )
             )
             .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
