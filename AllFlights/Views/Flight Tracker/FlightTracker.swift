@@ -1,928 +1,514 @@
-//import SwiftUI
-//
-//struct FlightTrackerScreen: View {
-//    @State private var currentView: ViewState = .empty
-//    @State private var activeTab: MainTab = .tracked
-//    @State private var scheduledSubTab: ScheduledTab = .departures
-//    @State private var searchText: String = ""
-//    
-//    enum ViewState {
-//        case empty, tracked, scheduled, detail
-//    }
-//    
-//    enum MainTab {
-//        case tracked, scheduled
-//    }
-//    
-//    enum ScheduledTab {
-//        case departures, arrivals
-//    }
-//    
-//    var body: some View {
-//        VStack(spacing: 0) {
-//            if currentView == .detail {
-//                flightDetailView
-//            } else {
-//                mainContentView
-//            }
-//        }
-//        
-//    }
-//    
-//    // MARK: - Main Content
-//    var mainContentView: some View {
-//        VStack(spacing: 0) {
-//            // Header with title and tabs
-//            headerSection
-//            
-//            // Search bar
-//            searchSection
-//            
-//            // Content based on current view
-//            contentSection
-//                .background(Color(UIColor.systemGray6))
-//        }
-//        .background(GradientColor.BlueWhite)
-//    }
-//    
-//    var headerSection: some View {
-//        VStack(spacing: 25) {
-//            Text("Track Flights")
-//                .font(.system(size: 28, weight: .bold))
-//                .foregroundColor(.white)
-//                .padding(.top, 20)
-//            
-//            // Tab Selector with proper spacing and colors
-//            HStack(spacing: 0) {
-//                Button(action: {
-//                    activeTab = .tracked
-//                    currentView = searchText.isEmpty ? .empty : .tracked
-//                }) {
-//                    Text("Tracked")
-//                        .font(.system(size: 16, weight: .medium))
-//                        .foregroundColor(activeTab == .tracked ? Color(red: 0/255, green: 108/255, blue: 227/255) : .black) // #006CE3 for selected, black for unselected
-//                        .frame(maxWidth: .infinity)
-//                        .padding(.vertical, 12)
-//                        .background(
-//                            activeTab == .tracked ? Color.white : Color.clear // #FFFFFF for selected
-//                        )
-//                        .clipShape(RoundedRectangle(cornerRadius: 32))
-//                }
-//                
-//                Button(action: {
-//                    activeTab = .scheduled
-//                    currentView = .scheduled
-//                }) {
-//                    Text("Scheduled")
-//                        .font(.system(size: 16, weight: .medium))
-//                        .foregroundColor(activeTab == .scheduled ? Color(red: 0/255, green: 108/255, blue: 227/255) : .black) // #006CE3 for selected, black for unselected
-//                        .frame(maxWidth: .infinity)
-//                        .padding(.vertical, 12)
-//                        .background(
-//                            activeTab == .scheduled ? Color.white : Color.clear // #FFFFFF for selected
-//                        )
-//                        .clipShape(RoundedRectangle(cornerRadius: 32))
-//                }
-//            }
-//            .padding(.all, 4) // Small padding space between tabs wrapped box and selected tab box
-//            .background(Color(red: 239/255, green: 241/255, blue: 244/255)) // #EFF1F4 for tabs wrapped background
-//            .clipShape(RoundedRectangle(cornerRadius: 30))
-//            .padding(.horizontal, 20)
-//            .padding(.bottom, 25)
-//            
-//        }
-//        .padding(.horizontal,50)
-//    }
-//    
-//    var searchSection: some View {
-//        VStack {
-//            HStack {
-//                TextField(activeTab == .tracked ? "Try flight number \"6E 6083\"" : "COK Cochin", text: $searchText)
-//                    .textFieldStyle(PlainTextFieldStyle())
-//                    .font(.system(size: 16))
-//                    .foregroundColor(.black.opacity(1))
-//                    .fontWeight(.semibold)
-//                    .onChange(of: searchText) { value in
-//                        if activeTab == .tracked {
-//                            currentView = value.isEmpty ? .empty : .tracked
-//                        }
-//                    }
-//                
-//                if !searchText.isEmpty && activeTab == .tracked {
-//                    Button(action: {
-//                        searchText = ""
-//                        currentView = .empty
-//                    }) {
-//                        Image(systemName: "xmark")
-//                            .foregroundColor(.gray)
-//                    }
-//                } else if activeTab == .scheduled {
-//                    Image(systemName: "magnifyingglass")
-//                        .foregroundColor(.gray)
-//                }
-//            }
-//            .padding(.horizontal, 15)
-//            .padding(.vertical, 12)
-//            .background(Color.white)
-//            .clipShape(RoundedRectangle(cornerRadius: 10))
-//            .padding(.horizontal, 20)
-//            .padding(.bottom, 20)
-//        }
-//    }
-//    
-//    var contentSection: some View {
-//        VStack(spacing: 0) {
-//            if currentView == .scheduled {
-//                scheduledFlightsView
-//            } else if currentView == .tracked {
-//                trackedFlightsView
-//            } else {
-//                emptyStateView
-//            }
-//        }
-//        .clipShape(RoundedRectangle(cornerRadius: 20))
-//        .padding(.horizontal, 0)
-//    }
-//    
-//    // MARK: - Empty State
-//    var emptyStateView: some View {
-//        VStack(spacing: 20) {
-//            Spacer()
-//            
-//            ZStack {
-//                Image("NoFlights")
-//                    .font(.system(size: 60))
-//                    .foregroundColor(.blue)
-////                    .rotationEffect(.degrees(45))
-//                
-//                VStack {
-//                    HStack {
-//                        Spacer()
-////                        Image(systemName: "xmark")
-////                            .font(.system(size: 16, weight: .bold))
-////                            .foregroundColor(.white)
-////                            .frame(width: 24, height: 24)
-////                            .background(Color.red)
-////                            .clipShape(Circle())
-////                            .offset(x: -10, y: 20)
-//                    }
-//                    Spacer()
-//                }
-//                .frame(width: 80, height: 80)
-//            }
-//            
-//            Text("No Tracked Flights")
-//                .font(.system(size: 20, weight: .semibold))
-//                .foregroundColor(.primary)
-//            
-//            Text("Check real-time flight status instantly")
-//                .font(.system(size: 16))
-//                .foregroundColor(.secondary)
-//                .multilineTextAlignment(.center)
-//            
-//            Spacer()
-//        }
-//        .frame(maxWidth: .infinity, maxHeight: .infinity)
-//        .background(Color(UIColor.systemGray6))
-//    }
-//    
-//    // MARK: - Tracked Flights
-//    var trackedFlightsView: some View {
-//        ScrollView {
-//            LazyVStack(spacing: 15) {
-//                ForEach(sampleTrackedFlights, id: \.id) { flight in
-//                    TrackedFlightCard(flight: flight)
-//                        .onTapGesture {
-//                            currentView = .detail
-//                        }
-//                }
-//            }
-//            .padding(.horizontal, 20)
-//            .padding(.top, 20)
-//        }
-//        .background(Color(UIColor.systemGray6))
-//    }
-//    
-//    // MARK: - Scheduled Flights
-//    var scheduledFlightsView: some View {
-//        VStack(spacing: 0) {
-//            // Sub-tab selector for Departures/Arrivals
-//            HStack(spacing: 4) {
-//                Button(action: { scheduledSubTab = .departures }) {
-//                    Text("Departures")
-//                        .font(.system(size: 16, weight: .medium))
-//                        .foregroundColor(scheduledSubTab == .departures ? .blue : .primary)
-//                        .frame(maxWidth: .infinity)
-//                        .padding(.vertical, 8)
-//                        .background(
-//                            scheduledSubTab == .departures ? Color.white : Color.clear
-//                        )
-//                        .clipShape(RoundedRectangle(cornerRadius: 8))
-//                }
-//                
-//                Button(action: { scheduledSubTab = .arrivals }) {
-//                    Text("Arrivals")
-//                        .font(.system(size: 16, weight: .medium))
-//                        .foregroundColor(scheduledSubTab == .arrivals ? .blue : .primary)
-//                        .frame(maxWidth: .infinity)
-//                        .padding(.vertical, 8)
-//                        .background(
-//                            scheduledSubTab == .arrivals ? Color.white : Color.clear
-//                        )
-//                        .clipShape(RoundedRectangle(cornerRadius: 8))
-//                }
-//            }
-//            .padding(.horizontal, 4)
-//            .padding(.vertical, 4)
-//            .background(Color(UIColor.systemGray5))
-//            .clipShape(RoundedRectangle(cornerRadius: 12))
-//            .padding(.horizontal, 20)
-//            .padding(.top, 20)
-//            .padding(.bottom, 15)
-//            
-//            // Table Header
-//            HStack {
-//                HStack {
-//                    Text("Flights")
-//                        .font(.system(size: 14, weight: .medium))
-//                        .foregroundColor(.secondary)
-//                    
-//                    VStack(spacing: 2) {
-//                        Rectangle()
-//                            .frame(width: 12, height: 1)
-//                            .foregroundColor(.secondary)
-//                        Rectangle()
-//                            .frame(width: 12, height: 1)
-//                            .foregroundColor(.secondary)
-//                    }
-//                }
-//                .frame(maxWidth: .infinity, alignment: .leading)
-//                
-//                Text("To")
-//                    .font(.system(size: 14, weight: .medium))
-//                    .foregroundColor(.secondary)
-//                    .frame(maxWidth: .infinity, alignment: .leading)
-//                
-//                Text("Time")
-//                    .font(.system(size: 14, weight: .medium))
-//                    .foregroundColor(.secondary)
-//                    .frame(maxWidth: .infinity, alignment: .leading)
-//                
-//                Text("Status")
-//                    .font(.system(size: 14, weight: .medium))
-//                    .foregroundColor(.secondary)
-//                    .frame(maxWidth: .infinity, alignment: .leading)
-//            }
-//            .padding(.horizontal, 20)
-//            .padding(.bottom, 10)
-//            
-//            // Flight List
-//            ScrollView {
-//                LazyVStack(spacing: 0) {
-//                    ForEach(Array(sampleScheduledFlights.enumerated()), id: \.element.id) { index, flight in
-//                        ScheduledFlightRow(flight: flight, index: index)
-//                            .onTapGesture {
-//                                currentView = .detail
-//                            }
-//                        
-//                        if index < sampleScheduledFlights.count - 1 {
-//                            Divider()
-//                                .padding(.horizontal, 20)
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//        .background(Color(UIColor.systemGray6))
-//    }
-//    
-//    // MARK: - Flight Detail View
-//    var flightDetailView: some View {
-//        VStack(spacing: 0) {
-//            // Header
-//            HStack {
-//                Button(action: {
-//                    currentView = .scheduled
-//                }) {
-//                    Image(systemName: "chevron.left")
-//                        .font(.system(size: 18, weight: .medium))
-//                        .foregroundColor(.white)
-//                }
-//                
-//                Spacer()
-//                
-//                VStack(spacing: 2) {
-//                    Text("Kochi - Delhi")
-//                        .font(.system(size: 17, weight: .semibold))
-//                        .foregroundColor(.white)
-//                    
-//                    Text("28 Jan 2024")
-//                        .font(.system(size: 13))
-//                        .foregroundColor(.white.opacity(0.8))
-//                }
-//                
-//                Spacer()
-//                
-//                Button(action: {}) {
-//                    Image(systemName: "square.and.arrow.up")
-//                        .font(.system(size: 16))
-//                        .foregroundColor(.white)
-//                }
-//            }
-//            .padding(.horizontal, 20)
-//            .padding(.vertical, 15)
-//            .background(Color(red: 0.2, green: 0.3, blue: 0.5))
-//            
-//            // Flight Detail Content
-//            flightDetailContent
-//        }
-//    }
-//    
-//    var flightDetailContent: some View {
-//        ScrollView {
-//            VStack(spacing: 15) {
-//                // Flight Info Header
-//                HStack {
-//                    AirlineLogo(code: "6E", color: .blue)
-//                    
-//                    VStack(alignment: .leading, spacing: 2) {
-//                        Text("6E 6082")
-//                            .font(.system(size: 16, weight: .semibold))
-//                        Text("Indigo")
-//                            .font(.system(size: 14))
-//                            .foregroundColor(.secondary)
-//                    }
-//                    
-//                    Spacer()
-//                    
-//                    Text("Scheduled")
-//                        .font(.system(size: 14, weight: .medium))
-//                        .foregroundColor(.green)
-//                        .padding(.horizontal, 12)
-//                        .padding(.vertical, 6)
-//                        .background(Color.green.opacity(0.1))
-//                        .overlay(
-//                            RoundedRectangle(cornerRadius: 15)
-//                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-//                        )
-//                        .clipShape(RoundedRectangle(cornerRadius: 15))
-//                }
-//                .padding(.horizontal, 20)
-//                .padding(.top, 20)
-//                
-//                // Route Information
-//                flightRouteInfo
-//                
-//                // Departure Info
-//                departureInfoCard
-//                
-//                // Arrival Info
-//                arrivalInfoCard
-//                
-//                // Weather Info
-//                weatherInfoCard
-//                
-//                // Actions
-//                VStack(spacing: 15) {
-//                    HStack {
-//                        Text("Notification")
-//                            .font(.system(size: 16, weight: .medium))
-//                        
-//                        Spacer()
-//                        
-//                        Toggle("", isOn: .constant(false))
-//                            .labelsHidden()
-//                    }
-//                    
-//                    Button(action: {}) {
-//                        HStack {
-//                            Image(systemName: "trash")
-//                                .foregroundColor(.red)
-//                            Text("Delete")
-//                                .foregroundColor(.red)
-//                                .font(.system(size: 16, weight: .medium))
-//                            Spacer()
-//                        }
-//                    }
-//                }
-//                .padding(.horizontal, 20)
-//                .padding(.bottom, 30)
-//            }
-//        }
-//        .background(Color(UIColor.systemGray6))
-//    }
-//    
-//    var flightRouteInfo: some View {
-//        VStack(spacing: 15) {
-//            HStack(alignment: .center) {
-//                VStack(alignment: .leading, spacing: 4) {
-//                    Text("COK")
-//                        .font(.system(size: 24, weight: .bold))
-//                    Text("Kochi International Airport")
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.secondary)
-//                    HStack(spacing: 8) {
-//                        Text("Terminal: T4")
-//                            .font(.system(size: 12))
-//                            .foregroundColor(.secondary)
-//                        Text("Gate: 4A")
-//                            .font(.system(size: 12))
-//                            .foregroundColor(.secondary)
-//                    }
-//                }
-//                
-//                Spacer()
-//                
-//                VStack(spacing: 8) {
-//                    Text("09:32")
-//                        .font(.system(size: 18, weight: .semibold))
-//                        .foregroundColor(.green)
-//                    Text("Ontime")
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.green)
-//                    Text("15 May, Wed")
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.secondary)
-//                }
-//            }
-//            
-//            HStack {
-//                Circle()
-//                    .frame(width: 8, height: 8)
-//                    .foregroundColor(.gray)
-//                
-//                Text("2h 10min")
-//                    .font(.system(size: 12))
-//                    .foregroundColor(.secondary)
-//                    .padding(.horizontal, 8)
-//                    .padding(.vertical, 4)
-//                    .background(Color.gray.opacity(0.1))
-//                    .clipShape(RoundedRectangle(cornerRadius: 8))
-//                
-//                Rectangle()
-//                    .frame(height: 1)
-//                    .foregroundColor(.gray)
-//                
-//                Circle()
-//                    .frame(width: 8, height: 8)
-//                    .foregroundColor(.gray)
-//            }
-//            .padding(.vertical, 8)
-//            
-//            HStack(alignment: .center) {
-//                VStack(alignment: .leading, spacing: 4) {
-//                    Text("DEL")
-//                        .font(.system(size: 24, weight: .bold))
-//                    Text("Indira Gandhi Airport")
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.secondary)
-//                    HStack(spacing: 8) {
-//                        Text("Terminal: T4")
-//                            .font(.system(size: 12))
-//                            .foregroundColor(.secondary)
-//                        Text("Gate: --")
-//                            .font(.system(size: 12))
-//                            .foregroundColor(.secondary)
-//                    }
-//                }
-//                
-//                Spacer()
-//                
-//                VStack(spacing: 8) {
-//                    Text("12:32")
-//                        .font(.system(size: 18, weight: .semibold))
-//                        .foregroundColor(.green)
-//                    Text("Ontime")
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.green)
-//                    Text("15 May, Wed")
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.secondary)
-//                }
-//            }
-//            
-//            Text("Updated just Now")
-//                .font(.system(size: 13, weight: .medium))
-//                .foregroundColor(.green)
-//                .frame(maxWidth: .infinity)
-//                .padding(.vertical, 8)
-//                .background(Color.green.opacity(0.1))
-//                .clipShape(RoundedRectangle(cornerRadius: 8))
-//        }
-//        .padding(.horizontal, 20)
-//    }
-//    
-//    var departureInfoCard: some View {
-//        VStack(alignment: .leading, spacing: 15) {
-//            HStack {
-//                Text("COK")
-//                    .font(.system(size: 14, weight: .bold))
-//                    .foregroundColor(.white)
-//                    .frame(width: 32, height: 32)
-//                    .background(Color.black)
-//                    .clipShape(RoundedRectangle(cornerRadius: 6))
-//                
-//                VStack(alignment: .leading, spacing: 2) {
-//                    Text("Kochi, India")
-//                        .font(.system(size: 16, weight: .semibold))
-//                    Text("Departure")
-//                        .font(.system(size: 14))
-//                        .foregroundColor(.secondary)
-//                }
-//                
-//                Spacer()
-//            }
-//            
-//            VStack(alignment: .leading, spacing: 8) {
-//                Text("Gate Time")
-//                    .font(.system(size: 16, weight: .semibold))
-//                
-//                detailRow(title: "Scheduled", value: "2:00 PM")
-//                detailRow(title: "Estimated", value: "2:00 PM")
-//                detailRow(title: "Status", value: "On time", valueColor: .green)
-//            }
-//            
-//            VStack(alignment: .leading, spacing: 8) {
-//                Text("Runway Time")
-//                    .font(.system(size: 16, weight: .semibold))
-//                
-//                detailRow(title: "Scheduled", value: "2:00 PM")
-//                detailRow(title: "Status", value: "1m delayed", valueColor: .red)
-//            }
-//        }
-//        .padding(15)
-//        .background(Color.white)
-//        .clipShape(RoundedRectangle(cornerRadius: 12))
-//        .padding(.horizontal, 20)
-//    }
-//    
-//    var arrivalInfoCard: some View {
-//        VStack(alignment: .leading, spacing: 15) {
-//            HStack {
-//                Text("DEL")
-//                    .font(.system(size: 14, weight: .bold))
-//                    .foregroundColor(.white)
-//                    .frame(width: 32, height: 32)
-//                    .background(Color.black)
-//                    .clipShape(RoundedRectangle(cornerRadius: 6))
-//                
-//                VStack(alignment: .leading, spacing: 2) {
-//                    Text("Delhi, India")
-//                        .font(.system(size: 16, weight: .semibold))
-//                    Text("Arrival")
-//                        .font(.system(size: 14))
-//                        .foregroundColor(.secondary)
-//                }
-//                
-//                Spacer()
-//            }
-//            
-//            VStack(alignment: .leading, spacing: 8) {
-//                Text("Runway Time")
-//                    .font(.system(size: 16, weight: .semibold))
-//                
-//                detailRow(title: "Scheduled", value: "Unavailable", valueColor: .secondary)
-//                detailRow(title: "Status", value: "Unavailable", valueColor: .secondary)
-//            }
-//            
-//            VStack(alignment: .leading, spacing: 8) {
-//                Text("Gate Time")
-//                    .font(.system(size: 16, weight: .semibold))
-//                
-//                detailRow(title: "Scheduled", value: "4:50 PM")
-//                detailRow(title: "Status", value: "On time", valueColor: .green)
-//            }
-//        }
-//        .padding(15)
-//        .background(Color.white)
-//        .clipShape(RoundedRectangle(cornerRadius: 12))
-//        .padding(.horizontal, 20)
-//    }
-//    
-//    var weatherInfoCard: some View {
-//        VStack(alignment: .leading, spacing: 10) {
-//            Text("Good to Know")
-//                .font(.system(size: 16, weight: .semibold))
-//            
-//            Text("Information about your destination")
-//                .font(.system(size: 14))
-//                .foregroundColor(.secondary)
-//            
-//            HStack {
-//                VStack(alignment: .leading) {
-//                    Text("29°C")
-//                        .font(.system(size: 24, weight: .bold))
-//                    Text("Might rain in New Delhi")
-//                        .font(.system(size: 14))
-//                        .foregroundColor(.secondary)
-//                }
-//                
-//                Spacer()
-//                
-//                HStack {
-//                    Image(systemName: "sun.max.fill")
-//                        .font(.system(size: 20))
-//                        .foregroundColor(.yellow)
-//                    
-//                    Image(systemName: "cloud.rain.fill")
-//                        .font(.system(size: 16))
-//                        .foregroundColor(.blue)
-//                }
-//            }
-//        }
-//        .padding(15)
-//        .background(Color.white)
-//        .clipShape(RoundedRectangle(cornerRadius: 12))
-//        .padding(.horizontal, 20)
-//    }
-//    
-//    func detailRow(title: String, value: String, valueColor: Color = .primary) -> some View {
-//        HStack {
-//            Text(title)
-//                .font(.system(size: 14))
-//                .foregroundColor(.secondary)
-//            
-//            Spacer()
-//            
-//            Text(value)
-//                .font(.system(size: 14, weight: .medium))
-//                .foregroundColor(valueColor)
-//        }
-//    }
-//}
-//
-//// MARK: - Supporting Views
-//
-//struct AirlineLogo: View {
-//    let code: String
-//    let color: Color
-//    
-//    var body: some View {
-//        Text(code)
-//            .font(.system(size: 12, weight: .bold))
-//            .foregroundColor(.white)
-//            .frame(width: 32, height: 32)
-//            .background(color)
-//            .clipShape(RoundedRectangle(cornerRadius: 6))
-//    }
-//}
-//
-//struct TrackedFlightCard: View {
-//    let flight: TrackedFlight
-//    
-//    var body: some View {
-//        VStack(spacing: 15) {
-//            HStack {
-//                AirlineLogo(code: "6E", color: .blue)
-//                
-//                VStack(alignment: .leading, spacing: 2) {
-//                    Text("\(flight.airline) • \(flight.flightNumber)")
-//                        .font(.system(size: 16, weight: .semibold))
-//                }
-//                
-//                Spacer()
-//                
-//                Text("Scheduled")
-//                    .font(.system(size: 14, weight: .medium))
-//                    .foregroundColor(.green)
-//                    .padding(.horizontal, 12)
-//                    .padding(.vertical, 6)
-//                    .background(Color.green.opacity(0.1))
-//                    .overlay(
-//                        RoundedRectangle(cornerRadius: 15)
-//                            .stroke(Color.green.opacity(0.3), lineWidth: 1)
-//                    )
-//                    .clipShape(RoundedRectangle(cornerRadius: 15))
-//            }
-//            
-//            HStack(alignment: .center) {
-//                VStack {
-//                    Text(flight.departureTime)
-//                        .font(.system(size: 24, weight: .bold))
-//                    Text("\(flight.from) • \(flight.date)")
-//                        .font(.system(size: 14))
-//                        .foregroundColor(.secondary)
-//                }
-//                
-//                Spacer()
-//                
-//                VStack(spacing: 8) {
-//                    HStack {
-//                        Circle()
-//                            .frame(width: 8, height: 8)
-//                            .foregroundColor(.gray)
-//                        
-//                        Rectangle()
-//                            .frame(height: 1)
-//                            .foregroundColor(.gray)
-//                        
-//                        Circle()
-//                            .frame(width: 8, height: 8)
-//                            .foregroundColor(.gray)
-//                    }
-//                    
-//                    Text(flight.duration)
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.secondary)
-//                        .padding(.horizontal, 8)
-//                        .padding(.vertical, 4)
-//                        .background(Color.gray.opacity(0.1))
-//                        .clipShape(RoundedRectangle(cornerRadius: 8))
-//                    
-//                    Text("Direct")
-//                        .font(.system(size: 14, weight: .medium))
-//                        .foregroundColor(.green)
-//                }
-//                
-//                Spacer()
-//                
-//                VStack {
-//                    Text(flight.arrivalTime)
-//                        .font(.system(size: 24, weight: .bold))
-//                    Text("\(flight.to) • \(flight.date)")
-//                        .font(.system(size: 14))
-//                        .foregroundColor(.secondary)
-//                }
-//            }
-//        }
-//        .padding(15)
-//        .background(Color.white)
-//        .clipShape(RoundedRectangle(cornerRadius: 15))
-//        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-//    }
-//}
-//
-//struct ScheduledFlightRow: View {
-//    let flight: ScheduledFlight
-//    let index: Int
-//    
-//    private let airlineColors: [Color] = [.blue, .purple, .red, .blue, .blue, Color(red: 0.4, green: 0.2, blue: 0.6)]
-//    
-//    var body: some View {
-//        HStack(spacing: 15) {
-//            HStack(spacing: 10) {
-//                AirlineLogo(code: "6E", color: airlineColors[index % airlineColors.count])
-//                
-//                VStack(alignment: .leading, spacing: 2) {
-//                    Text(flight.flightNumber)
-//                        .font(.system(size: 14, weight: .semibold))
-//                    Text(flight.airline)
-//                        .font(.system(size: 12))
-//                        .foregroundColor(.secondary)
-//                }
-//            }
-//            .frame(maxWidth: .infinity, alignment: .leading)
-//            
-//            VStack(alignment: .leading, spacing: 2) {
-//                Text(flight.destination)
-//                    .font(.system(size: 16, weight: .semibold))
-//                Text(flight.destinationFull)
-//                    .font(.system(size: 14))
-//                    .foregroundColor(.secondary)
-//            }
-//            .frame(maxWidth: .infinity, alignment: .leading)
-//            
-//            VStack(alignment: .leading, spacing: 2) {
-//                Text(flight.scheduledTime)
-//                    .font(.system(size: 16, weight: .semibold))
-//                Text(flight.actualTime)
-//                    .font(.system(size: 14))
-//                    .foregroundColor(.secondary)
-//            }
-//            .frame(maxWidth: .infinity, alignment: .leading)
-//            
-//            VStack(alignment: .leading, spacing: 4) {
-//                Text(flight.status)
-//                    .font(.system(size: 12, weight: .medium))
-//                    .foregroundColor(flight.status == "Cancelled" ? .white : .green)
-//                    .padding(.horizontal, 10)
-//                    .padding(.vertical, 4)
-//                    .background(
-//                        flight.status == "Cancelled" ? Color.red : Color.green.opacity(0.1)
-//                    )
-//                    .overlay(
-//                        RoundedRectangle(cornerRadius: 12)
-//                            .stroke(flight.status == "Cancelled" ? Color.clear : Color.green.opacity(0.3), lineWidth: 1)
-//                    )
-//                    .clipShape(RoundedRectangle(cornerRadius: 12))
-//                
-//                if !flight.statusDetail.isEmpty {
-//                    Text(flight.statusDetail)
-//                        .font(.system(size: 12))
-//                        .foregroundColor(flight.statusDetail.contains("Early") ?
-//                                       (flight.statusDetail.contains("10m") ? .red : .green) : .primary)
-//                }
-//            }
-//            .frame(maxWidth: .infinity, alignment: .leading)
-//        }
-//        .padding(.horizontal, 20)
-//        .padding(.vertical, 15)
-//    }
-//}
-//
-//// MARK: - Data Models
-//
-//struct TrackedFlight {
-//    let id = UUID()
-//    let airline: String
-//    let flightNumber: String
-//    let from: String
-//    let to: String
-//    let departureTime: String
-//    let arrivalTime: String
-//    let date: String
-//    let duration: String
-//}
-//
-//struct ScheduledFlight {
-//    let id = UUID()
-//    let airline: String
-//    let flightNumber: String
-//    let destination: String
-//    let destinationFull: String
-//    let scheduledTime: String
-//    let actualTime: String
-//    let status: String
-//    let statusDetail: String
-//}
-//
-//// MARK: - Sample Data
-//
-//let sampleTrackedFlights = [
-//    TrackedFlight(
-//        airline: "Indigo",
-//        flightNumber: "6E 6083",
-//        from: "COK",
-//        to: "CNN",
-//        departureTime: "17:10",
-//        arrivalTime: "18:30",
-//        date: "10 Apr",
-//        duration: "12h 10m"
-//    )
-//]
-//
-//let sampleScheduledFlights = [
-//    ScheduledFlight(airline: "Indigo", flightNumber: "6E 6082", destination: "DEL", destinationFull: "Delhi", scheduledTime: "10:00", actualTime: "09:50", status: "Expected", statusDetail: "5m Early"),
-//    ScheduledFlight(airline: "Indigo", flightNumber: "6E 6082", destination: "DEL", destinationFull: "Delhi", scheduledTime: "10:00", actualTime: "09:50", status: "Expected", statusDetail: "10m Early"),
-//    ScheduledFlight(airline: "Indigo", flightNumber: "6E 6082", destination: "DEL", destinationFull: "Delhi", scheduledTime: "10:00", actualTime: "09:50", status: "Landed", statusDetail: "5m Early"),
-//    ScheduledFlight(airline: "Indigo", flightNumber: "6E 6082", destination: "DEL", destinationFull: "Delhi", scheduledTime: "10:00", actualTime: "09:50", status: "Landed", statusDetail: "10m Early"),
-//    ScheduledFlight(airline: "Indigo", flightNumber: "6E 6082", destination: "DEL", destinationFull: "Delhi", scheduledTime: "10:00", actualTime: "09:50", status: "Cancelled", statusDetail: ""),
-//    ScheduledFlight(airline: "Indigo", flightNumber: "6E 6082", destination: "DEL", destinationFull: "Delhi", scheduledTime: "10:00", actualTime: "09:50", status: "Landed", statusDetail: "")
-//]
-//
-//struct FlightDetail {
-//    let flightNumber: String
-//    let airline: String
-//    let route: String
-//    let date: String
-//}
-//
-//
-//#Preview{
-//    FlightTrackerScreen()
-//}
-
-
 import SwiftUI
 
 struct FlightTrackerScreen: View {
-    @State private var selectedTab = 1 // 0 for Tracked, 1 for Scheduled
+    @State private var selectedTab = 0 // Default to Tracked tab (0)
     @State private var searchText = ""
     @State private var selectedFlightType = 0 // 0 for Departures, 1 for Arrivals
+    @State private var showingTrackLocationSheet = false
+    @State private var currentSheetSource: SheetSource = .trackedTab
+    @State private var currentSearchType: FlightSearchType? = nil
     
-    let flightData = [
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .expected, delay: "5m Early", airlineColor: .blue),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .expected, delay: "10m Early", airlineColor: .purple),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .landed, delay: "5m Early", airlineColor: .red),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .landed, delay: "10m Early", airlineColor: .blue),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .cancelled, delay: "", airlineColor: .blue),
-        FlightInfo(flightNumber: "6E 6082", airline: "Indigo", destination: "DEL", destinationName: "Delhi", time: "10:00", scheduledTime: "09:50", status: .landed, delay: "", airlineColor: .purple)
-    ]
+    // Selected airport data (current session)
+    @State private var selectedDepartureAirport: FlightTrackAirport?
+    @State private var selectedArrivalAirport: FlightTrackAirport?
+    
+    // Tracked tab specific data
+    @State private var trackedDepartureAirport: FlightTrackAirport?
+    @State private var trackedArrivalAirport: FlightTrackAirport?
+    @State private var trackedSelectedDate: String?
+    @State private var trackedFlightNumber: String = ""
+    @State private var trackedSearchType: TrackedSearchType?
+    
+    // ADDED: Calendar integration
+    @State private var selectedCustomDate: Date?
+    
+    // UPDATED: Navigation states for tracked tab
+    @State private var showingTrackedDetails = false // For airport search results
+    @State private var showingFlightDetail = false   // For flight search results
+    @State private var trackedFlightDetail: FlightDetail?
+    @State private var trackedScheduleResults: [ScheduleResult] = []
+    @State private var trackedAPIError: String?
+    @State private var isLoadingTrackedResults = false
+    
+    // ADDED: Flight detail navigation parameters
+    @State private var flightDetailNumber: String = ""
+    @State private var flightDetailDate: String = ""
+    
+    // ADDED: Recently viewed flights for tracked tab
+    @State private var recentlyViewedFlights: [TrackedFlightData] = []
+    
+    // ADDED: Cached flight results for better performance
+    @State private var cachedDepartureResults: [FlightInfo] = []
+    @State private var cachedArrivalResults: [FlightInfo] = []
+    @State private var currentCachedAirport: FlightTrackAirport?
+    @State private var lastCachedDate: String?
+    
+    // Schedule data
+    @State private var scheduleResults: [FlightInfo] = []
+    @State private var isLoadingSchedules = false
+    @State private var scheduleError: String?
+    
+    // Recent search management
+    @State private var displayingRecentResults: [FlightInfo] = []
+    @State private var hasRecentSearch = false
+    
+    // ADDED: Last searched airport storage (persistent)
+    @State private var lastSearchedAirportData: LastSearchedAirportData?
+    @State private var lastSearchType: FlightSearchType = .departure
+    
+    // Network manager
+    private let networkManager = FlightTrackNetworkManager.shared
     
     var body: some View {
-        ZStack {
-            // Background Gradient
-            GradientColor.BlueWhite
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Header
-                headerView
+        NavigationView {
+            ZStack {
+                // Background Gradient
+                GradientColor.BlueWhite
+                    .ignoresSafeArea()
                 
-                // Tab Selection
-                tabSelectionView
-                
-                // Content based on selected tab
-                if selectedTab == 0 {
-                    trackedTabContent
-                } else {
-                    scheduledTabContent
+                VStack(spacing: 0) {
+                    // Header
+                    headerView
+                    
+                    // Tab Selection
+                    tabSelectionView
+                    
+                    // Content based on selected tab
+                    if selectedTab == 0 {
+                        trackedTabContent
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .leading).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
+                            ))
+                    } else {
+                        scheduledTabContent
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                            ))
+                    }
+                    
+                    Spacer()
                 }
-                
-                Spacer()
+                .animation(.easeInOut(duration: 0.3), value: selectedTab) // ADDED: Smooth tab transition
+                .onAppear {
+                    loadRecentSearchData()
+                    loadRecentlyViewedFlights()
+                    if selectedTab == 1 {
+                        loadLastSearchedAirport()
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+        }
+        .sheet(isPresented: $showingTrackLocationSheet) {
+            trackLocationSheet(
+                isPresented: $showingTrackLocationSheet,
+                source: currentSheetSource,
+                searchType: currentSearchType,
+                onLocationSelected: handleLocationSelected,
+                onDateSelected: currentSheetSource == .trackedTab ? handleDateSelected : nil,
+                onFlightNumberEntered: currentSheetSource == .trackedTab ? handleFlightNumberEntered : nil,
+                onSearchCompleted: currentSheetSource == .trackedTab ? handleTrackedSearchCompleted : nil,
+                onCustomDateSelected: currentSheetSource == .trackedTab ? handleCustomDateSelected : nil
+            )
+            .transition(.move(edge: .bottom).combined(with: .opacity)) // ADDED: Better sheet animation
+            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingTrackLocationSheet)
+        }
+        // UPDATED: Better navigation animations for TrackedDetailsScreen
+        .fullScreenCover(isPresented: $showingTrackedDetails) {
+            if !trackedScheduleResults.isEmpty {
+                TrackedDetailsScreen(
+                    flightDetail: nil,
+                    scheduleResults: trackedScheduleResults,
+                    searchType: .airport
+                )
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                ))
             }
         }
+        // UPDATED: Better navigation animations for FlightDetailScreen
+        .fullScreenCover(isPresented: $showingFlightDetail) {
+            FlightDetailScreen(
+                flightNumber: flightDetailNumber,
+                date: flightDetailDate,
+                onFlightViewed: { flight in
+                    addRecentlyViewedFlight(flight)
+                }
+            )
+            .transition(.asymmetric(
+                insertion: .move(edge: .bottom).combined(with: .opacity),
+                removal: .move(edge: .top).combined(with: .opacity)
+            ))
+        }
     }
+    
+    // MARK: - Enhanced Tracked Tab Handlers
+    
+    private func handleFlightNumberEntered(_ flightNumber: String) {
+        trackedFlightNumber = flightNumber
+        print("✈️ Flight number entered: \(flightNumber)")
+    }
+    
+    // ADDED: Calendar integration handler
+    private func handleCustomDateSelected(_ date: Date) {
+        selectedCustomDate = date
+        print("📅 Custom date selected: \(date)")
+    }
+    
+    private func handleTrackedSearchCompleted(searchType: TrackedSearchType, flightNumber: String?, departureAirport: FlightTrackAirport?, arrivalAirport: FlightTrackAirport?, selectedDate: String?) {
+        
+        guard let selectedDate = selectedDate else {
+            print("❌ No date selected")
+            return
+        }
+        
+        let apiDate = convertDateToAPIFormat(selectedDate)
+        
+        Task {
+            await performTrackedSearch(
+                searchType: searchType,
+                flightNumber: flightNumber,
+                departureAirport: departureAirport,
+                arrivalAirport: arrivalAirport,
+                date: apiDate
+            )
+        }
+    }
+    
+    // UPDATED: Better animation for tracked search completion
+    @MainActor
+    private func performTrackedSearch(
+        searchType: TrackedSearchType,
+        flightNumber: String?,
+        departureAirport: FlightTrackAirport?,
+        arrivalAirport: FlightTrackAirport?,
+        date: String
+    ) async {
+        isLoadingTrackedResults = true
+        trackedAPIError = nil
+        
+        do {
+            if searchType == .flight, let flightNumber = flightNumber {
+                // Call flight detail API for airline search
+                print("🔍 Calling flight detail API for: \(flightNumber), date: \(date)")
+                let response = try await networkManager.fetchFlightDetail(flightNumber: flightNumber, date: date)
+                trackedFlightDetail = response.result
+                trackedScheduleResults = []
+                
+                // Add to recently viewed
+                addRecentlyViewedFlight(createTrackedFlightData(from: response.result, date: date))
+                
+                // UPDATED: Navigate to FlightDetailScreen with animation delay
+                flightDetailNumber = flightNumber
+                flightDetailDate = date
+                
+                // Small delay for smooth animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingFlightDetail = true
+                    }
+                }
+                
+            } else if searchType == .airport {
+                // Call schedules API for airport search
+                let departureId = departureAirport?.iataCode
+                let arrivalId = arrivalAirport?.iataCode
+                
+                print("🔍 Calling schedules API - dep: \(departureId ?? "nil"), arr: \(arrivalId ?? "nil"), date: \(date)")
+                let response = try await networkManager.searchSchedules(
+                    departureId: departureId,
+                    arrivalId: arrivalId,
+                    date: date
+                )
+                trackedScheduleResults = response.results
+                trackedFlightDetail = nil
+                
+                // UPDATED: Navigate to TrackedDetailsScreen with animation delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingTrackedDetails = true
+                    }
+                }
+            }
+            
+        } catch {
+            trackedAPIError = error.localizedDescription
+            print("❌ Tracked search error: \(error)")
+        }
+        
+        isLoadingTrackedResults = false
+    }
+    
+    private func createTrackedFlightData(from flightDetail: FlightDetail, date: String) -> TrackedFlightData {
+        return TrackedFlightData(
+            id: "\(flightDetail.flightIata)_\(date)",
+            flightNumber: flightDetail.flightIata,
+            airlineName: flightDetail.airline.name,
+            status: flightDetail.status ?? "Unknown",
+            departureTime: formatTime(flightDetail.departure.scheduled.local),
+            departureAirport: flightDetail.departure.airport.iataCode,
+            departureDate: formatDateOnly(flightDetail.departure.scheduled.local),
+            arrivalTime: formatTime(flightDetail.arrival.scheduled.local),
+            arrivalAirport: flightDetail.arrival.airport.iataCode,
+            arrivalDate: formatDateOnly(flightDetail.arrival.scheduled.local),
+            duration: calculateDuration(departure: flightDetail.departure.scheduled.local, arrival: flightDetail.arrival.scheduled.local),
+            flightType: "Direct",
+            date: date
+        )
+    }
+    
+    // MARK: - Helper Methods for Time Formatting
+    
+    private func formatTime(_ timeString: String?) -> String {
+        guard let timeString = timeString else { return "--:--" }
+        
+        let formatter = DateFormatter()
+        let formats = [
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss"
+        ]
+        
+        for format in formats {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: timeString) {
+                let timeFormatter = DateFormatter()
+                timeFormatter.dateFormat = "HH:mm"
+                return timeFormatter.string(from: date)
+            }
+        }
+        return timeString
+    }
+    
+    private func formatDateOnly(_ timeString: String?) -> String {
+        guard let timeString = timeString else { return "--" }
+        
+        let formatter = DateFormatter()
+        let formats = [
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss"
+        ]
+        
+        for format in formats {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: timeString) {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "dd MMM"
+                return dateFormatter.string(from: date)
+            }
+        }
+        return timeString
+    }
+    
+    private func calculateDuration(departure: String?, arrival: String?) -> String {
+        guard let depString = departure, let arrString = arrival else { return "--h --min" }
+        
+        let formatter = DateFormatter()
+        let formats = [
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss"
+        ]
+        
+        var depDate: Date?
+        var arrDate: Date?
+        
+        for format in formats {
+            formatter.dateFormat = format
+            if depDate == nil {
+                depDate = formatter.date(from: depString)
+            }
+            if arrDate == nil {
+                arrDate = formatter.date(from: arrString)
+            }
+            if depDate != nil && arrDate != nil {
+                break
+            }
+        }
+        
+        guard let departureDate = depDate, let arrivalDate = arrDate else { return "--h --min" }
+        
+        let duration = arrivalDate.timeIntervalSince(departureDate)
+        let hours = Int(duration) / 3600
+        let minutes = Int(duration.truncatingRemainder(dividingBy: 3600)) / 60
+        
+        return "\(hours)h \(minutes)min"
+    }
+    
+    // MARK: - Helper Methods for Handler Functions
+    
+    private func handleLocationSelected(_ airport: FlightTrackAirport) {
+        Task {
+            await handleLocationSelection(airport)
+        }
+    }
+    
+    private func handleDateSelected(_ date: String) {
+        trackedSelectedDate = date
+        Task {
+            await checkTrackedSearchReady()
+        }
+    }
+    
+    @MainActor
+    private func handleLocationSelection(_ airport: FlightTrackAirport) async {
+        switch currentSheetSource {
+        case .trackedTab:
+            // For tracked tab, we need to determine if this is departure or arrival
+            if trackedDepartureAirport == nil {
+                trackedDepartureAirport = airport
+            } else {
+                trackedArrivalAirport = airport
+                await checkTrackedSearchReady()
+            }
+            
+        case .scheduledDeparture:
+            // ADDED: Clear cache if location is different
+            if selectedDepartureAirport?.iataCode != airport.iataCode {
+                clearCache()
+            }
+            selectedDepartureAirport = airport
+            selectedArrivalAirport = nil
+            // Save as last searched airport
+            saveLastSearchedAirport(airport, searchType: .departure)
+            // Make API call for scheduled departures
+            await fetchScheduleResults(departureId: airport.iataCode, arrivalId: nil)
+            
+        case .scheduledArrival:
+            // ADDED: Clear cache if location is different
+            if selectedArrivalAirport?.iataCode != airport.iataCode {
+                clearCache()
+            }
+            selectedArrivalAirport = airport
+            selectedDepartureAirport = nil
+            // Save as last searched airport
+            saveLastSearchedAirport(airport, searchType: .arrival)
+            // Make API call for scheduled arrivals
+            await fetchScheduleResults(departureId: nil, arrivalId: airport.iataCode)
+        }
+    }
+    
+    @MainActor
+    private func checkTrackedSearchReady() async {
+        guard let departure = trackedDepartureAirport,
+              let arrival = trackedArrivalAirport,
+              let dateString = trackedSelectedDate else {
+            return
+        }
+        
+        let formattedDate = convertDateToAPIFormat(dateString)
+        await fetchScheduleResults(
+            departureId: departure.iataCode,
+            arrivalId: arrival.iataCode,
+            date: formattedDate
+        )
+    }
+    
+    // UPDATED: Handle custom dates in API format conversion
+    private func convertDateToAPIFormat(_ dateSelection: String) -> String {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        switch dateSelection {
+        case "yesterday":
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+            return formatDateForAPI(yesterday)
+        case "today":
+            return formatDateForAPI(today)
+        case "tomorrow":
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+            return formatDateForAPI(tomorrow)
+        case "dayafter":
+            let dayAfter = calendar.date(byAdding: .day, value: 2, to: today)!
+            return formatDateForAPI(dayAfter)
+        case "custom":
+            // ADDED: Handle custom date from calendar
+            if let customDate = selectedCustomDate {
+                return formatDateForAPI(customDate)
+            } else {
+                return formatDateForAPI(today)
+            }
+        default:
+            return formatDateForAPI(today)
+        }
+    }
+    
+    private func formatDateForAPI(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        return formatter.string(from: date)
+    }
+    
+    // Helper methods for navigation
+    private func getCurrentDateForAPI() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        return formatter.string(from: Date())
+    }
+    
+    private func getSelectedDateForAPI() -> String {
+        guard let selectedDate = trackedSelectedDate else {
+            return getCurrentDateForAPI()
+        }
+        return convertDateToAPIFormat(selectedDate)
+    }
+    
+    // MARK: - Recently Viewed Flights Management
+    
+    private func addRecentlyViewedFlight(_ flight: TrackedFlightData) {
+        // Remove any existing instance of the same flight (same flight number + date)
+        recentlyViewedFlights.removeAll { existingFlight in
+            existingFlight.flightNumber == flight.flightNumber && existingFlight.date == flight.date
+        }
+        
+        // Add the flight to the beginning of the list (most recent)
+        recentlyViewedFlights.insert(flight, at: 0)
+        
+        // Keep only the last 5 unique viewed flights
+        if recentlyViewedFlights.count > 5 {
+            recentlyViewedFlights = Array(recentlyViewedFlights.prefix(5))
+        }
+        
+        saveRecentlyViewedFlights()
+        
+        print("📱 Recently viewed flights updated:")
+        for (index, flight) in recentlyViewedFlights.enumerated() {
+            print("  \(index + 1). \(flight.flightNumber) (\(flight.airlineName)) - \(flight.date)")
+        }
+    }
+    
+    private func saveRecentlyViewedFlights() {
+        if let data = try? JSONEncoder().encode(recentlyViewedFlights) {
+            UserDefaults.standard.set(data, forKey: "RecentlyViewedFlights")
+        }
+    }
+    
+    private func loadRecentlyViewedFlights() {
+        guard let data = UserDefaults.standard.data(forKey: "RecentlyViewedFlights"),
+              let flights = try? JSONDecoder().decode([TrackedFlightData].self, from: data) else {
+            return
+        }
+        recentlyViewedFlights = flights
+    }
+    
+    // MARK: - Cache Management
+    
+    private func clearCache() {
+        cachedDepartureResults = []
+        cachedArrivalResults = []
+        currentCachedAirport = nil
+        lastCachedDate = nil
+        print("🗑️ Cache cleared")
+    }
+    
+    // MARK: - UI Components
     
     private var headerView: some View {
         VStack(spacing: 20) {
@@ -934,16 +520,22 @@ struct FlightTrackerScreen: View {
         }
     }
     
+    // UPDATED: Tab Selection with Better Animation
     private var tabSelectionView: some View {
         HStack(spacing: 0) {
             Spacer()
             
             HStack(spacing: 0) {
                 // Tracked Tab
-                Button(action: { selectedTab = 0 }) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) { // ADDED: Smooth animation
+                        selectedTab = 0
+                        currentSheetSource = .trackedTab
+                        clearCurrentSessionData()
+                    }
+                }) {
                     Text("Tracked")
                         .font(selectedTab == 0 ? Font.system(size: 13, weight: .bold) : Font.system(size: 13, weight: .regular))
-
                         .foregroundColor(selectedTab == 0 ? Color(hex: "006CE3") : .black)
                         .padding(.vertical, 12)
                         .padding(.horizontal, 24)
@@ -951,10 +543,19 @@ struct FlightTrackerScreen: View {
                             selectedTab == 0 ? Color.white : Color.clear
                         )
                         .cornerRadius(20)
+                        .scaleEffect(selectedTab == 0 ? 1.05 : 1.0) // ADDED: Subtle scale effect
+                        .animation(.easeInOut(duration: 0.2), value: selectedTab)
                 }
                 
                 // Scheduled Tab
-                Button(action: { selectedTab = 1 }) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) { // ADDED: Smooth animation
+                        selectedTab = 1
+                        currentSheetSource = .scheduledDeparture
+                        clearCurrentSessionData()
+                        loadLastSearchedAirport()
+                    }
+                }) {
                     Text("Scheduled")
                         .font(selectedTab == 1 ? Font.system(size: 13, weight: .bold) : Font.system(size: 13, weight: .regular))
                         .foregroundColor(selectedTab == 1 ? Color(hex: "006CE3") : .black)
@@ -964,6 +565,8 @@ struct FlightTrackerScreen: View {
                             selectedTab == 1 ? Color.white : Color.clear
                         )
                         .cornerRadius(20)
+                        .scaleEffect(selectedTab == 1 ? 1.05 : 1.0) // ADDED: Subtle scale effect
+                        .animation(.easeInOut(duration: 0.2), value: selectedTab)
                 }
             }
             .padding(4)
@@ -978,37 +581,119 @@ struct FlightTrackerScreen: View {
     
     private var trackedTabContent: some View {
         VStack(spacing: 20) {
-            // Search Field
-            searchFieldView
+            trackedSearchFieldView
             
-            // Empty State
-            Spacer()
-            
-            VStack(spacing: 16) {
-                // Airplane Icon with X
-                ZStack {
-                    Image("NoFlights")
-                        .frame(width: 92, height: 92)
-                        
+            if !recentlyViewedFlights.isEmpty {
+                recentlyViewedFlightsListView
+            } else if isLoadingSchedules {
+                VStack(spacing: 0) {
+                    flightListHeader
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(0..<6, id: \.self) { index in
+                                FlightRowShimmer()
+                                if index < 5 {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            } else if let error = scheduleError {
+                errorView(error)
+            } else if !scheduleResults.isEmpty {
+                VStack(spacing: 0) {
+                    flightListHeader
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(scheduleResults.indices, id: \.self) { index in
+                                NavigationLink(destination: FlightDetailScreen(
+                                    flightNumber: scheduleResults[index].flightNumber,
+                                    date: getSelectedDateForAPI(),
+                                    onFlightViewed: { flight in
+                                        addRecentlyViewedFlight(flight)
+                                    }
+                                )) {
+                                    flightRowContent(scheduleResults[index])
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                if index < scheduleResults.count - 1 {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            } else {
+                Spacer()
+                
+                VStack(spacing: 16) {
+                    ZStack {
+                        Image("NoFlights")
+                            .frame(width: 92, height: 92)
+                    }
                     
-//                    Image(systemName: "xmark")
-//                        .font(.system(size: 16, weight: .bold))
-//                        .foregroundColor(.red)
-//                        .offset(x: 20, y: 15)
+                    Text("No Tracked Flights")
+                        .font(.system(size: 22))
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
+                    
+                    Text("Check real-time flight status instantly")
+                        .font(.system(size: 16))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.gray)
                 }
                 
-                Text("No Tracked Flights")
-                    .font(.system(size: 22))
-                    .fontWeight(.bold)
-                    .foregroundColor(.black)
-                
-                Text("Check real-time flight status instantly")
-                    .font(.system(size: 16))
-                    .fontWeight(.semibold)
-                    .foregroundColor(.gray)
+                Spacer()
+            }
+        }
+    }
+    
+    private var recentlyViewedFlightsListView: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Recently Viewed")
+                    .font(.system(size: 18, weight: .semibold))
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                Spacer()
             }
             
-            Spacer()
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(recentlyViewedFlights) { flight in
+                        NavigationLink(destination: FlightDetailScreen(
+                            flightNumber: flight.flightNumber,
+                            date: flight.date,
+                            onFlightViewed: { flight in
+                                addRecentlyViewedFlight(flight)
+                            }
+                        )) {
+                            TrackedFlightCard(
+                                airlineLogo: "FlightTrackLogo",
+                                airlineName: flight.airlineName,
+                                flightNumber: flight.flightNumber,
+                                status: flight.status,
+                                departureTime: flight.departureTime,
+                                departureAirport: flight.departureAirport,
+                                departureDate: flight.departureDate,
+                                arrivalTime: flight.arrivalTime,
+                                arrivalAirport: flight.arrivalAirport,
+                                arrivalDate: flight.arrivalDate,
+                                duration: flight.duration,
+                                flightType: flight.flightType
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+            }
         }
     }
     
@@ -1020,39 +705,55 @@ struct FlightTrackerScreen: View {
             // Departures/Arrivals Filter
             departureArrivalFilter
             
-            // Flight List Header
-            flightListHeader
-            
-            // Flight List
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(flightData.indices, id: \.self) { index in
-                        flightRowView(flightData[index])
-                        
-                        if index < flightData.count - 1 {
-                            Divider()
-                                
-                        }
-                    }
-                }
+            // Show loading, error, or results
+            if isLoadingSchedules {
+                loadingSchedulesView
+            } else if let error = scheduleError {
+                errorView(error)
+            } else if !scheduleResults.isEmpty {
+                // Show API results (current search)
+                scheduleFlightListView
+            } else if !displayingRecentResults.isEmpty {
+                // Show recent search results
+                recentSearchFlightListView
+            } else {
+                // Show empty state for no searches
+                scheduledEmptyStateView
             }
-            .padding(.horizontal, 20)
         }
     }
     
-    private var searchFieldView: some View {
+    private var trackedSearchFieldView: some View {
         HStack {
-            TextField("Try flight number \"6E 6083\"", text: $searchText)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.white)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.black.opacity(0.3), lineWidth: 1)
-                )
-                .font(.system(size: 14))
-                .fontWeight(.semibold)
+            HStack {
+                if !searchText.isEmpty {
+                    // Show the current search text
+                    Text(searchText)
+                        .foregroundColor(.black)
+                        .font(.system(size: 14, weight: .semibold))
+                } else {
+                    // Show placeholder text
+                    Text("Try flight number \"6E 6083\"")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 14, weight: .semibold))
+                }
+
+                Spacer()
+
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.white)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.black.opacity(0.3), lineWidth: 1)
+            )
+            .onTapGesture {
+                openTrackLocationSheet(source: .trackedTab)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
@@ -1062,12 +763,54 @@ struct FlightTrackerScreen: View {
     private var scheduledSearchFieldView: some View {
         HStack {
             HStack {
-                Text("COK")
-                    .foregroundColor(.black)
-                    .font(.system(size: 14, weight: .semibold))
-                Text("Cochin")
-                    .foregroundColor(.black)
-                    .font(.system(size: 16, weight: .regular))
+                if selectedFlightType == 0 { // Departures
+                    if let selectedAirport = selectedDepartureAirport {
+                        // Current session selection (black text)
+                        Text(selectedAirport.iataCode)
+                            .foregroundColor(.black)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(selectedAirport.city)
+                            .foregroundColor(.black)
+                            .font(.system(size: 16, weight: .regular))
+                    } else if let lastAirportData = lastSearchedAirportData,
+                              (lastAirportData.searchType == "departure" || lastAirportData.searchType == "both") {
+                        // Last searched location (gray text)
+                        Text(lastAirportData.iataCode)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(lastAirportData.city)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16, weight: .regular))
+                    } else {
+                        Text("Select departure airport")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16, weight: .regular))
+                    }
+                } else { // Arrivals
+                    if let selectedAirport = selectedArrivalAirport {
+                        // Current session selection (black text)
+                        Text(selectedAirport.iataCode)
+                            .foregroundColor(.black)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(selectedAirport.city)
+                            .foregroundColor(.black)
+                            .font(.system(size: 16, weight: .regular))
+                    } else if let lastAirportData = lastSearchedAirportData,
+                              (lastAirportData.searchType == "arrival" || lastAirportData.searchType == "both") {
+                        // Last searched location (gray text)
+                        Text(lastAirportData.iataCode)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(lastAirportData.city)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16, weight: .regular))
+                    } else {
+                        Text("Select arrival airport")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16, weight: .regular))
+                    }
+                }
+                
                 Spacer()
                 
                 Image(systemName: "magnifyingglass")
@@ -1082,7 +825,13 @@ struct FlightTrackerScreen: View {
                     .stroke(Color.black.opacity(0.3), lineWidth: 1)
             )
             .font(.system(size: 16))
-            
+            .onTapGesture {
+                if selectedFlightType == 0 {
+                    openTrackLocationSheet(source: .scheduledDeparture)
+                } else {
+                    openTrackLocationSheet(source: .scheduledArrival)
+                }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
@@ -1090,7 +839,15 @@ struct FlightTrackerScreen: View {
     
     private var departureArrivalFilter: some View {
         HStack(spacing: 12) {
-            Button(action: { selectedFlightType = 0 }) {
+            Button(action: {
+                // Switch to departures
+                let previousFlightType = selectedFlightType
+                selectedFlightType = 0
+                currentSheetSource = .scheduledDeparture
+                
+                // ENHANCED: Smart location swapping and caching logic
+                switchToFlightType(.departure, from: previousFlightType)
+            }) {
                 Text("Departures")
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(selectedFlightType == 0 ? Color(hex: "006CE3") : .black)
@@ -1106,7 +863,15 @@ struct FlightTrackerScreen: View {
                     )
             }
             
-            Button(action: { selectedFlightType = 1 }) {
+            Button(action: {
+                // Switch to arrivals
+                let previousFlightType = selectedFlightType
+                selectedFlightType = 1
+                currentSheetSource = .scheduledArrival
+                
+                // ENHANCED: Smart location swapping and caching logic
+                switchToFlightType(.arrival, from: previousFlightType)
+            }) {
                 Text("Arrivals")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(selectedFlightType == 1 ? Color(hex: "006CE3") : .black)
@@ -1126,6 +891,143 @@ struct FlightTrackerScreen: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
+    }
+    
+    // UPDATED: Enhanced Error View with Animation
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 50))
+                .foregroundColor(.orange)
+                .scaleEffect(scheduleError != nil ? 1.0 : 0.5)
+                .animation(.spring(response: 0.6, dampingFraction: 0.6), value: scheduleError)
+            
+            Text("Error loading flights")
+                .font(.system(size: 18, weight: .semibold))
+                .opacity(scheduleError != nil ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.4).delay(0.2), value: scheduleError)
+            
+            Text(message)
+                .font(.system(size: 14))
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+                .opacity(scheduleError != nil ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.4).delay(0.4), value: scheduleError)
+            
+            Spacer()
+        }
+        .transition(.opacity.combined(with: .scale))
+    }
+    
+    // UPDATED: Enhanced Loading States with Animation
+    private var loadingSchedulesView: some View {
+        VStack(spacing: 0) {
+            // Flight List Header
+            flightListHeader
+            
+            // Shimmer Loading with staggered animation
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(0..<6, id: \.self) { index in
+                        FlightRowShimmer()
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.1), value: isLoadingSchedules)
+                        
+                        if index < 5 {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    private var scheduleFlightListView: some View {
+        VStack(spacing: 0) {
+            // Flight List Header
+            flightListHeader
+            
+            // Flight List from API
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(scheduleResults.indices, id: \.self) { index in
+                        NavigationLink(destination: FlightDetailScreen(
+                            flightNumber: scheduleResults[index].flightNumber,
+                            date: getCurrentDateForAPI(),
+                            onFlightViewed: { flight in
+                                addRecentlyViewedFlight(flight)
+                            }
+                        )) {
+                            flightRowContent(scheduleResults[index])
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        if index < scheduleResults.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    private var recentSearchFlightListView: some View {
+        VStack(spacing: 0) {
+            flightListHeader
+            
+            // Flight List from Recent Search
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(displayingRecentResults.indices, id: \.self) { index in
+                        NavigationLink(destination: FlightDetailScreen(
+                            flightNumber: displayingRecentResults[index].flightNumber,
+                            date: getCurrentDateForAPI(),
+                            onFlightViewed: { flight in
+                                addRecentlyViewedFlight(flight)
+                            }
+                        )) {
+                            flightRowContent(displayingRecentResults[index])
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        if index < displayingRecentResults.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    private var scheduledEmptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            VStack(spacing: 16) {
+                ZStack {
+                    Image("NoFlights")
+                        .frame(width: 92, height: 92)
+                }
+                
+                Text("Search any flights")
+                    .font(.system(size: 22))
+                    .fontWeight(.bold)
+                    .foregroundColor(.black)
+                
+                Text("Find departures and arrivals for any airport")
+                    .font(.system(size: 16))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
     }
     
     private var flightListHeader: some View {
@@ -1165,25 +1067,15 @@ struct FlightTrackerScreen: View {
 
             Divider()
                 .background(Color.gray.opacity(0.4))
-                .padding(.horizontal, 24) // Match header padding
+                .padding(.horizontal, 24)
         }
     }
-
     
-    private func flightRowView(_ flight: FlightInfo) -> some View {
+    // Create a separate content view for reusability
+    private func flightRowContent(_ flight: FlightInfo) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            // Airline Logo
-//            RoundedRectangle(cornerRadius: 8)
-//                .fill(flight.airlineColor)
-//                .frame(width: 48, height: 48)
-//                .overlay(
-//                    Text(flight.airline.prefix(2).uppercased())
-//                        .font(.system(size: 12, weight: .bold))
-//                        .foregroundColor(.white)
-//                )
             Image("FlightTrackLogo")
             
-            // Flight Info
             VStack(alignment: .leading, spacing: 2) {
                 Text(flight.flightNumber)
                     .font(.system(size: 16, weight: .bold))
@@ -1197,7 +1089,6 @@ struct FlightTrackerScreen: View {
             
             Spacer()
             
-            // Destination
             VStack(alignment: .center, spacing: 2) {
                 Text(flight.destination)
                     .font(.system(size: 14, weight: .bold))
@@ -1211,7 +1102,6 @@ struct FlightTrackerScreen: View {
             
             Spacer()
             
-            // Time
             VStack(alignment: .leading, spacing: 2) {
                 Text(flight.time)
                     .font(.system(size: 14, weight: .bold))
@@ -1225,7 +1115,6 @@ struct FlightTrackerScreen: View {
             
             Spacer()
             
-            // Status
             VStack(alignment: .trailing, spacing: 4) {
                 Text(flight.status.displayText)
                     .font(.system(size: 12, weight: .medium))
@@ -1236,7 +1125,6 @@ struct FlightTrackerScreen: View {
                         flight.status == .cancelled ? Color.red : Color.clear
                     )
                     .cornerRadius(10)
-                    
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(flight.status == .cancelled ? Color.red : Color.rainForest, lineWidth: 1)
@@ -1248,14 +1136,445 @@ struct FlightTrackerScreen: View {
                         .foregroundColor(flight.status.delayColor)
                 }
             }.frame(width: 70, height: 34)
-
-            
         }
         .padding(.vertical, 12)
     }
+    
+    private func openTrackLocationSheet(source: SheetSource) {
+        // Force state update before showing sheet
+        DispatchQueue.main.async {
+            self.currentSheetSource = source
+            self.currentSearchType = self.selectedFlightType == 0 ? .departure : .arrival
+            
+            // Small delay to ensure state is properly updated
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                self.showingTrackLocationSheet = true
+            }
+        }
+    }
+    
+    // MARK: - Data Management Methods
+    
+    private func clearScheduleResults() {
+        scheduleResults = []
+        scheduleError = nil
+        isLoadingSchedules = false
+    }
+    
+    private func clearCurrentSessionData() {
+        clearScheduleResults()
+        trackedDepartureAirport = nil
+        trackedArrivalAirport = nil
+        trackedSelectedDate = nil
+        trackedFlightNumber = ""
+        trackedSearchType = nil
+        selectedDepartureAirport = nil
+        selectedArrivalAirport = nil
+        cachedDepartureResults = []
+        cachedArrivalResults = []
+        currentCachedAirport = nil
+        lastCachedDate = nil
+        displayingRecentResults = []
+        
+        // Clear tracked tab specific data
+        trackedFlightDetail = nil
+        trackedScheduleResults = []
+        trackedAPIError = nil
+        
+        // ADDED: Reset navigation states
+        showingTrackedDetails = false
+        showingFlightDetail = false
+        flightDetailNumber = ""
+        flightDetailDate = ""
+        
+        // ADDED: Clear custom date when switching tabs
+        selectedCustomDate = nil
+        
+        if selectedTab == 0 {
+            currentSheetSource = .trackedTab
+        } else {
+            currentSheetSource = selectedFlightType == 0 ? .scheduledDeparture : .scheduledArrival
+        }
+        
+        if selectedTab == 1 {
+            loadRecentSearchData()
+        }
+    }
+    
+    // MARK: - API Methods
+    
+    @MainActor
+    private func fetchScheduleResults(departureId: String?, arrivalId: String?, date: String? = nil) async {
+        isLoadingSchedules = true
+        scheduleError = nil
+        displayingRecentResults = []
+        
+        do {
+            let response = try await networkManager.searchSchedules(
+                departureId: departureId,
+                arrivalId: arrivalId,
+                date: date
+            )
+            
+            scheduleResults = response.results.map { scheduleResult in
+                convertScheduleToFlightInfo(scheduleResult, departureAirport: response.departureAirport, arrivalAirport: response.arrivalAirport)
+            }
+            
+            // ADDED: Cache the results based on search type
+            let currentDate = getCurrentDateForAPI()
+            if let airportId = departureId ?? arrivalId {
+                // Update cache info
+                if currentCachedAirport?.iataCode != airportId {
+                    currentCachedAirport = FlightTrackAirport(
+                        iataCode: airportId,
+                        icaoCode: nil,
+                        name: "",
+                        country: "",
+                        countryCode: "",
+                        isInternational: nil,
+                        isMajor: nil,
+                        city: "",
+                        location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                        timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+                    )
+                }
+                lastCachedDate = currentDate
+                
+                // Cache results based on type
+                if departureId != nil {
+                    cachedDepartureResults = scheduleResults
+                    print("💾 Cached departure results for \(airportId) (\(scheduleResults.count) flights)")
+                } else {
+                    cachedArrivalResults = scheduleResults
+                    print("💾 Cached arrival results for \(airportId) (\(scheduleResults.count) flights)")
+                }
+            }
+            
+            if !scheduleResults.isEmpty {
+                saveCurrentSearchLocally()
+            }
+            
+        } catch {
+            scheduleError = error.localizedDescription
+            scheduleResults = []
+            print("Schedule fetch error: \(error)")
+        }
+        
+        isLoadingSchedules = false
+    }
+    
+    private func switchToFlightType(_ targetType: FlightSearchType, from previousType: Int) {
+        let currentDate = getCurrentDateForAPI()
+        
+        // Determine which airport to use
+        var airportToUse: FlightTrackAirport?
+        
+        if targetType == .departure {
+            // Switching to departures
+            if let departureAirport = selectedDepartureAirport {
+                airportToUse = departureAirport
+            } else if let arrivalAirport = selectedArrivalAirport {
+                // Swap: use arrival airport as departure
+                airportToUse = arrivalAirport
+                selectedDepartureAirport = arrivalAirport
+                selectedArrivalAirport = nil
+                print("🔄 Swapped arrival airport (\(arrivalAirport.iataCode)) to departure")
+            } else if let lastAirportData = lastSearchedAirportData {
+                // Use last searched airport
+                let airport = FlightTrackAirport(
+                    iataCode: lastAirportData.iataCode,
+                    icaoCode: nil,
+                    name: lastAirportData.name,
+                    country: lastAirportData.country,
+                    countryCode: "",
+                    isInternational: nil,
+                    isMajor: nil,
+                    city: lastAirportData.city,
+                    location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                    timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+                )
+                selectedDepartureAirport = airport
+                airportToUse = airport
+            }
+        } else {
+            // Switching to arrivals
+            if let arrivalAirport = selectedArrivalAirport {
+                airportToUse = arrivalAirport
+            } else if let departureAirport = selectedDepartureAirport {
+                // Swap: use departure airport as arrival
+                airportToUse = departureAirport
+                selectedArrivalAirport = departureAirport
+                selectedDepartureAirport = nil
+                print("🔄 Swapped departure airport (\(departureAirport.iataCode)) to arrival")
+            } else if let lastAirportData = lastSearchedAirportData {
+                // Use last searched airport
+                let airport = FlightTrackAirport(
+                    iataCode: lastAirportData.iataCode,
+                    icaoCode: nil,
+                    name: lastAirportData.name,
+                    country: lastAirportData.country,
+                    countryCode: "",
+                    isInternational: nil,
+                    isMajor: nil,
+                    city: lastAirportData.city,
+                    location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                    timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+                )
+                selectedArrivalAirport = airport
+                airportToUse = airport
+            }
+        }
+        
+        guard let airport = airportToUse else {
+            clearScheduleResults()
+            return
+        }
+        
+        // Check if we can use cached data
+        let isSameAirport = currentCachedAirport?.iataCode == airport.iataCode
+        let isSameDate = lastCachedDate == currentDate
+        
+        if isSameAirport && isSameDate {
+            // Use cached data
+            if targetType == .departure && !cachedDepartureResults.isEmpty {
+                scheduleResults = cachedDepartureResults
+                print("📋 Using cached departure results for \(airport.iataCode)")
+                return
+            } else if targetType == .arrival && !cachedArrivalResults.isEmpty {
+                scheduleResults = cachedArrivalResults
+                print("📋 Using cached arrival results for \(airport.iataCode)")
+                return
+            }
+        }
+        
+        // Make API call if no cached data available
+        Task {
+            if targetType == .departure {
+                await fetchScheduleResults(departureId: airport.iataCode, arrivalId: nil)
+            } else {
+                await fetchScheduleResults(departureId: nil, arrivalId: airport.iataCode)
+            }
+        }
+    }
+    
+    // MARK: - Data Persistence Methods
+    
+    private func saveCurrentSearchLocally() {
+        displayingRecentResults = scheduleResults
+        hasRecentSearch = true
+        
+        if let data = try? JSONEncoder().encode(scheduleResults.map { flight in
+            [
+                "flightNumber": flight.flightNumber,
+                "airline": flight.airline,
+                "destination": flight.destination,
+                "destinationName": flight.destinationName,
+                "time": flight.time,
+                "scheduledTime": flight.scheduledTime,
+                "status": flight.status.displayText,
+                "delay": flight.delay
+            ]
+        }) {
+            UserDefaults.standard.set(data, forKey: "LastFlightSearch")
+            UserDefaults.standard.set(true, forKey: "HasRecentSearch")
+        }
+    }
+    
+    private func loadRecentSearchData() {
+        hasRecentSearch = UserDefaults.standard.bool(forKey: "HasRecentSearch")
+        
+        if hasRecentSearch,
+           let data = UserDefaults.standard.data(forKey: "LastFlightSearch"),
+           let flightDicts = try? JSONDecoder().decode([[String: String]].self, from: data) {
+            
+            displayingRecentResults = flightDicts.compactMap { dict in
+                guard let flightNumber = dict["flightNumber"],
+                      let airline = dict["airline"],
+                      let destination = dict["destination"],
+                      let destinationName = dict["destinationName"],
+                      let time = dict["time"],
+                      let scheduledTime = dict["scheduledTime"],
+                      let statusString = dict["status"],
+                      let delay = dict["delay"] else { return nil }
+                
+                let status: FlightStatus
+                switch statusString.lowercased() {
+                case "expected": status = .expected
+                case "landed": status = .landed
+                case "cancelled": status = .cancelled
+                default: status = .expected
+                }
+                
+                return FlightInfo(
+                    flightNumber: flightNumber,
+                    airline: airline,
+                    destination: destination,
+                    destinationName: destinationName,
+                    time: time,
+                    scheduledTime: scheduledTime,
+                    status: status,
+                    delay: delay,
+                    airlineColor: .blue
+                )
+            }
+        }
+    }
+    
+    private func saveLastSearchedAirport(_ airport: FlightTrackAirport, searchType: FlightSearchType) {
+        lastSearchType = searchType
+        
+        let airportData = LastSearchedAirportData(
+            iataCode: airport.iataCode,
+            name: airport.name,
+            city: airport.city,
+            country: airport.country,
+            searchType: searchType == .departure ? "departure" : "arrival"
+        )
+        
+        lastSearchedAirportData = airportData
+        
+        if let data = try? JSONEncoder().encode(airportData) {
+            UserDefaults.standard.set(data, forKey: "LastSearchedAirport")
+        }
+    }
+    
+    private func loadLastSearchedAirport() {
+        guard let data = UserDefaults.standard.data(forKey: "LastSearchedAirport"),
+              let airportData = try? JSONDecoder().decode(LastSearchedAirportData.self, from: data) else {
+            return
+        }
+        
+        lastSearchedAirportData = airportData
+        lastSearchType = airportData.searchType == "departure" ? .departure : .arrival
+        
+        // ADDED: Auto-fetch results if we have last searched data and no current selection
+        if selectedDepartureAirport == nil && selectedArrivalAirport == nil {
+            // Create airport object from saved data
+            let airport = FlightTrackAirport(
+                iataCode: airportData.iataCode,
+                icaoCode: nil,
+                name: airportData.name,
+                country: airportData.country,
+                countryCode: "",
+                isInternational: nil,
+                isMajor: nil,
+                city: airportData.city,
+                location: FlightTrackLocation(lat: 0.0, lng: 0.0),
+                timezone: FlightTrackTimezone(timezone: "", countryCode: "", gmt: 0.0, dst: 0.0)
+            )
+            
+            if selectedFlightType == 0 && (airportData.searchType == "departure" || airportData.searchType == "both") {
+                selectedDepartureAirport = airport
+                Task {
+                    await fetchScheduleResults(departureId: airportData.iataCode, arrivalId: nil)
+                }
+            } else if selectedFlightType == 1 && (airportData.searchType == "arrival" || airportData.searchType == "both") {
+                selectedArrivalAirport = airport
+                Task {
+                    await fetchScheduleResults(departureId: nil, arrivalId: airportData.iataCode)
+                }
+            }
+        }
+    }
+    
+    // MARK: - FIXED: Updated Data Conversion Method to Handle Optional Airport
+    
+    private func convertScheduleToFlightInfo(_ schedule: ScheduleResult, departureAirport: FlightTrackAirport?, arrivalAirport: FlightTrackAirport?) -> FlightInfo {
+        let departureTime = formatTimeString(schedule.departureTime)
+        let arrivalTime = formatTimeString(schedule.arrivalTime)
+        
+        let destination: String
+        let destinationName: String
+        
+        if currentSheetSource == .scheduledDeparture {
+            // For departures, show the arrival airport
+            if let airport = schedule.airport {
+                destination = airport.iataCode
+                destinationName = airport.city
+            } else if let arrAirport = arrivalAirport {
+                destination = arrAirport.iataCode
+                destinationName = arrAirport.city
+            } else {
+                destination = "---"
+                destinationName = "Unknown"
+            }
+        } else {
+            // For arrivals, show the departure airport
+            if let depAirport = departureAirport {
+                destination = depAirport.iataCode
+                destinationName = depAirport.city
+            } else if let airport = schedule.airport {
+                destination = airport.iataCode
+                destinationName = airport.city
+            } else {
+                destination = "---"
+                destinationName = "Unknown"
+            }
+        }
+        
+        let flightStatus: FlightStatus
+        switch schedule.status.lowercased() {
+        case "scheduled":
+            flightStatus = .expected
+        case "landed", "arrived":
+            flightStatus = .landed
+        case "cancelled":
+            flightStatus = .cancelled
+        default:
+            flightStatus = .expected
+        }
+        
+        return FlightInfo(
+            flightNumber: schedule.flightNumber,
+            airline: schedule.airline.name,
+            destination: destination,
+            destinationName: destinationName,
+            time: arrivalTime,
+            scheduledTime: departureTime,
+            status: flightStatus,
+            delay: "",
+            airlineColor: .blue
+        )
+    }
+    
+    private func formatTimeString(_ timeString: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        
+        if let date = formatter.date(from: timeString) {
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            return timeFormatter.string(from: date)
+        }
+        
+        return timeString
+    }
 }
 
-// MARK: - Supporting Models and Extensions
+// MARK: - Supporting Models (Keep existing)
+struct LastSearchedAirportData: Codable {
+    let iataCode: String
+    let name: String
+    let city: String
+    let country: String
+    let searchType: String
+}
+
+struct TrackedFlightData: Codable, Identifiable {
+    let id: String
+    let flightNumber: String
+    let airlineName: String
+    let status: String
+    let departureTime: String
+    let departureAirport: String
+    let departureDate: String
+    let arrivalTime: String
+    let arrivalAirport: String
+    let arrivalDate: String
+    let duration: String
+    let flightType: String
+    let date: String
+}
 
 struct FlightInfo {
     let flightNumber: String
@@ -1297,6 +1616,11 @@ enum FlightStatus {
         case .cancelled: return .red
         }
     }
+}
+
+enum FlightTrackSearchType {
+    case departure
+    case arrival
 }
 
 #Preview {
