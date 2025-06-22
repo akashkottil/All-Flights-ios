@@ -423,6 +423,16 @@ struct ExploreScreen: View {
     // MARK: - Body
     var body: some View {
         ZStack(alignment: .top) {
+            GeometryReader { geometry in
+                        VStack(spacing: 0) {
+                            Color("homeGrad")
+                                .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.27)) // Reduced when collapsed
+                                .edgesIgnoringSafeArea(.top)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
+                            
+                            Spacer() // This will fill the remaining space with transparent/background
+                        }
+                    }
             VStack(spacing: 0) {
                 // FIXED: Single container with matched geometry effect for seamless transition
                 ZStack {

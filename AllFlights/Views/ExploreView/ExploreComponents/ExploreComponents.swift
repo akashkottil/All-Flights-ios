@@ -79,11 +79,7 @@ struct ExpandedSearchCard: View {
             .padding()
             .gesture(dragGesture)
         }
-        // FIXED: Remove conflicting background and use a single unified background system
-        .background(
-            UnifiedBackgroundView()
-                .matchedGeometryEffect(id: "unifiedBackground", in: searchCardNamespace)
-        )
+
         .onChange(of: shouldShowLoadingBorderForCurrentSearchType) { oldValue, newValue in
             if oldValue == true && newValue == false {
                 showLoadingWithDelay = true
@@ -250,26 +246,10 @@ struct CollapsedSearchCard: View {
             .padding()
         }
         .buttonStyle(PlainButtonStyle())
-        // FIXED: Use the same unified background system
-        .background(
-            UnifiedBackgroundView()
-                .matchedGeometryEffect(id: "unifiedBackground", in: searchCardNamespace)
-        )
     }
 }
 
-struct UnifiedBackgroundView: View {
-    var body: some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                Color("homeGrad")
-                    .frame(height: geo.size.height)
-                Color("scroll")
-            }
-            .edgesIgnoringSafeArea(.all)
-        }
-    }
-}
+
 
 // MARK: - Custom ScrollView with Offset Detection
 struct ScrollViewWithOffset<Content: View>: View {
