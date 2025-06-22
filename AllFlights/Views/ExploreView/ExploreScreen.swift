@@ -424,15 +424,39 @@ struct ExploreScreen: View {
     var body: some View {
         ZStack(alignment: .top) {
             GeometryReader { geometry in
-                        VStack(spacing: 0) {
-                            Color("homeGrad")
-                                .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.27)) // Reduced when collapsed
-                                .edgesIgnoringSafeArea(.top)
-                                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
-                            
-                            Spacer() // This will fill the remaining space with transparent/background
-                        }
+                ZStack {
+                    VStack(spacing: 0) {
+                        // Base gradient background (always present)
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color("homeGrad"), Color.white]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.27))
+                        .edgesIgnoringSafeArea(.top)
+                        .opacity(isInMainCountryView ? 1.0 : 0.0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
+                        .animation(.easeInOut(duration: 0.8), value: isInMainCountryView)
+                        
+                        Spacer()
                     }
+                    
+                    VStack(spacing: 0) {
+                        // Solid homeGrad overlay that slides down from top for other screens
+                        Color("homeGrad")
+                            .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.25))
+                            .edgesIgnoringSafeArea(.top)
+                            .offset(y: isInMainCountryView ? -geometry.size.height : 0)
+                            .animation(
+                                .spring(response: 1.2, dampingFraction: 0.75, blendDuration: 0.3),
+                                value: isInMainCountryView
+                            )
+                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
+                        
+                        Spacer()
+                    }
+                }
+            }
             VStack(spacing: 0) {
                 // FIXED: Single container with matched geometry effect for seamless transition
                 ZStack {

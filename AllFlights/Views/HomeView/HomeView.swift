@@ -183,6 +183,16 @@ struct HomeView: View {
                 // MARK: - Complete ExploreScreen Overlay with Enhanced Animations
                 if isShowingExploreScreen {
                     ZStack(alignment: .top) {
+                        GeometryReader { geometry in
+                                    VStack(spacing: 0) {
+                                        Color("homeGrad")
+                                            .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.23)) // Reduced when collapsed
+                                            .edgesIgnoringSafeArea(.top)
+                                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
+                                        
+                                        Spacer() // This will fill the remaining space with transparent/background
+                                    }
+                                }
                         VStack(spacing: 0) {
                             // Custom navigation bar - Collapsible with overshoot animation
                             if isCollapsed {
