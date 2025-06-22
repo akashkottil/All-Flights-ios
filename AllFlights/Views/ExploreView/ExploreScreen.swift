@@ -423,38 +423,46 @@ struct ExploreScreen: View {
     // MARK: - Body
     var body: some View {
         ZStack(alignment: .top) {
-            
             VStack(spacing: 0) {
-                // Custom navigation bar - Collapsible
-                if isCollapsed {
-                    CollapsedSearchCard(
-                        viewModel: viewModel,
-                        searchCardNamespace: searchCardNamespace,
-                        onTap: {
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                isCollapsed = false
+                // FIXED: Single container with matched geometry effect for seamless transition
+                ZStack {
+                    if isCollapsed {
+                        CollapsedSearchCard(
+                            viewModel: viewModel,
+                            searchCardNamespace: searchCardNamespace,
+                            onTap: {
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                    isCollapsed = false
+                                }
+                            },
+                            handleBackNavigation: handleBackNavigation,
+                            shouldShowBackButton: shouldShowBackButton
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 1.05).combined(with: .opacity)
+                        ))
+                    } else {
+                        ExpandedSearchCard(
+                            viewModel: viewModel,
+                            selectedTab: $selectedTab,
+                            isRoundTrip: $isRoundTrip,
+                            searchCardNamespace: searchCardNamespace,
+                            handleBackNavigation: handleBackNavigation,
+                            shouldShowBackButton: shouldShowBackButton,
+                            onDragCollapse: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                    isCollapsed = true
+                                }
                             }
-                        },
-                        handleBackNavigation: handleBackNavigation,
-                        shouldShowBackButton: shouldShowBackButton
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                } else {
-                    ExpandedSearchCard(
-                        viewModel: viewModel,
-                        selectedTab: $selectedTab,
-                        isRoundTrip: $isRoundTrip,
-                        searchCardNamespace: searchCardNamespace,
-                        handleBackNavigation: handleBackNavigation,
-                        shouldShowBackButton: shouldShowBackButton,
-                        onDragCollapse: {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                                isCollapsed = true
-                            }
-                        }
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 1.05)))
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 1.05).combined(with: .opacity),
+                            removal: .scale(scale: 0.95).combined(with: .opacity)
+                        ))
+                    }
                 }
+                // FIXED: Remove any additional background declarations that might conflict
                 
                 // STICKY HEADER
                 stickyHeader
@@ -465,27 +473,23 @@ struct ExploreScreen: View {
                         offset: $scrollOffset,
                         content: {
                             VStack(alignment: .center, spacing: 16) {
-                                // FIXED: Only show content when showContentWithHeader is true for direct searches
                                 if showContentWithHeader || !viewModel.isDirectSearch {
                                     // Main content based on current state
                                     if viewModel.showingDetailedFlightList {
-                                        // Detailed flight list - highest priority
                                         ModifiedDetailedFlightListView(
-                                                viewModel: viewModel,
-                                                isCollapsed: $isCollapsed,
-                                                showFilterModal: $showFilterModal  // ADD: Pass the filter modal binding
-                                            )
-                                            .transition(.move(edge: .trailing))
-                                            .zIndex(1)
-                                            .edgesIgnoringSafeArea(.all)
-                                            .background(Color(.systemBackground))
+                                            viewModel: viewModel,
+                                            isCollapsed: $isCollapsed,
+                                            showFilterModal: $showFilterModal
+                                        )
+                                        .transition(.move(edge: .trailing))
+                                        .zIndex(1)
+                                        .edgesIgnoringSafeArea(.all)
+                                        .background(Color(.systemBackground))
                                     }
                                     else if !viewModel.hasSearchedFlights {
-                                        // Original explore view content (without title and filter tabs since they're sticky)
                                         exploreMainContent
                                     }
                                     else {
-                                        // Flight search results view (without title and month selector since they're sticky)
                                         flightResultsContent
                                     }
                                 }
@@ -496,9 +500,8 @@ struct ExploreScreen: View {
                 }
             }
             .networkModal {
-                    // Refresh current screen when network comes back
-                    refreshCurrentScreen()
-                }
+                refreshCurrentScreen()
+            }
             .filterModal(
                 isPresented: Binding(
                     get: { showFilterModal },
@@ -513,35 +516,29 @@ struct ExploreScreen: View {
         .sheet(isPresented: $showingDetailedFlightFilterSheet) {
             FlightFilterSheet(viewModel: viewModel)
         }
-        // ADD: Native-like edge swipe gesture for back navigation
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    // Only respond to swipes starting from the very left edge (like native iOS)
                     if value.startLocation.x < 20 && value.translation.width > 0 {
                         dragAmount = value.translation
                     }
                 }
                 .onEnded { value in
-                    // Native-like behavior: shorter distance needed + velocity consideration
                     let shouldGoBack = value.startLocation.x < 20 &&
                                       (value.translation.width > 50 ||
                                        (value.translation.width > 30 && value.predictedEndTranslation.width > 80))
                     
                     if shouldGoBack {
-                        // Add haptic feedback like native iOS
                         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                         impactFeedback.impactOccurred()
                         handleBackNavigation()
                     }
                     
-                    // Smooth spring animation back to original position
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         dragAmount = .zero
                     }
                 }
         )
-        // ADD: More responsive visual feedback like native iOS
         .offset(x: dragAmount.width > 0 ? min(dragAmount.width * 0.4, 80) : 0)
         .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.86), value: dragAmount)
         

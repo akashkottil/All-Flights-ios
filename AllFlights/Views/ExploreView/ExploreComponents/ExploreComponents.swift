@@ -29,7 +29,7 @@ struct ExpandedSearchCard: View {
     }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             VStack(spacing: 0) {
                 // FIXED: Use ZStack for proper centering
                 ZStack {
@@ -61,13 +61,12 @@ struct ExpandedSearchCard: View {
             }
             .background(
                 ZStack {
-                    // Background fill
+                    // FIXED: Single unified background that transitions smoothly
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemBackground))
                         .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
                     
-                   
-                    // FIXED: Different loading conditions for direct search vs explore
+                    // FIXED: Conditional border/loading overlay
                     if shouldShowLoadingBorderForCurrentSearchType || showLoadingWithDelay {
                         LoadingBorderView()
                     } else {
@@ -75,25 +74,18 @@ struct ExpandedSearchCard: View {
                             .stroke(Color.orange, lineWidth: 2)
                     }
                 }
-                // FIXED: Move shadow to only the background/border
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             )
             .padding()
             .gesture(dragGesture)
         }
+        // FIXED: Remove conflicting background and use a single unified background system
         .background(
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    Color("searchcardBackground")
-                        .frame(height: geo.size.height)
-                    Color("scroll")
-                }
-                .edgesIgnoringSafeArea(.all)
-            }
+            UnifiedBackgroundView()
+                .matchedGeometryEffect(id: "unifiedBackground", in: searchCardNamespace)
         )
         .onChange(of: shouldShowLoadingBorderForCurrentSearchType) { oldValue, newValue in
             if oldValue == true && newValue == false {
-                // When loading stops, keep showing for 4 more seconds
                 showLoadingWithDelay = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                     showLoadingWithDelay = false
@@ -102,14 +94,11 @@ struct ExpandedSearchCard: View {
         }
     }
     
-    // Add this computed property to ExpandedSearchCard struct
     private var shouldShowLoadingBorderForCurrentSearchType: Bool {
-        // For direct searches from HomeView - use ONLY the detailed flights loading state
         if viewModel.isDirectSearch {
             return viewModel.isLoadingDetailedFlights
         }
         
-        // For explore feature - use the original complex condition
         return viewModel.isLoading ||
                viewModel.isLoadingFlights ||
                (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) ||
@@ -138,20 +127,17 @@ struct CollapsedSearchCard: View {
         return formatter.string(from: date)
     }
     
-    // UPDATED: Better display logic for collapsed state
     private func getLocationDisplayText() -> String {
-        // From location - always show IATA code when available
         let fromText: String = {
             if !viewModel.fromIataCode.isEmpty {
                 return viewModel.fromIataCode
             } else if !viewModel.fromLocation.isEmpty {
                 return viewModel.fromLocation
             } else {
-                return "COK" // Default fallback
+                return "COK"
             }
         }()
 
-        // To location
         let toText: String = {
             if !viewModel.toIataCode.isEmpty && viewModel.toIataCode != "Anywhere" {
                 return viewModel.toIataCode
@@ -165,9 +151,7 @@ struct CollapsedSearchCard: View {
         return "\(fromText) - \(toText)"
     }
     
-    
     private func getDateDisplayText() -> String {
-        // If we just cleared the form, show "Anytime"
         if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
             return "Anytime"
         }
@@ -184,7 +168,6 @@ struct CollapsedSearchCard: View {
         return "Anytime"
     }
     
-    // ADD: Passenger display text for collapsed state
     private func getPassengerDisplayText() -> String {
         let totalPassengers = viewModel.adultsCount + viewModel.childrenCount
         return "\(totalPassengers)"
@@ -204,17 +187,16 @@ struct CollapsedSearchCard: View {
                             }
                             .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                         } else {
-                            // Invisible spacer with same dimensions as back button
                             Image(systemName: "chevron.left")
                                 .foregroundColor(.clear)
                                 .font(.system(size: 18, weight: .semibold))
                         }
                     }
-                    .frame(width: 30) // Fixed width to ensure consistent spacing
+                    .frame(width: 30)
                     
                     Spacer()
                     
-                    // Compact trip info - UPDATED with passenger count
+                    // Compact trip info
                     HStack(spacing: 8) {
                         Text(getLocationDisplayText())
                             .font(.system(size: 14, weight: .medium))
@@ -224,12 +206,10 @@ struct CollapsedSearchCard: View {
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 4, height: 4)
                         
-                        // Date display
                         Text(getDateDisplayText())
                             .foregroundColor(.primary)
                             .font(.system(size: 14, weight: .medium))
                         
-                        // ADD: Passenger count after date
                         Circle()
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 4, height: 4)
@@ -246,13 +226,12 @@ struct CollapsedSearchCard: View {
                     
                     Spacer()
                     
-                    // UPDATED: Always reserve space on the right side to balance the layout
                     HStack {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.clear)
                             .font(.system(size: 18, weight: .semibold))
                     }
-                    .frame(width: 30) // Same fixed width as left side
+                    .frame(width: 30)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -271,17 +250,24 @@ struct CollapsedSearchCard: View {
             .padding()
         }
         .buttonStyle(PlainButtonStyle())
-        // UPDATED: Add the same animated background as ExpandedSearchCard
+        // FIXED: Use the same unified background system
         .background(
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    Color("searchcardBackground")
-                        .frame(height: geo.size.height)
-                    Color("scroll")
-                }
-                .edgesIgnoringSafeArea(.all)
-            }
+            UnifiedBackgroundView()
+                .matchedGeometryEffect(id: "unifiedBackground", in: searchCardNamespace)
         )
+    }
+}
+
+struct UnifiedBackgroundView: View {
+    var body: some View {
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                Color("homeGrad")
+                    .frame(height: geo.size.height)
+                Color("scroll")
+            }
+            .edgesIgnoringSafeArea(.all)
+        }
     }
 }
 
@@ -6557,7 +6543,7 @@ struct FlightDetailsView: View {
 
             let appearance = UINavigationBarAppearance()
             appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor(named: "homeGrad") // Use your asset color here
+        appearance.backgroundColor = UIColor(named: "homeGrad") // Use your asset color here
             appearance.titleTextAttributes = [.foregroundColor: UIColor.white] // Title text color
             appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
 
