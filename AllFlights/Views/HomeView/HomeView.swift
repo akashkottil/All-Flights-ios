@@ -486,34 +486,34 @@ struct HomeView: View {
         isShowingExploreScreen = true
         
         // Phase 1: Fade out home content and prepare explore content
-        withAnimation(.easeInOut(duration: 0.4)) {
+        withAnimation(.easeInOut(duration: 0.3)) {
             homeContentOpacity = 0.0
             homeContentOffset = -50
         }
         
         // Phase 2: Transfer search data and initialize explore
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             transferSearchDataToExplore()
         }
         
         // Phase 3: Slide in explore content with search card (works exactly as before)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 exploreContentOpacity = 1.0
                 exploreContentOffset = 0
             }
         }
         
         // Phase 4: After search card is settled, add overshoot towards top (earlier and more movement)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.65)) {
                 searchCardOvershoot = true
             }
         }
         
         // Phase 5: Skeleton cards slide in from bottom with staggered overshoot
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.6)) {
                 skeletonsVisible = true
             }
         }
@@ -526,20 +526,20 @@ struct HomeView: View {
         SharedSearchDataStore.shared.isDirectFromHome = false
         
         // Phase 1: Hide skeletons first
-        withAnimation(.easeOut(duration: 0.3)) {
+        withAnimation(.easeOut(duration: 0.25)) {
             skeletonsVisible = false
         }
         
         // Phase 2: Hide explore content
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.easeInOut(duration: 0.4)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.easeInOut(duration: 0.3)) {
                 exploreContentOpacity = 0.0
                 exploreContentOffset = 50
             }
         }
         
         // Phase 3: Show home content and reset search card height
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 homeContentOpacity = 1.0
                 homeContentOffset = 0

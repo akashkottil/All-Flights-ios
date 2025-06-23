@@ -996,8 +996,8 @@ struct ExploreScreen: View {
         viewModel.directFlightsOnlyFromHome = sharedSearchData.directFlightsOnly
         
         // FIXED: Delay showing content until search is initiated to ensure smooth animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 showContentWithHeader = true
             }
         }
