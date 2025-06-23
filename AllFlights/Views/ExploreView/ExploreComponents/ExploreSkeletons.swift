@@ -412,6 +412,14 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     @State private var breatheScale: CGFloat = 1.0
     @State private var cardAppeared = false
     
+    // ADD: Parameter to control trip type
+    let isRoundTrip: Bool
+    
+    // ADD: Initializer with default value for backward compatibility
+    init(isRoundTrip: Bool = true) {
+        self.isRoundTrip = isRoundTrip
+    }
+    
     var body: some View {
         VStack(spacing: 6) {
             // Tags section with synchronized shimmer animation
@@ -438,11 +446,13 @@ struct EnhancedDetailedFlightCardSkeleton: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
             
-            // Flight row with synchronized shimmer
+            // Flight row with synchronized shimmer (OUTBOUND/DEPARTURE)
             enhancedFlightRow()
             
-            // Return flight row with synchronized shimmer
-            enhancedFlightRow()
+            // UPDATED: Conditionally show return flight row based on trip type
+            if isRoundTrip {
+                enhancedFlightRow()
+            }
             
             Divider()
                 .opacity(0.2)
