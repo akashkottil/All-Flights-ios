@@ -1511,77 +1511,72 @@ class ExploreViewModel: ObservableObject {
             print("Cleared return date for one-way trip")
         }
         
-        // CRITICAL: Only refresh if we're actively in a search flow, not when just navigating back
-        if !fromIataCode.isEmpty && !toIataCode.isEmpty && !showingDetailedFlightList {
-            // Only trigger searches when we're NOT in the detailed flight list (i.e., user is actively searching)
+        // ✅ CRITICAL FIX: Check current state and only trigger appropriate refresh
+        // Don't automatically navigate to detailed view unless we're already there
+        
+        if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
+            // 🔥 We're already in detailed flight list - refresh with new trip type
+            print("🔄 Already in detailed view - refreshing with new trip type")
             
-            // Clear current results first ONLY when actively searching
+            // Clear current results first
             detailedFlightResults = []
-            // DON'T clear flightResults here to prevent loading screen
             
-            // Scenario 1: We're on the detailed flight list (most common case)
-            if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
-                print("🔄 Re-searching detailed flights with new trip type")
-                
-                // For round trip, ensure we have a return date
-                let returnDate = isRoundTrip ? selectedReturnDatee : ""
-                
-                searchFlightsForDates(
-                    origin: selectedOriginCode,
-                    destination: selectedDestinationCode,
-                    returnDate: returnDate,
-                    departureDate: selectedDepartureDatee,
-                    isDirectSearch: isDirectSearch
-                )
+            // For round trip, ensure we have a return date
+            let returnDate = isRoundTrip ? selectedReturnDatee : ""
+            
+            searchFlightsForDates(
+                origin: selectedOriginCode,
+                destination: selectedDestinationCode,
+                returnDate: returnDate,
+                departureDate: selectedDepartureDatee,
+                isDirectSearch: isDirectSearch
+            )
+        } else if hasSearchedFlights && !showingDetailedFlightList {
+            // ✅ NEW CONDITION: We're in the flight results view (FlightResultCard screen)
+            // Just refresh the flight results without navigating to detailed view
+            print("🔄 In flight results view - refreshing flight results only")
+            
+            if let city = selectedCity {
+                // Use the simpler flight details fetch for explore flow
+                fetchFlightDetails(destination: city.location.iata)
+            } else if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+                // For direct searches that are showing results, use fetchFlightDetails
+                fetchFlightDetails(departure: fromIataCode, destination: toIataCode)
             }
-            // Scenario 2: We have dates selected and are ready to search
-            else if !dates.isEmpty {
-                print("🔄 Re-searching with dates array")
-                updateDatesAndRunSearch()
-            }
-            // Scenario 3: We have a selected city in the explore flow
-            else if let city = selectedCity {
-                print("🔄 Re-fetching flight details for selected city")
-                fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
-            }
-            // Scenario 4: We have search parameters but need to reconstruct dates
-            else if !selectedDepartureDatee.isEmpty {
-                print("🔄 Reconstructing search from stored parameters")
+        } else if !dates.isEmpty && !fromIataCode.isEmpty && !toIataCode.isEmpty {
+            // We have all the data needed but not in any specific view - trigger search
+            print("🔄 Have all data - triggering search")
+            updateDatesAndRunSearch()
+        } else if !selectedDepartureDatee.isEmpty && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty {
+            // We have search parameters but need to reconstruct dates
+            print("🔄 Reconstructing search from stored parameters")
+            
+            // Reconstruct dates array from stored strings
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            var newDates: [Date] = []
+            if let departureDate = formatter.date(from: selectedDepartureDatee) {
+                newDates.append(departureDate)
                 
-                // Reconstruct dates array from stored strings
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                
-                var newDates: [Date] = []
-                if let departureDate = formatter.date(from: selectedDepartureDatee) {
-                    newDates.append(departureDate)
-                    
-                    if isRoundTrip && !selectedReturnDatee.isEmpty,
-                       let returnDate = formatter.date(from: selectedReturnDatee) {
-                        newDates.append(returnDate)
-                    }
-                }
-                
-                dates = newDates
-                
-                // Now trigger the search
-                if !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty {
-                    searchFlightsForDates(
-                        origin: selectedOriginCode,
-                        destination: selectedDestinationCode,
-                        returnDate: isRoundTrip ? selectedReturnDatee : "",
-                        departureDate: selectedDepartureDatee,
-                        isDirectSearch: isDirectSearch
-                    )
-                } else {
-                    updateDatesAndRunSearch()
+                if isRoundTrip && !selectedReturnDatee.isEmpty,
+                   let returnDate = formatter.date(from: selectedReturnDatee) {
+                    newDates.append(returnDate)
                 }
             }
-            else {
-                print("⚠️ No valid search context found for trip type change")
-            }
+            
+            dates = newDates
+            
+            // Now trigger the search
+            searchFlightsForDates(
+                origin: selectedOriginCode,
+                destination: selectedDestinationCode,
+                returnDate: isRoundTrip ? selectedReturnDatee : "",
+                departureDate: selectedDepartureDatee,
+                isDirectSearch: isDirectSearch
+            )
         } else {
-            print("📝 Trip type changed but not triggering search - user can manually refresh")
+            print("⚠️ No valid search context found for trip type change")
         }
     }
 
