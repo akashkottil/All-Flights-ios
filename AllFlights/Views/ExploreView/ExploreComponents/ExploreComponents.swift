@@ -4128,9 +4128,8 @@ struct ModifiedDetailedFlightListView: View {
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { index in
-                        DetailedFlightCardSkeleton()
-                            .padding(.bottom, 3)
-                            .padding(.horizontal, 2)
+                        EnhancedDetailedFlightCardSkeleton()
+                           
                             .opacity(skeletonOpacity)
                             .offset(y: skeletonOffset)
                             .animation(
@@ -4143,6 +4142,7 @@ struct ModifiedDetailedFlightListView: View {
                     .padding(.top, 14)
                     Spacer()
                 }
+                .padding(.horizontal, 5)
                 .onAppear {
                     withAnimation {
                         skeletonOpacity = 1.0
@@ -4185,6 +4185,7 @@ struct ModifiedDetailedFlightListView: View {
                         showingFlightDetails = true
                     }
                 )
+                .padding(.horizontal, 5)
                 .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                 .onAppear {
                     cancelRetryTimer()
@@ -4195,14 +4196,13 @@ struct ModifiedDetailedFlightListView: View {
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { _ in
-                        DetailedFlightCardSkeleton()
-                            .padding(.bottom, 3)
-                            .padding(.horizontal,2)
+                        EnhancedDetailedFlightCardSkeleton()
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
                     .padding(.top, 14)
                     Spacer()
                 }
+                .padding(.horizontal, 5)
             }
         }
         .fullScreenCover(isPresented: $showingFlightDetails) {
@@ -5754,7 +5754,6 @@ struct PaginatedFlightList: View {
                 // Bottom spacer
                 Spacer(minLength: 50)
             }
-            .padding(.vertical)
         }
         .background(Color("scroll"))
     }

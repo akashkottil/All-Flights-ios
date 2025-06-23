@@ -708,9 +708,4 @@ struct ShimmerEffectt: ViewModifier {
     }
 }
 
-// MARK: - Simple DetailedFlightCardSkeleton (for compatibility)
-struct DetailedFlightCardSkeleton: View {
-    var body: some View {
-        EnhancedDetailedFlightCardSkeleton()
-    }
-}
+
