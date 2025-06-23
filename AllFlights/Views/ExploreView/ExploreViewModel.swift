@@ -82,6 +82,24 @@ class ExploreViewModel: ObservableObject {
     @Published var showNoResultsModal = false
     @Published var isInitialEmptyResult = false
     
+    // Helper method to get API minimum price (add this if it doesn't exist)
+        func getApiMinPrice() -> Double {
+            if let pollResponse = lastPollResponse {
+                return pollResponse.minPrice
+            } else {
+                return 0.0
+            }
+        }
+        
+        // Helper method to get API maximum price (add this if it doesn't exist)
+        func getApiMaxPrice() -> Double {
+            if let pollResponse = lastPollResponse {
+                return pollResponse.maxPrice
+            } else {
+                return 5000.0
+            }
+        }
+    
     // 🔥 ADD: Save search to recent searches when search is executed in ExploreViewModel
     private func saveSearchToRecentAndLastSearch() {
         // Only save valid searches

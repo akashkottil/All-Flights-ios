@@ -3984,12 +3984,80 @@ struct DottedLine: Shape {
 }
 
 struct FilterButton: View {
+    @ObservedObject var viewModel: ExploreViewModel
     var action: () -> Void
+    
+    // Computed property to count applied filters
+    private var appliedFiltersCount: Int {
+        var count = 0
+        
+        // Only count filters if we have actual filter data available
+        guard viewModel.lastPollResponse != nil else {
+            return 0
+        }
+        
+        let state = viewModel.filterSheetState
+        
+        // Don't count any filters if this is the first time opening (not initialized properly)
+        guard !state.isFirstTimeOpening else {
+            return 0
+        }
+        
+        // Check stop filters (default: all true)
+        let allStopsSelected = state.directFlightsSelected && state.oneStopSelected && state.multiStopSelected
+        if !allStopsSelected {
+            count += 1
+        }
+        
+        // Check price range (only if we have valid API data and it's actually modified)
+        let apiMinPrice = viewModel.getApiMinPrice()
+        let apiMaxPrice = viewModel.getApiMaxPrice()
+        if apiMinPrice > 0 && apiMaxPrice > apiMinPrice {
+            // Only count as filtered if user has significantly narrowed the range
+            let priceRangeModified = (state.priceRange[0] > apiMinPrice + 50) || (state.priceRange[1] < apiMaxPrice - 50)
+            if priceRangeModified {
+                count += 1
+            }
+        }
+        
+        // Check departure times (default: 0-24)
+        if abs(state.departureTimes[0] - 0.0) > 0.1 || abs(state.departureTimes[1] - 24.0) > 0.1 {
+            count += 1
+        }
+        
+        // Check arrival times (default: 0-24)
+        if abs(state.arrivalTimes[0] - 0.0) > 0.1 || abs(state.arrivalTimes[1] - 24.0) > 0.1 {
+            count += 1
+        }
+        
+        // Check duration range (default: 1.75-8.5)
+        if abs(state.durationRange[0] - 1.75) > 0.1 || abs(state.durationRange[1] - 8.5) > 0.1 {
+            count += 1
+        }
+        
+        // Check airlines (only count if airlines are available and actually filtered)
+        if let pollResponse = viewModel.lastPollResponse, !pollResponse.airlines.isEmpty {
+            let allAirlines = Set(pollResponse.airlines.map { $0.airlineIata })
+            let hasAirlineFilter = !state.selectedAirlines.isEmpty &&
+                                 state.selectedAirlines.count < allAirlines.count &&
+                                 state.selectedAirlines != allAirlines
+            if hasAirlineFilter {
+                count += 1
+            }
+        }
+        
+        // Check sort option (default: .all)
+        if state.sortOption != .all {
+            count += 1
+        }
+        
+        return count
+    }
     
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease")
+                Image("filter")
                     .font(.system(size: 14))
                 Text("Filter")
                     .font(.system(size: 14, weight: .medium))
@@ -4001,8 +4069,23 @@ struct FilterButton: View {
                     .fill(Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                // Filter count badge
+                Group {
+                    if appliedFiltersCount > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 20, height: 20)
+                            
+                            Text("\(appliedFiltersCount)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .offset(x: -40) // Position above the left border
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appliedFiltersCount)
             )
         }
         .foregroundColor(.primary)
@@ -4052,7 +4135,7 @@ struct FlightFilterTabView: View {
                             .background(Color.white)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(selectedFilter == filter ? Color.blue : Color.black.opacity(0.3), lineWidth: selectedFilter == filter ? 1 : 0.5)
+                                    .stroke(selectedFilter == filter ? Color.blue : Color.clear, lineWidth: selectedFilter == filter ? 1 : 0)
                             )
                             .scaleEffect(tabPressStates[index] ? 0.95 : 1.0)
                             .cornerRadius(8)

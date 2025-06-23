@@ -399,7 +399,7 @@ struct HomeView: View {
                             
                             // FIXED: Filter tabs section for detailed flight list
                             HStack {
-                                FilterButton {
+                                FilterButton(viewModel: exploreViewModel) {
                                     showingDetailedFlightFilterSheet = true
                                 }
                                 .padding(.leading, 20)

@@ -370,7 +370,7 @@ struct ExploreScreen: View {
                             
                             // Filter tabs section for detailed flight list
                             HStack {
-                                FilterButton {
+                                FilterButton(viewModel: viewModel) {
                                     showingDetailedFlightFilterSheet = true
                                 }
                                 .padding(.leading, 20)
