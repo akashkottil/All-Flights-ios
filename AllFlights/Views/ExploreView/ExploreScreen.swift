@@ -14,6 +14,7 @@ struct ExploreScreen: View {
     
     // ADD: Observe shared search data
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    @ObservedObject private var currencyManager = CurrencyManager.shared
     
     // NEW: Add animation state tracking
     @State private var isInitialLoad = true
@@ -742,6 +743,12 @@ struct ExploreScreen: View {
                 handleIncomingCountryNavigation()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .currencyChanged)) { _ in
+            refreshCurrentScreenForCurrencyChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .countryChanged)) { _ in
+            refreshCurrentScreenForCurrencyChange()
+        }
     }
     
     // MARK: - Content Views
@@ -854,7 +861,7 @@ struct ExploreScreen: View {
                                    viewModel.formatDate(result.inbound!.departure!) : "No return",
                         origin: result.outbound.origin.iata,
                         destination: result.outbound.destination.iata,
-                        price: "₹\(result.price)",
+                        price: CurrencyManager.shared.formatPrice(result.price),
                         isOutDirect: result.outbound.direct,
                         isInDirect: result.inbound?.direct ?? false,
                         tripDuration: viewModel.calculateTripDuration(result),
@@ -1032,6 +1039,40 @@ struct ExploreScreen: View {
             return "Explore \(viewModel.selectedCountryName ?? "")"
         } else {
             return "Explore everywhere"
+        }
+    }
+    
+    
+    private func refreshCurrentScreenForCurrencyChange() {
+        print("💱 Currency/Country changed - refreshing current screen data")
+        
+        // CRITICAL FIX: Clear cached countries data when currency changes
+        // This ensures fresh data is fetched with the new currency
+        if !viewModel.showingCities && !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
+            print("💱 Clearing cached countries data due to currency change")
+            viewModel.clearCountriesCache()
+        }
+        
+        if viewModel.showingDetailedFlightList {
+            // Don't refresh detailed flight list - would be disruptive
+            print("💱 Skipping refresh for detailed flight list")
+        } else if viewModel.hasSearchedFlights {
+            // Refresh flight results
+            if let city = viewModel.selectedCity {
+                viewModel.fetchFlightDetails(destination: city.location.iata)
+            } else {
+                // For explore flow with search results
+                refreshCurrentScreen()
+            }
+        } else if viewModel.showingCities {
+            // Refresh cities data
+            if let countryName = viewModel.selectedCountryName,
+               let country = viewModel.destinations.first(where: { $0.location.name == countryName }) {
+                viewModel.fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
+            }
+        } else {
+            // Refresh main explore (countries) - will now fetch fresh data since cache is cleared
+            viewModel.fetchCountries()
         }
     }
 }

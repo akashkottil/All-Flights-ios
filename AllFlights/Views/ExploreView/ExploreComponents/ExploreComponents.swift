@@ -1453,7 +1453,7 @@ struct APIDestinationCard: View {
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                             .padding(.bottom, 2)
-                        Text(viewModel.formatPrice(item.price))
+                        Text(CurrencyManager.shared.formatPrice(item.price))
                             .font(.system(size: 20, weight: .bold))
                     }
                 }
@@ -2859,8 +2859,8 @@ struct DetailedFlightCardWrapper: View {
                             ReturnAirlineCode: returnFirstSegment!.airlineIata,
                             ReturnAirlineLogo: returnFirstSegment!.airlineLogo,
                             
-                            price: "₹\(Int(result.minPrice))",
-                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
+                            price: CurrencyManager.shared.formatPrice(Int(result.minPrice)),
+                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People \(CurrencyManager.shared.formatPrice(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount))))",
                             
                             isRoundTrip: true
                         )
@@ -2999,7 +2999,7 @@ struct MultiCityModernFlightCard: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("₹\(Int(result.minPrice))")
+                    Text(CurrencyManager.shared.formatPrice(Int(result.minPrice)))
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.primary)
                     
@@ -6452,7 +6452,7 @@ struct ProviderRow: View {
             
             // Price and button
             VStack(alignment: .trailing, spacing: 8) {
-                Text("₹\(String(format: "%.2f", provider.price))")
+                Text(CurrencyManager.shared.formatPrice(provider.price))
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.primary)
                 

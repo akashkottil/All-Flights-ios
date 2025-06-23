@@ -59,7 +59,6 @@ class ExploreViewModel: ObservableObject {
     @Published var selectedCabinClass = "Economy"
     @Published var showingPassengersSheet = false
     
-    @Published var currencyInfo: CurrencyDetail?
     
     @Published var isAnytimeMode: Bool = false
     
@@ -81,6 +80,14 @@ class ExploreViewModel: ObservableObject {
     
     @Published var showNoResultsModal = false
     @Published var isInitialEmptyResult = false
+    
+    func formatPrice(_ price: Int) -> String {
+        return CurrencyManager.shared.formatPrice(price)
+    }
+
+    func formatPrice(_ price: Double) -> String {
+        return CurrencyManager.shared.formatPrice(price)
+    }
     
     // Helper method to get API minimum price (add this if it doesn't exist)
         func getApiMinPrice() -> Double {
@@ -1108,28 +1115,6 @@ class ExploreViewModel: ObservableObject {
             self.objectWillChange.send()
         }
     
-    // Helper method to format price with the correct currency symbol
-        func formatPrice(_ price: Int) -> String {
-            if let currencyInfo = currencyInfo {
-                let symbol = currencyInfo.symbol
-                let hasSpace = currencyInfo.spaceBetweenAmountAndSymbol
-                let spacer = hasSpace ? " " : ""
-                
-                if currencyInfo.symbolOnLeft {
-                    return "\(symbol)\(spacer)\(price)"
-                } else {
-                    return "\(price)\(spacer)\(symbol)"
-                }
-            } else {
-                // Fallback to default format
-                return "₹\(price)"
-            }
-        }
-    
-    // Add this method to update currency info when receiving API response
-        func updateCurrencyInfo(_ info: CurrencyDetail) {
-            self.currencyInfo = info
-        }
     
     struct FilterSheetState {
         var sortOption: FlightFilterTabView.FilterOption = .best
@@ -1749,10 +1734,7 @@ class ExploreViewModel: ObservableObject {
                 self.destinations = cachedData
                 self.isLoading = false
                 
-                // Update currency info if available
-                if let currencyInfo = self.service.lastFetchedCurrencyInfo {
-                    self.updateCurrencyInfo(currencyInfo)
-                }
+
                 
                 return
             }
@@ -1779,9 +1761,7 @@ class ExploreViewModel: ObservableObject {
                     
                     self?.debugDuplicateFlightIDs()
                     
-                    if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
-                        self?.updateCurrencyInfo(currencyInfo)
-                    }
+
                     
                     print("✅ fetchCountries completed: \(destinations.count) destinations loaded")
                 })

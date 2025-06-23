@@ -616,7 +616,7 @@ struct CalendarView: View {
         dateFormatter.dateFormat = "dd-MM-yyyy"
         let formattedDate = dateFormatter.string(from: currentDate)
         
-        let urlString = "https://staging.plane.lascade.com/api/price/?currency=INR&country=IN"
+        let urlString = "https://staging.plane.lascade.com/api/price/?currency=\(CurrencyManager.shared.currencyCode)&country=\(CurrencyManager.shared.countryCode)"
         guard let url = URL(string: urlString) else {
             completion([])
             return
@@ -625,7 +625,7 @@ struct CalendarView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("IN", forHTTPHeaderField: "country")
+        request.setValue(CurrencyManager.shared.countryCode, forHTTPHeaderField: "country")
         
         let payload: [String: Any] = [
             "origin": origin,
@@ -859,7 +859,7 @@ struct CalendarView: View {
                 
                 // Price display
                 if let price = price, !isPastDate {
-                    Text("$\(price)")
+                    Text(CurrencyManager.shared.formatPrice(price))
                         .font(.system(size: 12))
                         .foregroundColor(getPriceColor(for: priceCategory ?? "normal"))
                 } else {
@@ -988,7 +988,7 @@ struct CalendarView: View {
                     Text(tripType)
                         .font(.subheadline)
                         .foregroundColor(.gray)
-                    Text("from $\(price)")
+                    Text("from \(CurrencyManager.shared.formatPrice(price))")
                         .font(.headline)
                         .foregroundColor(.black)
                 }
@@ -1137,12 +1137,13 @@ struct CalendarView: View {
         dateFormatter.dateFormat = "dd-MM-yyyy"
         let formattedDate = dateFormatter.string(from: firstOfMonth)
 
-        let urlString = "https://staging.plane.lascade.com/api/price/?currency=INR&country=IN"
+        let urlString = "https://staging.plane.lascade.com/api/price/?currency=\(CurrencyManager.shared.currencyCode)&country=\(CurrencyManager.shared.countryCode)"
         guard let url = URL(string: urlString) else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(CurrencyManager.shared.countryCode, forHTTPHeaderField: "country")
 
         let payload: [String: Any] = [
             "origin": origin,

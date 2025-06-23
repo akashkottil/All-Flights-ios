@@ -58,7 +58,8 @@ class CurrencyViewModel: ObservableObject {
 struct CurrencySelectionSheet: View {
     @StateObject private var viewModel = CurrencyViewModel()
     @Environment(\.dismiss) private var dismiss
-    @Binding var selectedCurrency: Currency?
+    // UPDATED: Use CurrencyManager instead of local binding
+    @ObservedObject var currencyManager = CurrencyManager.shared
     
     var body: some View {
         NavigationView {
@@ -128,9 +129,11 @@ struct CurrencySelectionSheet: View {
                             ForEach(viewModel.currencies) { currency in
                                 CurrencyRow(
                                     currency: currency,
-                                    isSelected: selectedCurrency?.code == currency.code
+                                    // UPDATED: Use CurrencyManager selection
+                                    isSelected: currencyManager.selectedCurrency?.code == currency.code
                                 ) {
-                                    selectedCurrency = currency
+                                    // UPDATED: Update CurrencyManager
+                                    currencyManager.selectedCurrency = currency
                                     dismiss()
                                 }
                                 
@@ -208,7 +211,8 @@ struct CurrencyRow: View {
 struct RegionSelectionSheet: View {
     @StateObject private var viewModel = CountryViewModel()
     @Environment(\.dismiss) private var dismiss
-    @Binding var selectedCountry: Country?
+    // UPDATED: Use CurrencyManager instead of local binding
+    @ObservedObject var currencyManager = CurrencyManager.shared
     
     var body: some View {
         NavigationView {
@@ -278,9 +282,11 @@ struct RegionSelectionSheet: View {
                             ForEach(viewModel.countries) { country in
                                 CountryRow(
                                     country: country,
-                                    isSelected: selectedCountry?.code == country.code
+                                    // UPDATED: Use CurrencyManager selection
+                                    isSelected: currencyManager.selectedCountry?.code == country.code
                                 ) {
-                                    selectedCountry = country
+                                    // UPDATED: Update CurrencyManager
+                                    currencyManager.selectedCountry = country
                                     dismiss()
                                 }
                                 
@@ -345,8 +351,9 @@ struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingCurrencySheet = false
     @State private var showingRegionSheet = false
-    @State private var selectedCurrency: Currency?
-    @State private var selectedCountry: Country?
+    
+    // UPDATED: Use CurrencyManager instead of local state
+    @ObservedObject private var currencyManager = CurrencyManager.shared
     
     // ADD: Observe shared search data for navigation state
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
@@ -416,8 +423,9 @@ struct AccountView: View {
                         
                         SettingCard(
                             title: "Region",
-                            subtitle: selectedCountry?.name ?? "India",
-                            icon: selectedCountry?.flag.map { Text($0) } ?? Text("🇮🇳"),
+                            // UPDATED: Use CurrencyManager
+                            subtitle: currencyManager.selectedCountry?.name ?? "India",
+                            icon: currencyManager.selectedCountry?.flag.map { Text($0) } ?? Text("🇮🇳"),
                             action: {
                                 showingRegionSheet = true
                             }
@@ -425,8 +433,9 @@ struct AccountView: View {
                         
                         SettingCard(
                             title: "Currency",
-                            subtitle: selectedCurrency?.name ?? "Indian Rupee",
-                            icon: selectedCurrency?.flag.map { Text($0) } ?? Text("🇮🇳"),
+                            // UPDATED: Use CurrencyManager
+                            subtitle: currencyManager.selectedCurrency?.name ?? "Indian Rupee",
+                            icon: currencyManager.selectedCurrency?.flag.map { Text($0) } ?? Text("🇮🇳"),
                             action: {
                                 showingCurrencySheet = true
                             }
@@ -466,22 +475,14 @@ struct AccountView: View {
             .scrollIndicators(.hidden)
             .navigationBarBackButtonHidden(true)
             .sheet(isPresented: $showingCurrencySheet) {
-                CurrencySelectionSheet(selectedCurrency: $selectedCurrency)
+                CurrencySelectionSheet()
             }
             .sheet(isPresented: $showingRegionSheet) {
-                RegionSelectionSheet(selectedCountry: $selectedCountry)
+                RegionSelectionSheet()
             }
             .onAppear {
                 // Set navigation state to hide tab bar
                 sharedSearchData.enterAccountNavigation()
-                
-                // Set default values if none selected
-                if selectedCountry == nil {
-                    selectedCountry = MockDataService.shared.findCountry(byCode: "IN")
-                }
-                if selectedCurrency == nil {
-                    selectedCurrency = MockDataService.shared.findCurrency(byCode: "INR")
-                }
             }
             .onDisappear {
                 // Reset navigation state to show tab bar

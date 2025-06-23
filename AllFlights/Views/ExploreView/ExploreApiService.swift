@@ -12,11 +12,18 @@ class ExploreAPIService {
     // At the top of ExploreAPIService
     weak var viewModelReference: ExploreViewModel?
     
-    let currency:String = "INR"
-    let country:String = "IN"
+     var currency: String {
+        return CurrencyManager.shared.currencyCode
+    }
+
+     var country: String {
+        return CurrencyManager.shared.countryCode
+    }
     
     private let baseURL = "https://staging.plane.lascade.com/api/explore/"
-    private let flightsURL = "https://staging.plane.lascade.com/api/explore/?currency=INR&country=IN"
+    private var flightsURL: String {
+        return "https://staging.plane.lascade.com/api/explore/?currency=\(currency)&country=\(country)"
+    }
     private var currentFlightSearchRequest: DataRequest?
     private let session = Session()
     
@@ -39,7 +46,7 @@ class ExploreAPIService {
             var request = URLRequest(url: urlComponents.url!)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("IN", forHTTPHeaderField: "country")
+        request.setValue(country, forHTTPHeaderField: "country")
             
             // Build request body from filter request
             var requestDict: [String: Any] = [:]
@@ -277,7 +284,7 @@ class ExploreAPIService {
         var request = URLRequest(url: urlComponents.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("IN", forHTTPHeaderField: "country")
+        request.setValue(country, forHTTPHeaderField: "country")
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestData)
         
         return Future<SearchResponse, Error> { promise in
@@ -286,6 +293,8 @@ class ExploreAPIService {
                 .responseDecodable(of: SearchResponse.self) { response in
                     switch response.result {
                     case .success(let searchResponse):
+                        // UPDATED: Update currency info in CurrencyManager
+                        CurrencyManager.shared.updateCurrencyInfo(searchResponse.currencyInfo)
                         promise(.success(searchResponse))
                     case .failure(let error):
                         print("Search API error: \(error.localizedDescription)")
@@ -300,12 +309,14 @@ class ExploreAPIService {
 
 
     
-    func fetchAutocomplete(query: String, country: String = "IN", language: String = "en-GB") -> AnyPublisher<[AutocompleteResult], Error> {
+    func fetchAutocomplete(query: String, country: String? = nil, language: String = "en-GB") -> AnyPublisher<[AutocompleteResult], Error> {
         let baseURL = "https://staging.plane.lascade.com/api/autocomplete"
         
+        let finalCountry = country ?? self.country
+
         let parameters: [String: String] = [
             "search": query,
-            "country": country,
+            "country": finalCountry,
             "language": language
         ]
         
@@ -323,8 +334,8 @@ class ExploreAPIService {
         }.eraseToAnyPublisher()
     }
     
-    func fetchDestinations(country: String = "IN",
-                              currency: String = "INR",
+    func fetchDestinations(country: String? = nil,
+                          currency: String? = nil,
                               departure: String = "COK",
                               language: String = "en-GB",
                               arrivalType: String = "country",
@@ -334,9 +345,13 @@ class ExploreAPIService {
             var urlComponents = URLComponents(string: self.baseURL)!
             
             // Add query parameters
-            var queryItems = [
-                URLQueryItem(name: "country", value: country),
-                URLQueryItem(name: "currency", value: currency),
+        let finalCountry = country ?? self.country
+        let finalCurrency = currency ?? self.currency
+
+        // Add query parameters
+        var queryItems = [
+            URLQueryItem(name: "country", value: finalCountry),
+            URLQueryItem(name: "currency", value: finalCurrency),
                 URLQueryItem(name: "departure", value: departure),
                 URLQueryItem(name: "language", value: language),
                 URLQueryItem(name: "arrival_type", value: arrivalType)
@@ -358,6 +373,9 @@ class ExploreAPIService {
                     .responseDecodable(of: ExploreApiResponse.self) { response in
                         switch response.result {
                         case .success(let apiResponse):
+                            // UPDATED: Update currency info in CurrencyManager
+                            CurrencyManager.shared.updateCurrencyInfo(apiResponse.currency)
+                            self.lastFetchedCurrencyInfo = apiResponse.currency
                             // Convert the new API response to the existing ExploreDestination model
                             let destinations = apiResponse.data.map { item -> ExploreDestination in
                                 return ExploreDestination(
