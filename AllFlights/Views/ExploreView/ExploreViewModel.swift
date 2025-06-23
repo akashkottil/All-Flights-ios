@@ -1511,11 +1511,13 @@ class ExploreViewModel: ObservableObject {
             print("Cleared return date for one-way trip")
         }
         
-        // FIXED: Enhanced logic to handle all search scenarios
-        if !fromIataCode.isEmpty && !toIataCode.isEmpty {
-            // Clear current results first
+        // CRITICAL: Only refresh if we're actively in a search flow, not when just navigating back
+        if !fromIataCode.isEmpty && !toIataCode.isEmpty && !showingDetailedFlightList {
+            // Only trigger searches when we're NOT in the detailed flight list (i.e., user is actively searching)
+            
+            // Clear current results first ONLY when actively searching
             detailedFlightResults = []
-            flightResults = []
+            // DON'T clear flightResults here to prevent loading screen
             
             // Scenario 1: We're on the detailed flight list (most common case)
             if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
@@ -1579,7 +1581,7 @@ class ExploreViewModel: ObservableObject {
                 print("⚠️ No valid search context found for trip type change")
             }
         } else {
-            print("⚠️ Missing origin/destination codes for trip type change")
+            print("📝 Trip type changed but not triggering search - user can manually refresh")
         }
     }
 
@@ -1836,7 +1838,8 @@ class ExploreViewModel: ObservableObject {
         isLoadingFlights = true
         errorMessage = nil
         hasSearchedFlights = true
-        flightResults = [] // Clear previous results when starting a new search
+        // DON'T clear previous results immediately - let them stay visible
+        // flightResults = [] // <- REMOVE THIS LINE
         
         // Use fromIataCode as default departure if not provided
         let finalDeparture = departure ?? fromIataCode
@@ -1874,10 +1877,12 @@ class ExploreViewModel: ObservableObject {
             self?.isLoadingFlights = false
             if case .failure(let error) = completion {
                 self?.errorMessage = error.localizedDescription
-                self?.flightResults = [] // Ensure results are cleared on error
+                // Only clear results on error, not on loading
+                self?.flightResults = []
                 print("Flight details fetch failed: \(error.localizedDescription)")
             }
         }, receiveValue: { [weak self] response in
+            // Only update results when new data arrives
             self?.flightSearchResponse = response
             self?.flightResults = response.results
             print("Fetched \(response.results.count) flight results")
@@ -2012,39 +2017,18 @@ class ExploreViewModel: ObservableObject {
             detailedFlightResults = []
             detailedFlightError = nil
             isLoadingDetailedFlights = false
-            // Keep hasSearchedFlights = true to stay on flight results page
             
-            // FIXED: Automatically reload data when returning to flight results
-            // Check if we need to reload flight results data
-            if flightResults.isEmpty {
-                print("🔄 Flight results empty, automatically reloading data for current month")
-                
-                // If we have a selected city, fetch flight details for current month
-                if let city = selectedCity {
-                    print("🔄 Fetching flight details for city: \(city.location.name)")
-                    fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
-                }
-                // If we have destination code but no city, still fetch flight details
-                else if !toIataCode.isEmpty {
-                    print("🔄 Fetching flight details for destination: \(toIataCode)")
-                    fetchFlightDetails(departure: fromIataCode, destination: toIataCode)
-                }
-                // If we have search context with dates, trigger search
-                else if !fromIataCode.isEmpty && !toIataCode.isEmpty && !dates.isEmpty {
-                    print("🔄 Re-triggering search with existing dates")
-                    updateDatesAndRunSearch()
-                }
-                // Fallback: use current month selection to reload data
-                else if !availableMonths.isEmpty && selectedMonthIndex < availableMonths.count {
-                    print("🔄 Reloading data using current month selection: \(selectedMonthIndex)")
-                    selectMonth(at: selectedMonthIndex)
-                }
-                else {
-                    print("⚠️ Unable to determine reload strategy, staying on empty results")
-                }
-            } else {
-                print("✅ Flight results already available (\(flightResults.count) flights)")
-            }
+            // CRITICAL: Don't clear any flight results or trigger any loading
+            // Just reset loading states to false
+            isLoadingFlights = false
+            errorMessage = nil
+            
+            // Keep hasSearchedFlights = true to stay on flight results page
+            // Keep flightResults intact - DON'T modify it
+            
+            print("✅ Returned to flight results screen")
+            print("📊 Flight results preserved: \(flightResults.count) flights")
+            print("📝 User can click month tab to refresh data if needed")
         }
     }
     
