@@ -168,10 +168,14 @@ struct EnhancedSkeletonDestinationCard: View {
 }
 
 
+
 // MARK: - Enhanced Skeleton Flight Result Card - Exact Match to FlightResultCard
 struct EnhancedSkeletonFlightResultCard: View {
     @State private var pulseOpacity: Double = 0.6
     @State private var breatheScale: CGFloat = 1.0
+    
+    // ADD: Parameter to control whether to show return section
+    var isRoundTrip: Bool = true
     
     var body: some View {
         VStack(spacing: 5) {
@@ -234,64 +238,66 @@ struct EnhancedSkeletonFlightResultCard: View {
             .padding(.horizontal) // Matches FlightResultCard padding
             .padding(.vertical, 12) // Matches FlightResultCard padding
             
-            // Return section - only show for round trips (same structure as departure)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Return")
-                    .font(.subheadline)
-                    .foregroundColor(.clear) // Hidden but maintains spacing
-                    .overlay(
+            // MODIFIED: Return section - only show for round trips (same structure as departure)
+            if isRoundTrip {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Return")
+                        .font(.subheadline)
+                        .foregroundColor(.clear) // Hidden but maintains spacing
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray5))
+                                .frame(width: 55, height: 14)
+                        )
+                    
+                    HStack {
+                        // Return date placeholder
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(.systemGray5), Color(.systemGray4)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: 85, height: 20) // Matches headline font size
+                            .shimmer(duration: 1.6)
+                        
+                        Spacer()
+                        
+                        // Return route section
+                        HStack(spacing: 6) {
+                            // Destination code (return origin)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 35, height: 20)
+                                .shimmer(duration: 1.8)
+                            
+                            // Arrow placeholder
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 12, height: 8)
+                                .shimmer(duration: 1.4)
+                            
+                            // Origin code (return destination)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 35, height: 20)
+                                .shimmer(duration: 1.8)
+                        }
+                        
+                        Spacer()
+                        
+                        // Return direct status placeholder
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color(.systemGray5))
-                            .frame(width: 55, height: 14)
-                    )
-                
-                HStack {
-                    // Return date placeholder
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(.systemGray5), Color(.systemGray4)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 85, height: 20) // Matches headline font size
-                        .shimmer(duration: 1.6)
-                    
-                    Spacer()
-                    
-                    // Return route section
-                    HStack(spacing: 6) {
-                        // Destination code (return origin)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(.systemGray6))
-                            .frame(width: 35, height: 20)
-                            .shimmer(duration: 1.8)
-                        
-                        // Arrow placeholder
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color(.systemGray6))
-                            .frame(width: 12, height: 8)
-                            .shimmer(duration: 1.4)
-                        
-                        // Origin code (return destination)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(.systemGray6))
-                            .frame(width: 35, height: 20)
-                            .shimmer(duration: 1.8)
+                            .frame(width: 70, height: 16)
+                            .shimmer(duration: 2.0)
                     }
-                    
-                    Spacer()
-                    
-                    // Return direct status placeholder
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 70, height: 16)
-                        .shimmer(duration: 2.0)
                 }
+                .padding(.horizontal) // Matches FlightResultCard padding
+                .padding(.vertical, 12) // Matches FlightResultCard padding
             }
-            .padding(.horizontal) // Matches FlightResultCard padding
-            .padding(.vertical, 12) // Matches FlightResultCard padding
             
             // Divider - matching FlightResultCard exactly
             Divider()

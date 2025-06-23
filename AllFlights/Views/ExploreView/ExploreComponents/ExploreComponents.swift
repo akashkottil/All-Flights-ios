@@ -2156,13 +2156,6 @@ struct SkeletonDestinationCard: View {
 }
 
 
-// MARK: - Enhanced Skeleton Flight Result Card
-struct SkeletonFlightResultCard: View {
-    var body: some View {
-        EnhancedSkeletonFlightResultCard()
-    }
-}
-
 // Add this new component:
 
 struct MonthSelectorView: View {
