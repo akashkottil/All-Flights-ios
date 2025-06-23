@@ -1243,7 +1243,7 @@ struct FlightResultCard: View {
                     
                     Text(isOutDirect ? "Direct" : "1+stops")
                         .font(.subheadline)
-                        .fontWeight(.bold)
+                        .fontWeight(.medium)
                         .foregroundColor(isOutDirect ? Color("darkGreen") : .primary)
                 }
             }
@@ -1280,7 +1280,7 @@ struct FlightResultCard: View {
                         Text(isInDirect ? "Direct" : "1+stops")
                             .font(.subheadline)
                             .foregroundColor(isOutDirect ? Color("darkGreen") : .primary)
-                            .fontWeight(.bold)
+                            .fontWeight(.medium)
                     }
                 }
                 .padding(.horizontal)
