@@ -2165,7 +2165,7 @@ struct MonthSelectorView: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 ForEach(0..<months.count, id: \.self) { index in
                     MonthButton(
                         month: months[index],
@@ -4106,7 +4106,7 @@ struct FlightFilterTabView: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 ForEach(Array(FilterOption.allCases.enumerated()), id: \.element) { index, filter in
                     Button(action: {
                         // Haptic feedback
@@ -4141,7 +4141,7 @@ struct FlightFilterTabView: View {
                     }
                 }
             }
-            .padding(.horizontal)
+            .padding(.trailing)
         }
     }
 }

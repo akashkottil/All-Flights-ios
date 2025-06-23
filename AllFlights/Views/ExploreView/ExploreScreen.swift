@@ -288,7 +288,7 @@ struct ExploreScreen: View {
                             
                             // Filter Tabs
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
+                                HStack(spacing: 8) {
                                     ForEach(0..<filterOptions.count, id: \.self) { index in
                                         FilterTabButton(
                                             title: filterOptions[index],
@@ -334,7 +334,7 @@ struct ExploreScreen: View {
                                         viewModel.selectMonth(at: index)
                                     }
                                 )
-                                .padding(.horizontal)
+                              
                                 .padding(.bottom,5)
                             } else {
                                 // Anytime Mode Message
@@ -373,7 +373,7 @@ struct ExploreScreen: View {
                                 FilterButton(viewModel: viewModel) {
                                     showingDetailedFlightFilterSheet = true
                                 }
-                                .padding(.leading, 20)
+                                
                                 
                                 FlightFilterTabView(
                                     selectedFilter: selectedDetailedFlightFilter,
