@@ -1132,7 +1132,7 @@ class ExploreViewModel: ObservableObject {
         }
     
     struct FilterSheetState {
-        var sortOption: FlightFilterTabView.FilterOption = .all
+        var sortOption: FlightFilterTabView.FilterOption = .best
         var directFlightsSelected: Bool = true      // ✅ Keep as true
         var oneStopSelected: Bool = true            // ✅ CHANGE: Set to true by default
         var multiStopSelected: Bool = true          // ✅ CHANGE: Set to true by default
@@ -1183,7 +1183,7 @@ class ExploreViewModel: ObservableObject {
         var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
-        case .all:
+        case .best:
             // ✅ CRITICAL: For "All", respect current filter sheet state
             filterRequest = createCompleteFilterRequest() ?? FlightFilterRequest()
             currentFilterRequest = filterRequest

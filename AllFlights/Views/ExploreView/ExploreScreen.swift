@@ -40,7 +40,7 @@ struct ExploreScreen: View {
         
         // Reset detailed flight filter if we're in that view
         if viewModel.showingDetailedFlightList {
-            selectedDetailedFlightFilter = .all
+            selectedDetailedFlightFilter = .best
             
             // Reset the filter sheet state to defaults
             viewModel.filterSheetState = ExploreViewModel.FilterSheetState()
@@ -100,7 +100,7 @@ struct ExploreScreen: View {
     @State private var scrollOffset: CGFloat = 0
     @Namespace private var searchCardNamespace
     
-    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .all
+    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .best
     @State private var showingDetailedFlightFilterSheet = false
     
     private func applyDetailedFlightFilterOption(_ filter: FlightFilterTabView.FilterOption) {
@@ -109,7 +109,7 @@ struct ExploreScreen: View {
         var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
-        case .all:
+        case .best:
             // ✅ CRITICAL: For "All", create empty request but respect current filter sheet state
             filterRequest = FlightFilterRequest()
             // Don't override any existing filter sheet settings

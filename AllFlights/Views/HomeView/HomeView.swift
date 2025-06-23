@@ -4,7 +4,7 @@ import CoreLocation
 
 // MARK: - Enhanced HomeView with Gradual Search Card Collapse
 struct HomeView: View {
-    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .all
+    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .best
     @State private var showingDetailedFlightFilterSheet = false
     @State private var hasAppliedInitialDirectFilter = false
     
@@ -63,7 +63,7 @@ struct HomeView: View {
         var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
-        case .all:
+        case .best:
             filterRequest = FlightFilterRequest()
             
         case .best:
@@ -102,7 +102,7 @@ struct HomeView: View {
     private func clearAllFiltersInHomeExploreScreen() {
         print("🧹 Clearing all filters in HomeView ExploreScreen")
         
-        selectedDetailedFlightFilter = .all
+        selectedDetailedFlightFilter = .best
         exploreViewModel.filterSheetState = ExploreViewModel.FilterSheetState()
         
         let emptyFilter = FlightFilterRequest()
@@ -587,7 +587,7 @@ struct HomeView: View {
         
         // ADDED: Reset filter states for new search
         exploreViewModel.resetFilterSheetStateForNewSearch()
-        selectedDetailedFlightFilter = .all
+        selectedDetailedFlightFilter = .best
         hasAppliedInitialDirectFilter = false
         
         // Sync tab states

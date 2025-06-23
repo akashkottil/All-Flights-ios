@@ -4047,7 +4047,7 @@ struct FilterButton: View {
         }
         
         // Check sort option (default: .all)
-        if state.sortOption != .all {
+        if state.sortOption != .best {
             count += 1
         }
         
@@ -4098,7 +4098,6 @@ struct FlightFilterTabView: View {
     let onSelectFilter: (FilterOption) -> Void
     
     enum FilterOption: String, CaseIterable {
-        case all = "All"
         case best = "Best"
         case cheapest = "Cheapest"
         case fastest = "Fastest"
@@ -4169,7 +4168,7 @@ struct ModifiedDetailedFlightListView: View {
     @State private var skeletonOpacity: Double = 0
     @State private var skeletonOffset: CGFloat = 20
     @ObservedObject var viewModel: ExploreViewModel
-    @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
+    @State private var selectedFilter: FlightFilterTabView.FilterOption = .best
     @State private var filteredResults: [FlightDetailResult] = []
     @State private var showingFlightDetails = false
     
@@ -4382,7 +4381,7 @@ struct ModifiedDetailedFlightListView: View {
         print("🧹 Clearing all filters and resetting filter sheet state")
         
         // 1. Reset the quick filter selection to "All"
-        selectedFilter = .all
+        selectedFilter = .best
         
         // 2. Reset the filter sheet state to defaults (all options selected)
         viewModel.filterSheetState = ExploreViewModel.FilterSheetState()
