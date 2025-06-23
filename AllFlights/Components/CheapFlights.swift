@@ -176,7 +176,7 @@ struct OriginalStyleCheapFlightCard: View {
                     .lineLimit(1) // Prevent text overflow
                    
                 
-                Text(destination.is_direct ? "Direct" : "Connecting")
+                Text(destination.is_direct ? "Direct" : "1+stops")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
                     .fontWeight(.medium)

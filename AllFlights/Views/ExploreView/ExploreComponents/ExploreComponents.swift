@@ -1241,10 +1241,10 @@ struct FlightResultCard: View {
                     
                     Spacer()
                     
-                    Text(isOutDirect ? "Direct" : "Connecting")
+                    Text(isOutDirect ? "Direct" : "1+stops")
                         .font(.subheadline)
                         .fontWeight(.bold)
-                        .foregroundColor(Color("darkGreen"))
+                        .foregroundColor(isOutDirect ? Color("darkGreen") : .primary)
                 }
             }
             .padding(.horizontal)
@@ -1277,9 +1277,9 @@ struct FlightResultCard: View {
                         
                         Spacer()
                         
-                        Text(isInDirect ? "Direct" : "Connecting")
+                        Text(isInDirect ? "Direct" : "1+stops")
                             .font(.subheadline)
-                            .foregroundColor(Color("darkGreen"))
+                            .foregroundColor(isOutDirect ? Color("darkGreen") : .primary)
                             .fontWeight(.bold)
                     }
                 }
@@ -1441,7 +1441,7 @@ struct APIDestinationCard: View {
                             .font(.system(size: 18, weight: .semibold))
                             .padding(.bottom, 2)
                         
-                        Text(item.is_direct ? "Direct" : "Connecting")
+                        Text(item.is_direct ? "Direct" : "1+stops")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                     }
