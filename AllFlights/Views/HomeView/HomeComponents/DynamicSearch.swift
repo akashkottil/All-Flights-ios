@@ -52,6 +52,16 @@ struct EnhancedDynamicSearchInput: View {
         collapsedHeight + (expandedHeight - collapsedHeight) * heightProgress
     }
     
+    // ADDED: Dynamic corner radius calculation
+    private var dynamicCornerRadius: CGFloat {
+        // When expanded (heightProgress = 1.0): radius = 16
+        // When collapsed (heightProgress = 0.0): radius = 27
+        let expandedRadius: CGFloat = 16
+        let collapsedRadius: CGFloat = 27
+        return collapsedRadius + (expandedRadius - collapsedRadius) * heightProgress
+    }
+
+    
     // Content opacity based on height - ADJUSTED for better visibility
     private var contentOpacity: Double {
         heightProgress > 0.1 ? min(1.0, (heightProgress - 0.1) / 0.2) : 0
@@ -92,9 +102,9 @@ struct EnhancedDynamicSearchInput: View {
             .clipped() // Important: clips content that overflows
         }
         .background(Color.white)
-        .cornerRadius(16)
+        .cornerRadius(dynamicCornerRadius) // UPDATED: Use dynamic corner radius
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: dynamicCornerRadius) // UPDATED: Use dynamic corner radius
                 .stroke(Color.orange, lineWidth: 2)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
@@ -121,71 +131,71 @@ struct EnhancedDynamicSearchInput: View {
     
     // MARK: - Expanded Content - INCREASED padding and spacing for proper visibility
     @ViewBuilder
-    private var expandedSearchContent: some View {
-        VStack(spacing: 16) {
-            // Trip Type Tabs - ALWAYS show at the top
-            tripTypeTabs
-            
-            // Search Interface
-            if searchViewModel.selectedTab == 2 {
-                updatedMultiCityInterface
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            } else {
-                regularInterface
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+        private var expandedSearchContent: some View {
+            VStack(spacing: 16) {
+                // Trip Type Tabs - ALWAYS show at the top
+                tripTypeTabs
+                
+                // Search Interface
+                if searchViewModel.selectedTab == 2 {
+                    updatedMultiCityInterface
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else {
+                    regularInterface
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
+            .padding(20) // Consistent with original
+        }
+        
+        // MARK: - Collapsed Content
+        @ViewBuilder
+        private var collapsedSearchContent: some View {
+            Button(action: onSearchTap) {
+                HStack(spacing: 8) {
+                    // From
+                    Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+                    
+                    Text("-")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    // To
+                    Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+                    
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 4, height: 4)
+                    
+                    // Date display
+                    Text(formatDatesForCollapsed())
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    
+                    Spacer()
+                    
+                    Text("Search")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: 105)
+                        .frame(height: 44)
+                        .background(
+                            RoundedCornersss(tl: 8, tr: 26, bl: 8, br: 26)
+                                .fill(Color.orange)
+                        )
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
-        .padding(20) // Consistent with original
-    }
-    
-    // MARK: - Collapsed Content
-    @ViewBuilder
-    private var collapsedSearchContent: some View {
-        Button(action: onSearchTap) {
-            HStack(spacing: 8) {
-                // From
-                Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
-                
-                Text("-")
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                // To
-                Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
-                
-                Circle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 4, height: 4)
-                
-                // Date display
-                Text(formatDatesForCollapsed())
-                    .font(.system(size: 14))
-                    .foregroundColor(.primary)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                
-                Spacer()
-                
-                Text("Search")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 105)
-                    .frame(height: 44)
-                    .background(
-                        RoundedCornersss(tl: 8, tr: 26, bl: 8, br: 26)
-                            .fill(Color.orange)
-                    )
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-    }
     
     // MARK: - Trip Type Tabs - ENSURE ALWAYS VISIBLE
     private var tripTypeTabs: some View {
