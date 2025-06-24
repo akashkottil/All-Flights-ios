@@ -1046,12 +1046,9 @@ struct ExploreScreen: View {
     private func refreshCurrentScreenForCurrencyChange() {
         print("💱 Currency/Country changed - refreshing current screen data")
         
-        // CRITICAL FIX: Clear cached countries data when currency changes
+        // CRITICAL FIX: Always clear cached countries data when currency changes
         // This ensures fresh data is fetched with the new currency
-        if !viewModel.showingCities && !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
-            print("💱 Clearing cached countries data due to currency change")
-            viewModel.clearCountriesCache()
-        }
+        viewModel.clearCountriesCache()
         
         if viewModel.showingDetailedFlightList {
             // Don't refresh detailed flight list - would be disruptive
@@ -1065,14 +1062,17 @@ struct ExploreScreen: View {
                 refreshCurrentScreen()
             }
         } else if viewModel.showingCities {
-            // Refresh cities data
+            // UPDATED: Clear cache and refresh cities data
+            print("💱 Refreshing cities data due to currency change")
             if let countryName = viewModel.selectedCountryName,
                let country = viewModel.destinations.first(where: { $0.location.name == countryName }) {
                 viewModel.fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
             }
         } else {
-            // Refresh main explore (countries) - will now fetch fresh data since cache is cleared
-            viewModel.fetchCountries()
+            // UPDATED: For main countries list, always clear cache and fetch fresh data
+            print("💱 Clearing cache and fetching fresh countries data")
+            viewModel.clearCountriesCache() // Ensure cache is cleared
+            viewModel.fetchCountries() // This will now fetch fresh data
         }
     }
 }

@@ -7,6 +7,8 @@ import Alamofire
 class ExploreViewModel: ObservableObject {
     @Published var hasInitialResultsLoaded = false
     private static var cachedDestinations: [ExploreDestination]? = nil
+    private static var lastCachedCurrency: String? = nil
+    private static var lastCachedCountry: String? = nil
     @Published var destinations: [ExploreDestination] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
@@ -1728,50 +1730,58 @@ class ExploreViewModel: ObservableObject {
     
     // MARK: - Enhanced fetchCountries method (replace the existing fetchCountries)
     func fetchCountries() {
-            // First check if we already have cached data
-            if let cachedData = ExploreViewModel.cachedDestinations, !cachedData.isEmpty {
-                print("✅ Using cached country list data")
-                self.destinations = cachedData
-                self.isLoading = false
-                
-
-                
-                return
-            }
-            
-            // No cached data, proceed with normal fetch
-            isLoading = true
-            errorMessage = nil
-            
-            print("🔄 fetchCountries: Loading state set to true immediately")
-            
-            service.fetchDestinations()
-                .receive(on: DispatchQueue.main)
-                .sink(receiveCompletion: { [weak self] completion in
-                    self?.isLoading = false
-                    if case .failure(let error) = completion {
-                        self?.errorMessage = error.localizedDescription
-                        print("❌ fetchCountries failed: \(error.localizedDescription)")
-                    }
-                }, receiveValue: { [weak self] destinations in
-                    self?.destinations = destinations
-                    
-                    // Cache the data for future use
-                    ExploreViewModel.cachedDestinations = destinations
-                    
-                    self?.debugDuplicateFlightIDs()
-                    
-
-                    
-                    print("✅ fetchCountries completed: \(destinations.count) destinations loaded")
-                })
-                .store(in: &cancellables)
+        // UPDATED: Check if currency has changed since last cache
+        let currentCurrency = CurrencyManager.shared.currencyCode
+        let currentCountry = CurrencyManager.shared.countryCode
+        
+        // First check if we already have cached data AND currency hasn't changed
+        if let cachedData = ExploreViewModel.cachedDestinations,
+           !cachedData.isEmpty,
+           ExploreViewModel.lastCachedCurrency == currentCurrency,
+           ExploreViewModel.lastCachedCountry == currentCountry {
+            print("✅ Using cached country list data (currency: \(currentCurrency), country: \(currentCountry))")
+            self.destinations = cachedData
+            self.isLoading = false
+            return
         }
         
-        // Add this method to clear the cache if needed
-        func clearCountriesCache() {
-            ExploreViewModel.cachedDestinations = nil
-        }
+        // Cache is invalid or currency/country changed, fetch fresh data
+        print("🔄 Fetching fresh country data (currency: \(currentCurrency), country: \(currentCountry))")
+        
+        isLoading = true
+        errorMessage = nil
+        
+        print("🔄 fetchCountries: Loading state set to true immediately")
+        
+        service.fetchDestinations()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoading = false
+                if case .failure(let error) = completion {
+                    self?.errorMessage = error.localizedDescription
+                    print("❌ fetchCountries failed: \(error.localizedDescription)")
+                }
+            }, receiveValue: { [weak self] destinations in
+                self?.destinations = destinations
+                
+                // Cache the data with current currency/country info
+                ExploreViewModel.cachedDestinations = destinations
+                ExploreViewModel.lastCachedCurrency = currentCurrency
+                ExploreViewModel.lastCachedCountry = currentCountry
+                
+                print("✅ fetchCountries completed: \(destinations.count) destinations loaded with currency \(currentCurrency)")
+            })
+            .store(in: &cancellables)
+    }
+        
+        
+    // Update this method to also clear currency tracking
+    func clearCountriesCache() {
+        ExploreViewModel.cachedDestinations = nil
+        ExploreViewModel.lastCachedCurrency = nil
+        ExploreViewModel.lastCachedCountry = nil
+        print("💱 Cleared countries cache and currency tracking")
+    }
     
     
     func fetchCitiesFor(countryId: String, countryName: String) {
