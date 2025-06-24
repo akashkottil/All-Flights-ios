@@ -374,7 +374,7 @@ struct ExploreScreen: View {
                                 FilterButton(viewModel: viewModel) {
                                     showingDetailedFlightFilterSheet = true
                                 }
-                                
+                                .padding(.leading, 20)
                                 
                                 FlightFilterTabView(
                                     selectedFilter: selectedDetailedFlightFilter,
