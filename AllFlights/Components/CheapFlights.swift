@@ -12,10 +12,34 @@ class CheapFlightsViewModel: ObservableObject {
     @Published var fromLocationCode = "COK"
     @Published var currencyInfo: CurrencyDetail?
     
+    // ADD: Static cache with currency tracking
+    private static var cachedDestinations: [ExploreDestination]? = nil
+    private static var lastCachedCurrency: String? = nil
+    private static var lastCachedCountry: String? = nil
+    
     private var cancellables = Set<AnyCancellable>()
     private let service = ExploreAPIService.shared
     
+    // MARK: - Updated fetchCheapFlights with currency cache management
     func fetchCheapFlights() {
+        // Check if currency has changed since last cache
+        let currentCurrency = CurrencyManager.shared.currencyCode
+        let currentCountry = CurrencyManager.shared.countryCode
+        
+        // First check if we already have cached data AND currency hasn't changed
+        if let cachedData = CheapFlightsViewModel.cachedDestinations,
+           !cachedData.isEmpty,
+           CheapFlightsViewModel.lastCachedCurrency == currentCurrency,
+           CheapFlightsViewModel.lastCachedCountry == currentCountry {
+            print("✅ Using cached cheap flights data (currency: \(currentCurrency), country: \(currentCountry))")
+            self.destinations = cachedData
+            self.isLoading = false
+            return
+        }
+        
+        // Cache is invalid or currency/country changed, fetch fresh data
+        print("🔄 Fetching fresh cheap flights data (currency: \(currentCurrency), country: \(currentCountry))")
+        
         isLoading = true
         errorMessage = nil
         
@@ -29,12 +53,27 @@ class CheapFlightsViewModel: ObservableObject {
             }, receiveValue: { [weak self] destinations in
                 self?.destinations = destinations
                 
+                // Cache the data with current currency/country info
+                CheapFlightsViewModel.cachedDestinations = destinations
+                CheapFlightsViewModel.lastCachedCurrency = currentCurrency
+                CheapFlightsViewModel.lastCachedCountry = currentCountry
+                
                 // Update currency info if available
                 if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
                     self?.currencyInfo = currencyInfo
                 }
+                
+                print("✅ Cheap flights fetch completed: \(destinations.count) destinations loaded with currency \(currentCurrency)")
             })
             .store(in: &cancellables)
+    }
+    
+    // ADD: Method to clear cache when currency changes
+    func clearCache() {
+        CheapFlightsViewModel.cachedDestinations = nil
+        CheapFlightsViewModel.lastCachedCurrency = nil
+        CheapFlightsViewModel.lastCachedCountry = nil
+        print("💱 Cleared cheap flights cache and currency tracking")
     }
     
     // NEW: Navigate to explore screen to show cities for a country
@@ -45,28 +84,17 @@ class CheapFlightsViewModel: ObservableObject {
         )
     }
     
-    // Helper method to format price with currency
+    // UPDATED: Helper method to format price with currency (now uses CurrencyManager)
     func formatPrice(_ price: Int) -> String {
-        if let currencyInfo = currencyInfo {
-            let symbol = currencyInfo.symbol
-            let hasSpace = currencyInfo.spaceBetweenAmountAndSymbol
-            let spacer = hasSpace ? " " : ""
-            
-            if currencyInfo.symbolOnLeft {
-                return "\(symbol)\(spacer)\(price)"
-            } else {
-                return "\(price)\(spacer)\(symbol)"
-            }
-        } else {
-            // Fallback to default format
-            return "₹\(price)"
-        }
+        // Use CurrencyManager for consistent formatting across the app
+        return CurrencyManager.shared.formatPrice(price)
     }
 }
 
 // MARK: - Updated Dynamic Cheap Flights View (Simplified - No Cities List)
 struct DynamicCheapFlights: View {
     @ObservedObject var viewModel: CheapFlightsViewModel
+    @ObservedObject private var currencyManager = CurrencyManager.shared
     
     var body: some View {
         VStack {
@@ -112,6 +140,20 @@ struct DynamicCheapFlights: View {
                 .animation(.easeInOut(duration: 0.3), value: viewModel.destinations.count)
             }
         }
+        // ADD: Listen for currency changes and refresh data
+        .onReceive(NotificationCenter.default.publisher(for: .currencyChanged)) { _ in
+            refreshForCurrencyChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .countryChanged)) { _ in
+            refreshForCurrencyChange()
+        }
+    }
+    
+    // ADD: Method to handle currency changes
+    private func refreshForCurrencyChange() {
+        print("💱 Currency changed in CheapFlights - refreshing data")
+        viewModel.clearCache()
+        viewModel.fetchCheapFlights()
     }
 }
 
