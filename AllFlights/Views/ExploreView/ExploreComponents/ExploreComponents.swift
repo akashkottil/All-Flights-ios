@@ -6828,8 +6828,9 @@ struct ScrollViewFooter: View {
                     .preference(key: InViewKey.self, value: geometry.frame(in: .global).minY)
                     .onPreferenceChange(InViewKey.self) { value in
                         let screenHeight = UIScreen.main.bounds.height
-                        if value < screenHeight + 100 {
-                            print("📱 Footer in view - triggering load more")
+                        // VERY EARLY: Trigger when footer is 5 screen heights away
+                        if value < screenHeight * 5 {
+                            print("📱 Footer approaching - triggering very early load more")
                             loadMore()
                         }
                     }

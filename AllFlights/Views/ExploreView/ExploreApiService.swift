@@ -29,7 +29,7 @@ class ExploreAPIService {
     
     // Replace the existing pollFlightResultsPaginated method in ExploreAPIService
 
-    func pollFlightResultsPaginated(searchId: String, page: Int = 1, limit: Int = 20, filterRequest: FlightFilterRequest? = nil) -> AnyPublisher<FlightPollResponse, Error> {
+    func pollFlightResultsPaginated(searchId: String, page: Int = 1, limit: Int = 8, filterRequest: FlightFilterRequest? = nil) -> AnyPublisher<FlightPollResponse, Error> {
             let baseURL = "https://staging.plane.lascade.com/api/poll/"
             
             // Build query parameters

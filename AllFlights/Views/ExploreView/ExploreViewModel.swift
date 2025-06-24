@@ -407,7 +407,7 @@ class ExploreViewModel: ObservableObject {
                     self.service.pollFlightResultsPaginated(
                         searchId: searchResponse.searchId,
                         page: 1,
-                        limit: 30
+                        limit: 20
                     )
                     .receive(on: DispatchQueue.main)
                     .sink(
