@@ -365,6 +365,7 @@ struct AccountView: View {
     private let legalItems = [
         "Request a feature",
         "Contact us",
+        "Privacy Policy",
         "About us",
         "Rate our app"
     ]
@@ -405,7 +406,7 @@ struct AccountView: View {
                         
                         Text("Access your profile, manage settings, and view personalized features.")
                             .font(.system(size: 14))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.black.opacity(0.7))
                         Button(action: {}) {
                             Text("Login")
                                 .font(.system(size: 14))
@@ -419,7 +420,7 @@ struct AccountView: View {
                         
                         // App Settings section
                         SectionTitle(text: "App Settings")
-                            .padding(.top,16)
+                            .padding(.top,20)
                         
                         SettingCard(
                             title: "Region",
@@ -449,6 +450,7 @@ struct AccountView: View {
                         
                         // Legal and Info section
                         SectionTitle(text: "Legal and Info")
+                            .padding(.top,30)
                         
                         VStack(spacing: 10) {
                             ForEach(legalItems, id: \.self) { item in
@@ -456,6 +458,7 @@ struct AccountView: View {
                                 
                                 if item != legalItems.last {
                                     Divider()
+                                        .foregroundColor(Color("border").opacity(0.2))
                                 }
                             }
                         }
@@ -463,10 +466,10 @@ struct AccountView: View {
                         .padding(.horizontal, 20)
                         .background(Color.white)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.gray, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color("border").opacity(0.2), lineWidth: 1)
                         )
-                        .cornerRadius(10)
+                        .cornerRadius(16)
                     }
                     .padding(.top, 20)
                 }
@@ -550,7 +553,8 @@ struct SettingCard: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                VStack(alignment: .leading) {
+                VStack(alignment: .leading,spacing: 2) {
+                    Spacer()
                     Text(title)
                         .font(.system(size: 16))
                         .fontWeight(.semibold)
@@ -574,10 +578,10 @@ struct SettingCard: View {
             .padding(.horizontal, 20)
             .background(Color.white)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.gray, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color("border").opacity(0.2), lineWidth: 1)
             )
-            .cornerRadius(10)
+            .cornerRadius(16)
         }
         .buttonStyle(PlainButtonStyle())
     }
