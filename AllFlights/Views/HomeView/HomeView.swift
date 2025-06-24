@@ -186,7 +186,7 @@ struct HomeView: View {
                         GeometryReader { geometry in
                                     VStack(spacing: 0) {
                                         Color("homeGrad")
-                                            .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.23)) // Reduced when collapsed
+                                            .frame(height: geometry.size.height * (isCollapsed ? 0.12 : 0.20)) // Reduced when collapsed
                                             .edgesIgnoringSafeArea(.top)
                                             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
                                         

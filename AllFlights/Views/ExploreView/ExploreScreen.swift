@@ -433,7 +433,7 @@ struct ExploreScreen: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.27))
+                        .frame(height: geometry.size.height * (isCollapsed ? 0.12 : 0.24))
                         .edgesIgnoringSafeArea(.top)
                         .opacity(isInMainCountryView ? 1.0 : 0.0)
                         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
@@ -445,7 +445,7 @@ struct ExploreScreen: View {
                     VStack(spacing: 0) {
                         // Solid homeGrad overlay that slides down from top for other screens
                         Color("homeGrad")
-                            .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.25))
+                            .frame(height: geometry.size.height * (isCollapsed ? 0.12 : 0.22))
                             .edgesIgnoringSafeArea(.top)
                             .offset(y: isInMainCountryView ? -geometry.size.height : 0)
                             .animation(
