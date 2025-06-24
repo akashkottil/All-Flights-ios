@@ -5,6 +5,7 @@ import Alamofire
 
 
 class ExploreViewModel: ObservableObject {
+    @Published var hasInitialResultsLoaded = false
     private static var cachedDestinations: [ExploreDestination]? = nil
     @Published var destinations: [ExploreDestination] = []
     @Published var isLoading = false
@@ -58,7 +59,6 @@ class ExploreViewModel: ObservableObject {
     @Published var selectedCabinClass = "Economy"
     @Published var showingPassengersSheet = false
     
-    @Published var currencyInfo: CurrencyDetail?
     
     @Published var isAnytimeMode: Bool = false
     
@@ -80,6 +80,78 @@ class ExploreViewModel: ObservableObject {
     
     @Published var showNoResultsModal = false
     @Published var isInitialEmptyResult = false
+    
+    func formatPrice(_ price: Int) -> String {
+        return CurrencyManager.shared.formatPrice(price)
+    }
+
+    func formatPrice(_ price: Double) -> String {
+        return CurrencyManager.shared.formatPrice(price)
+    }
+    
+    // Helper method to get API minimum price (add this if it doesn't exist)
+        func getApiMinPrice() -> Double {
+            if let pollResponse = lastPollResponse {
+                return pollResponse.minPrice
+            } else {
+                return 0.0
+            }
+        }
+        
+        // Helper method to get API maximum price (add this if it doesn't exist)
+        func getApiMaxPrice() -> Double {
+            if let pollResponse = lastPollResponse {
+                return pollResponse.maxPrice
+            } else {
+                return 5000.0
+            }
+        }
+    
+    // 🔥 ADD: Save search to recent searches when search is executed in ExploreViewModel
+    private func saveSearchToRecentAndLastSearch() {
+        // Only save valid searches
+        guard !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty &&
+              fromLocation != "Departure?" && toLocation != "Destination?" &&
+              fromLocation != "Where from?" && toLocation != "Where to?" else {
+            print("⚠️ Skipping search save - invalid data")
+            return
+        }
+        
+        // Save to recent searches
+        RecentSearchManager.shared.addRecentSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: selectedOriginCode,
+            toIataCode: selectedDestinationCode,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            cabinClass: selectedCabinClass,
+            isRoundTrip: isRoundTrip,
+            selectedTab: isRoundTrip ? 0 : 1, // Determine tab based on trip type
+            departureDate: dates.first,
+            returnDate: dates.count > 1 ? dates[1] : nil
+        )
+        
+        // Save to last search
+        LastSearchManager.shared.saveLastSearch(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: selectedOriginCode,
+            toIataCode: selectedDestinationCode,
+            selectedDates: dates,
+            isRoundTrip: isRoundTrip,
+            selectedTab: isRoundTrip ? 0 : 1,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            multiCityTrips: multiCityTrips,
+            directFlightsOnly: directFlightsOnlyFromHome
+        )
+        
+        print("✅ Search saved from ExploreViewModel: \(selectedOriginCode) → \(selectedDestinationCode)")
+    }
     
     func handleTryDifferentSearch() {
         print("🔄 User requested different search from modal")
@@ -276,6 +348,8 @@ class ExploreViewModel: ObservableObject {
         selectedOriginCode = multiCityTrips.first?.fromIataCode ?? ""
         selectedDestinationCode = multiCityTrips.last?.toIataCode ?? ""
         
+        saveSearchToRecentAndLastSearch()
+        
         // Create request payload using the existing searchFlights method
         var legs: [[String: String]] = []
         
@@ -323,6 +397,8 @@ class ExploreViewModel: ObservableObject {
                 
                 switch response.result {
                 case .success(let searchResponse):
+                    // In searchMultiCityFlightsWithPagination success block
+                    self.hasInitialResultsLoaded = true
                     print("Multi-city search successful, got searchId: \(searchResponse.searchId)")
                     self.currentSearchId = searchResponse.searchId
                     
@@ -410,6 +486,8 @@ class ExploreViewModel: ObservableObject {
         isLoadingMoreFlights = false
         isFirstLoad = true
         
+        saveSearchToRecentAndLastSearch()
+        
         // IMPORTANT: Reset filters for new search
         _currentFilterRequest = nil
         resetFilterSheetState()
@@ -470,7 +548,16 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults = pollResponse.results
                 self.detailedFlightError = nil
                 
-                // 🚨 ADD THIS NEW CONDITION CHECK FOR MODAL:
+                // Store the last poll response for filter operations
+                self.lastPollResponse = pollResponse
+                
+                // 🚨 FIX: Set hasInitialResultsLoaded to true as soon as we receive ANY results
+                // This ensures the loading border stops showing immediately when results arrive
+                if !pollResponse.results.isEmpty {
+                    self.hasInitialResultsLoaded = true
+                    print("✅ Initial results loaded: \(pollResponse.results.count) flights received")
+                }
+                
                 // CRITICAL: Check for initial empty results with cache = true
                 if pollResponse.cache && pollResponse.count == 0 && self.isFirstLoad {
                     // This is an initial empty result - show modal
@@ -479,6 +566,8 @@ class ExploreViewModel: ObservableObject {
                     self.showNoResultsModal = true
                     self.hasMoreFlights = false
                     self.detailedFlightError = nil // Clear error message since modal will handle it
+                    // 🚨 FIX: Also set hasInitialResultsLoaded for empty results to stop loading border
+                    self.hasInitialResultsLoaded = true
                 }
                 // CRITICAL: Normal handling for other cache scenarios
                 else if pollResponse.cache {
@@ -492,16 +581,33 @@ class ExploreViewModel: ObservableObject {
                     } else {
                         self.hasMoreFlights = pollResponse.next != nil
                     }
+                    self.hasInitialResultsLoaded = true
                     print("✅ Initial search complete (cached): \(pollResponse.results.count)/\(pollResponse.count) flights, hasMore: \(self.hasMoreFlights)")
                 } else {
                     // Backend still processing - continue loading
                     self.hasMoreFlights = true
                     print("🔄 Initial search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
-                    self.scheduleRetryAfterDelay()
+                    
+                    // 🚨 FIX: Set hasInitialResultsLoaded even when backend is still processing
+                    // if we have received some results - this stops the loading border
+                    if !pollResponse.results.isEmpty {
+                        self.hasInitialResultsLoaded = true
+                        print("✅ Initial results received while backend processing: \(pollResponse.results.count) flights")
+                    }
+                    
+                    // FIXED: Only schedule retry if we haven't received substantial results yet
+                    if pollResponse.results.isEmpty || pollResponse.results.count < 3 {
+                        self.scheduleRetryAfterDelay()
+                    }
                 }
                 
                 // 🚨 ADD THIS: Mark that we've completed the first load
                 self.isFirstLoad = false
+                
+                // FIXED: Stop loading immediately if we have results or if backend is done processing
+                if !pollResponse.results.isEmpty || pollResponse.cache {
+                    self.isLoadingDetailedFlights = false
+                }
             }
         )
         .store(in: &cancellables)
@@ -1009,31 +1115,9 @@ class ExploreViewModel: ObservableObject {
             self.objectWillChange.send()
         }
     
-    // Helper method to format price with the correct currency symbol
-        func formatPrice(_ price: Int) -> String {
-            if let currencyInfo = currencyInfo {
-                let symbol = currencyInfo.symbol
-                let hasSpace = currencyInfo.spaceBetweenAmountAndSymbol
-                let spacer = hasSpace ? " " : ""
-                
-                if currencyInfo.symbolOnLeft {
-                    return "\(symbol)\(spacer)\(price)"
-                } else {
-                    return "\(price)\(spacer)\(symbol)"
-                }
-            } else {
-                // Fallback to default format
-                return "₹\(price)"
-            }
-        }
-    
-    // Add this method to update currency info when receiving API response
-        func updateCurrencyInfo(_ info: CurrencyDetail) {
-            self.currencyInfo = info
-        }
     
     struct FilterSheetState {
-        var sortOption: FlightFilterTabView.FilterOption = .all
+        var sortOption: FlightFilterTabView.FilterOption = .best
         var directFlightsSelected: Bool = true      // ✅ Keep as true
         var oneStopSelected: Bool = true            // ✅ CHANGE: Set to true by default
         var multiStopSelected: Bool = true          // ✅ CHANGE: Set to true by default
@@ -1084,7 +1168,7 @@ class ExploreViewModel: ObservableObject {
         var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
-        case .all:
+        case .best:
             // ✅ CRITICAL: For "All", respect current filter sheet state
             filterRequest = createCompleteFilterRequest() ?? FlightFilterRequest()
             currentFilterRequest = filterRequest
@@ -1430,75 +1514,72 @@ class ExploreViewModel: ObservableObject {
             print("Cleared return date for one-way trip")
         }
         
-        // FIXED: Enhanced logic to handle all search scenarios
-        if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+        // ✅ CRITICAL FIX: Check current state and only trigger appropriate refresh
+        // Don't automatically navigate to detailed view unless we're already there
+        
+        if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
+            // 🔥 We're already in detailed flight list - refresh with new trip type
+            print("🔄 Already in detailed view - refreshing with new trip type")
+            
             // Clear current results first
             detailedFlightResults = []
-            flightResults = []
             
-            // Scenario 1: We're on the detailed flight list (most common case)
-            if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
-                print("🔄 Re-searching detailed flights with new trip type")
-                
-                // For round trip, ensure we have a return date
-                let returnDate = isRoundTrip ? selectedReturnDatee : ""
-                
-                searchFlightsForDates(
-                    origin: selectedOriginCode,
-                    destination: selectedDestinationCode,
-                    returnDate: returnDate,
-                    departureDate: selectedDepartureDatee,
-                    isDirectSearch: isDirectSearch
-                )
+            // For round trip, ensure we have a return date
+            let returnDate = isRoundTrip ? selectedReturnDatee : ""
+            
+            searchFlightsForDates(
+                origin: selectedOriginCode,
+                destination: selectedDestinationCode,
+                returnDate: returnDate,
+                departureDate: selectedDepartureDatee,
+                isDirectSearch: isDirectSearch
+            )
+        } else if hasSearchedFlights && !showingDetailedFlightList {
+            // ✅ NEW CONDITION: We're in the flight results view (FlightResultCard screen)
+            // Just refresh the flight results without navigating to detailed view
+            print("🔄 In flight results view - refreshing flight results only")
+            
+            if let city = selectedCity {
+                // Use the simpler flight details fetch for explore flow
+                fetchFlightDetails(destination: city.location.iata)
+            } else if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+                // For direct searches that are showing results, use fetchFlightDetails
+                fetchFlightDetails(departure: fromIataCode, destination: toIataCode)
             }
-            // Scenario 2: We have dates selected and are ready to search
-            else if !dates.isEmpty {
-                print("🔄 Re-searching with dates array")
-                updateDatesAndRunSearch()
-            }
-            // Scenario 3: We have a selected city in the explore flow
-            else if let city = selectedCity {
-                print("🔄 Re-fetching flight details for selected city")
-                fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
-            }
-            // Scenario 4: We have search parameters but need to reconstruct dates
-            else if !selectedDepartureDatee.isEmpty {
-                print("🔄 Reconstructing search from stored parameters")
+        } else if !dates.isEmpty && !fromIataCode.isEmpty && !toIataCode.isEmpty {
+            // We have all the data needed but not in any specific view - trigger search
+            print("🔄 Have all data - triggering search")
+            updateDatesAndRunSearch()
+        } else if !selectedDepartureDatee.isEmpty && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty {
+            // We have search parameters but need to reconstruct dates
+            print("🔄 Reconstructing search from stored parameters")
+            
+            // Reconstruct dates array from stored strings
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            
+            var newDates: [Date] = []
+            if let departureDate = formatter.date(from: selectedDepartureDatee) {
+                newDates.append(departureDate)
                 
-                // Reconstruct dates array from stored strings
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                
-                var newDates: [Date] = []
-                if let departureDate = formatter.date(from: selectedDepartureDatee) {
-                    newDates.append(departureDate)
-                    
-                    if isRoundTrip && !selectedReturnDatee.isEmpty,
-                       let returnDate = formatter.date(from: selectedReturnDatee) {
-                        newDates.append(returnDate)
-                    }
-                }
-                
-                dates = newDates
-                
-                // Now trigger the search
-                if !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty {
-                    searchFlightsForDates(
-                        origin: selectedOriginCode,
-                        destination: selectedDestinationCode,
-                        returnDate: isRoundTrip ? selectedReturnDatee : "",
-                        departureDate: selectedDepartureDatee,
-                        isDirectSearch: isDirectSearch
-                    )
-                } else {
-                    updateDatesAndRunSearch()
+                if isRoundTrip && !selectedReturnDatee.isEmpty,
+                   let returnDate = formatter.date(from: selectedReturnDatee) {
+                    newDates.append(returnDate)
                 }
             }
-            else {
-                print("⚠️ No valid search context found for trip type change")
-            }
+            
+            dates = newDates
+            
+            // Now trigger the search
+            searchFlightsForDates(
+                origin: selectedOriginCode,
+                destination: selectedDestinationCode,
+                returnDate: isRoundTrip ? selectedReturnDatee : "",
+                departureDate: selectedDepartureDatee,
+                isDirectSearch: isDirectSearch
+            )
         } else {
-            print("⚠️ Missing origin/destination codes for trip type change")
+            print("⚠️ No valid search context found for trip type change")
         }
     }
 
@@ -1653,10 +1734,7 @@ class ExploreViewModel: ObservableObject {
                 self.destinations = cachedData
                 self.isLoading = false
                 
-                // Update currency info if available
-                if let currencyInfo = self.service.lastFetchedCurrencyInfo {
-                    self.updateCurrencyInfo(currencyInfo)
-                }
+
                 
                 return
             }
@@ -1683,9 +1761,7 @@ class ExploreViewModel: ObservableObject {
                     
                     self?.debugDuplicateFlightIDs()
                     
-                    if let currencyInfo = self?.service.lastFetchedCurrencyInfo {
-                        self?.updateCurrencyInfo(currencyInfo)
-                    }
+
                     
                     print("✅ fetchCountries completed: \(destinations.count) destinations loaded")
                 })
@@ -1755,7 +1831,8 @@ class ExploreViewModel: ObservableObject {
         isLoadingFlights = true
         errorMessage = nil
         hasSearchedFlights = true
-        flightResults = [] // Clear previous results when starting a new search
+        // DON'T clear previous results immediately - let them stay visible
+        // flightResults = [] // <- REMOVE THIS LINE
         
         // Use fromIataCode as default departure if not provided
         let finalDeparture = departure ?? fromIataCode
@@ -1793,10 +1870,12 @@ class ExploreViewModel: ObservableObject {
             self?.isLoadingFlights = false
             if case .failure(let error) = completion {
                 self?.errorMessage = error.localizedDescription
-                self?.flightResults = [] // Ensure results are cleared on error
+                // Only clear results on error, not on loading
+                self?.flightResults = []
                 print("Flight details fetch failed: \(error.localizedDescription)")
             }
         }, receiveValue: { [weak self] response in
+            // Only update results when new data arrives
             self?.flightSearchResponse = response
             self?.flightResults = response.results
             print("Fetched \(response.results.count) flight results")
@@ -1931,39 +2010,18 @@ class ExploreViewModel: ObservableObject {
             detailedFlightResults = []
             detailedFlightError = nil
             isLoadingDetailedFlights = false
-            // Keep hasSearchedFlights = true to stay on flight results page
             
-            // FIXED: Automatically reload data when returning to flight results
-            // Check if we need to reload flight results data
-            if flightResults.isEmpty {
-                print("🔄 Flight results empty, automatically reloading data for current month")
-                
-                // If we have a selected city, fetch flight details for current month
-                if let city = selectedCity {
-                    print("🔄 Fetching flight details for city: \(city.location.name)")
-                    fetchFlightDetails(departure: fromIataCode, destination: city.location.iata)
-                }
-                // If we have destination code but no city, still fetch flight details
-                else if !toIataCode.isEmpty {
-                    print("🔄 Fetching flight details for destination: \(toIataCode)")
-                    fetchFlightDetails(departure: fromIataCode, destination: toIataCode)
-                }
-                // If we have search context with dates, trigger search
-                else if !fromIataCode.isEmpty && !toIataCode.isEmpty && !dates.isEmpty {
-                    print("🔄 Re-triggering search with existing dates")
-                    updateDatesAndRunSearch()
-                }
-                // Fallback: use current month selection to reload data
-                else if !availableMonths.isEmpty && selectedMonthIndex < availableMonths.count {
-                    print("🔄 Reloading data using current month selection: \(selectedMonthIndex)")
-                    selectMonth(at: selectedMonthIndex)
-                }
-                else {
-                    print("⚠️ Unable to determine reload strategy, staying on empty results")
-                }
-            } else {
-                print("✅ Flight results already available (\(flightResults.count) flights)")
-            }
+            // CRITICAL: Don't clear any flight results or trigger any loading
+            // Just reset loading states to false
+            isLoadingFlights = false
+            errorMessage = nil
+            
+            // Keep hasSearchedFlights = true to stay on flight results page
+            // Keep flightResults intact - DON'T modify it
+            
+            print("✅ Returned to flight results screen")
+            print("📊 Flight results preserved: \(flightResults.count) flights")
+            print("📝 User can click month tab to refresh data if needed")
         }
     }
     

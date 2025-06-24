@@ -5,6 +5,7 @@ import SafariServices
 
 // MARK: - Expanded Search Card Component (UPDATED with drag gesture)
 struct ExpandedSearchCard: View {
+    @State private var showLoadingWithDelay = false
     @ObservedObject var viewModel: ExploreViewModel
     @Binding var selectedTab: Int
     @Binding var isRoundTrip: Bool
@@ -28,7 +29,7 @@ struct ExpandedSearchCard: View {
     }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             VStack(spacing: 0) {
                 // FIXED: Use ZStack for proper centering
                 ZStack {
@@ -60,40 +61,51 @@ struct ExpandedSearchCard: View {
             }
             .background(
                 ZStack {
-                    // Background fill
+                    // FIXED: Single unified background that transitions smoothly
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemBackground))
                         .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
                     
-                    // Animated or static stroke based on loading state
-                    if viewModel.isLoading ||
-                       viewModel.isLoadingFlights ||
-                       viewModel.isLoadingDetailedFlights ||
-                       (viewModel.showingDetailedFlightList && viewModel.detailedFlightResults.isEmpty && viewModel.detailedFlightError == nil) {
+                    // FIXED: Conditional border/loading overlay
+                    if shouldShowLoadingBorderForCurrentSearchType || showLoadingWithDelay {
                         LoadingBorderView()
                     } else {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.orange, lineWidth: 2)
                     }
                 }
-                // FIXED: Move shadow to only the background/border
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             )
             .padding()
             .gesture(dragGesture)
         }
-        .background(
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    Color("searchcardBackground")
-                        .frame(height: geo.size.height)
-                    Color("scroll")
+
+        .onChange(of: shouldShowLoadingBorderForCurrentSearchType) { oldValue, newValue in
+            if oldValue == true && newValue == false {
+                showLoadingWithDelay = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    showLoadingWithDelay = false
                 }
-                .edgesIgnoringSafeArea(.all)
             }
-        )
+        }
+    }
+    
+    private var shouldShowLoadingBorderForCurrentSearchType: Bool {
+        if viewModel.isDirectSearch {
+            return viewModel.isLoadingDetailedFlights
+        }
+        
+        return viewModel.isLoading ||
+               viewModel.isLoadingFlights ||
+               (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) ||
+               (viewModel.showingDetailedFlightList &&
+                viewModel.detailedFlightResults.isEmpty &&
+                viewModel.detailedFlightError == nil &&
+                !viewModel.isDataCached)
     }
 }
+
+
 
 // MARK: - Collapsed Search Card Component (with passenger count)
 
@@ -111,20 +123,17 @@ struct CollapsedSearchCard: View {
         return formatter.string(from: date)
     }
     
-    // UPDATED: Better display logic for collapsed state
     private func getLocationDisplayText() -> String {
-        // From location - always show IATA code when available
         let fromText: String = {
             if !viewModel.fromIataCode.isEmpty {
                 return viewModel.fromIataCode
             } else if !viewModel.fromLocation.isEmpty {
                 return viewModel.fromLocation
             } else {
-                return "COK" // Default fallback
+                return "COK"
             }
         }()
 
-        // To location
         let toText: String = {
             if !viewModel.toIataCode.isEmpty && viewModel.toIataCode != "Anywhere" {
                 return viewModel.toIataCode
@@ -138,9 +147,7 @@ struct CollapsedSearchCard: View {
         return "\(fromText) - \(toText)"
     }
     
-    
     private func getDateDisplayText() -> String {
-        // If we just cleared the form, show "Anytime"
         if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
             return "Anytime"
         }
@@ -157,7 +164,6 @@ struct CollapsedSearchCard: View {
         return "Anytime"
     }
     
-    // ADD: Passenger display text for collapsed state
     private func getPassengerDisplayText() -> String {
         let totalPassengers = viewModel.adultsCount + viewModel.childrenCount
         return "\(totalPassengers)"
@@ -177,17 +183,16 @@ struct CollapsedSearchCard: View {
                             }
                             .matchedGeometryEffect(id: "backButton", in: searchCardNamespace)
                         } else {
-                            // Invisible spacer with same dimensions as back button
                             Image(systemName: "chevron.left")
                                 .foregroundColor(.clear)
                                 .font(.system(size: 18, weight: .semibold))
                         }
                     }
-                    .frame(width: 30) // Fixed width to ensure consistent spacing
+                    .frame(width: 30)
                     
                     Spacer()
                     
-                    // Compact trip info - UPDATED with passenger count
+                    // Compact trip info
                     HStack(spacing: 8) {
                         Text(getLocationDisplayText())
                             .font(.system(size: 14, weight: .medium))
@@ -197,12 +202,10 @@ struct CollapsedSearchCard: View {
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 4, height: 4)
                         
-                        // Date display
                         Text(getDateDisplayText())
                             .foregroundColor(.primary)
                             .font(.system(size: 14, weight: .medium))
                         
-                        // ADD: Passenger count after date
                         Circle()
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 4, height: 4)
@@ -219,13 +222,12 @@ struct CollapsedSearchCard: View {
                     
                     Spacer()
                     
-                    // UPDATED: Always reserve space on the right side to balance the layout
                     HStack {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.clear)
                             .font(.system(size: 18, weight: .semibold))
                     }
-                    .frame(width: 30) // Same fixed width as left side
+                    .frame(width: 30)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -237,26 +239,17 @@ struct CollapsedSearchCard: View {
                     .matchedGeometryEffect(id: "cardBackground", in: searchCardNamespace)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 1)
+                            .stroke(Color.orange, lineWidth: 2)
                     )
             )
             .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
             .padding()
         }
         .buttonStyle(PlainButtonStyle())
-        // UPDATED: Add the same animated background as ExpandedSearchCard
-        .background(
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    Color("searchcardBackground")
-                        .frame(height: geo.size.height)
-                    Color("scroll")
-                }
-                .edgesIgnoringSafeArea(.all)
-            }
-        )
     }
 }
+
+
 
 // MARK: - Custom ScrollView with Offset Detection
 struct ScrollViewWithOffset<Content: View>: View {
@@ -292,12 +285,11 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 
 
-
-// MARK: - Search Card Component (Updated with Conditional Multi-City)
+// MARK: - Search Card Component (Updated with Separate From/To Sheets)
 struct SearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
-    @State private var showingSearchSheet = false
-    @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
+    @State private var showingFromLocationSheet = false  // Separate state for FROM sheet
+    @State private var showingToLocationSheet = false    // Separate state for TO sheet
     @State private var showingCalendar = false
     
     // ADD: State for swap animation
@@ -339,8 +331,7 @@ struct SearchCard: View {
                             HStack {
                                 // From button - takes available space on left
                                 Button(action: {
-                                    initialFocus = .origin
-                                    showingSearchSheet = true
+                                    showingFromLocationSheet = true  // Show FROM sheet
                                 }) {
                                     HStack {
                                         Image("carddeparture")
@@ -355,13 +346,9 @@ struct SearchCard: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .zIndex(1) // Above the line
                                 
-                              
-                                
-                                
                                 // To button - takes available space on right
                                 Button(action: {
-                                    initialFocus = .destination
-                                    showingSearchSheet = true
+                                    showingToLocationSheet = true  // Show TO sheet
                                 }) {
                                     HStack {
                                         Image("carddestination")
@@ -455,8 +442,13 @@ struct SearchCard: View {
                     }
                     .zIndex(1) // Ensure VStack content is above the background line
                 }
-                .sheet(isPresented: $showingSearchSheet) {
-                    LocationSearchSheet(viewModel: viewModel, initialFocus: initialFocus)
+                // UPDATED: Separate sheet presentations for FROM and TO
+                .sheet(isPresented: $showingFromLocationSheet) {
+                    ExploreFromLocationSearchSheet(viewModel: viewModel)
+                        .presentationDetents([.large])
+                }
+                .sheet(isPresented: $showingToLocationSheet) {
+                    ExploreToLocationSearchSheet(viewModel: viewModel)
                         .presentationDetents([.large])
                 }
                 .sheet(isPresented: $showingCalendar, onDismiss: {
@@ -498,7 +490,474 @@ struct SearchCard: View {
                 }
             }
         }
-    // MARK: - Helper Methods
+    
+    // MARK: - NEW: Separate FROM Location Search Sheet for Explore
+    struct ExploreFromLocationSearchSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @ObservedObject var viewModel: ExploreViewModel
+        @State private var searchText = ""
+        @State private var results: [AutocompleteResult] = []
+        @State private var isSearching = false
+        @State private var searchError: String? = nil
+        @FocusState private var isTextFieldFocused: Bool
+        @State private var cancellables = Set<AnyCancellable>()
+        @State private var showRecentSearches = true
+        
+        // Add recent search manager
+        @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
+        
+        private let searchDebouncer = SearchDebouncer(delay: 0.3)
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("From Where?")  // FROM specific title
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Empty space to balance the X button
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.clear)
+                }
+                .padding()
+                
+                // Search bar
+                HStack {
+                    ZStack(alignment: .trailing) {
+                        TextField("Origin City, Airport or place", text: $searchText)
+                            .padding(12)
+                            .padding(.trailing, !searchText.isEmpty ? 40 : 12)
+                            .background(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange, lineWidth: 2)
+                            )
+                            .cornerRadius(8)
+                            .focused($isTextFieldFocused)
+                            .onChange(of: searchText) {
+                                handleTextChange()
+                            }
+                        
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                results = []
+                                showRecentSearches = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 18))
+                            }
+                            .padding(.trailing, 12)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Current location button
+                EnhancedCurrentLocationButton { locationResult in
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        let displayName = locationResult.cityName ?? locationResult.locationName
+                        viewModel.fromLocation = displayName
+                        viewModel.fromIataCode = locationResult.airportCode
+                        searchText = displayName
+                    }
+                    
+                    let autocompleteResult = AutocompleteResult(
+                        iataCode: locationResult.airportCode,
+                        airportName: "Current Location",
+                        type: "airport",
+                        displayName: locationResult.cityName ?? locationResult.locationName,
+                        cityName: locationResult.cityName ?? locationResult.locationName.components(separatedBy: ",").first ?? "",
+                        countryName: locationResult.locationName.components(separatedBy: ",").last ?? "",
+                        countryCode: "IN",
+                        imageUrl: "",
+                        coordinates: AutocompleteCoordinates(
+                            latitude: String(locationResult.coordinates.latitude),
+                            longitude: String(locationResult.coordinates.longitude)
+                        )
+                    )
+                    
+                    recentSearchManager.addRecentSearch(autocompleteResult, searchType: .departure)
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        dismiss()
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                
+               Spacer()
+                
+                // Results section
+                if isSearching {
+                    VStack {
+                        ProgressView()
+                        Text("Searching...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    Spacer()
+                } else if let error = searchError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding()
+                    Spacer()
+                } else if !results.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(results) { result in
+                                LocationResultRow(result: result)
+                                    .onTapGesture {
+                                        selectLocation(result: result)
+                                    }
+                            }
+                        }
+                    }
+                } else if showRecentSearches && searchText.isEmpty {
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: .departure
+                    )
+                    Spacer()
+                } else if shouldShowNoResults() {
+                    Image("noresultIcon")
+                    Text("No result found. Search something else.")
+                        .foregroundColor(.gray)
+                        .padding()
+                    Spacer()
+                } else {
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: .departure
+                    )
+                    Spacer()
+                }
+            }
+            .background(Color.white)
+            .onAppear {
+                isTextFieldFocused = true
+            }
+        }
+        
+        private func handleTextChange() {
+            showRecentSearches = searchText.isEmpty
+            
+            if !searchText.isEmpty {
+                searchDebouncer.debounce {
+                    searchLocations(query: searchText)
+                }
+            } else {
+                results = []
+            }
+        }
+        
+        private func shouldShowNoResults() -> Bool {
+            return results.isEmpty && !searchText.isEmpty && !showRecentSearches
+        }
+        
+        private func selectLocation(result: AutocompleteResult) {
+            recentSearchManager.addRecentSearch(result, searchType: .departure)
+            
+            if !viewModel.toIataCode.isEmpty && result.iataCode == viewModel.toIataCode {
+                searchError = "Origin and destination cannot be the same"
+                return
+            }
+            
+            viewModel.fromLocation = result.cityName
+            viewModel.fromIataCode = result.iataCode
+            searchText = result.cityName
+            dismiss()
+        }
+        
+        private func searchLocations(query: String) {
+            guard !query.isEmpty else {
+                results = []
+                return
+            }
+            
+            isSearching = true
+            searchError = nil
+            
+            ExploreAPIService.shared.fetchAutocomplete(query: query)
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { completion in
+                    isSearching = false
+                    if case .failure(let error) = completion {
+                        searchError = error.localizedDescription
+                    }
+                }, receiveValue: { results in
+                    self.results = results
+                })
+                .store(in: &cancellables)
+        }
+    }
+
+    // MARK: - NEW: Separate TO Location Search Sheet for Explore
+    struct ExploreToLocationSearchSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @ObservedObject var viewModel: ExploreViewModel
+        @State private var searchText = ""
+        @State private var results: [AutocompleteResult] = []
+        @State private var isSearching = false
+        @State private var searchError: String? = nil
+        @FocusState private var isTextFieldFocused: Bool
+        @State private var cancellables = Set<AnyCancellable>()
+        @State private var showRecentSearches = true
+        
+        // Add recent search manager
+        @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
+        
+        private let searchDebouncer = SearchDebouncer(delay: 0.3)
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Where to?")  // TO specific title
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Empty space to balance the X button
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.clear)
+                }
+                .padding()
+                
+                // Search bar
+                HStack {
+                    ZStack(alignment: .trailing) {
+                        TextField("Destination City, Airport or place", text: $searchText)
+                            .padding(12)
+                            .padding(.trailing, !searchText.isEmpty ? 40 : 12)
+                            .background(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange, lineWidth: 2)
+                            )
+                            .cornerRadius(8)
+                            .focused($isTextFieldFocused)
+                            .onChange(of: searchText) {
+                                handleTextChange()
+                            }
+                        
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                results = []
+                                showRecentSearches = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 18))
+                            }
+                            .padding(.trailing, 12)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                // Results section with Anywhere option
+                if isSearching {
+                    VStack {
+                        ProgressView()
+                        Text("Searching...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    Spacer()
+                } else if !results.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            // Anywhere option at top of search results
+                            AnywhereOptionRow()
+                                .onTapGesture {
+                                    selectAnywhereLocation()
+                                }
+                            
+                           Spacer()
+                            
+                            ForEach(results) { result in
+                                LocationResultRow(result: result)
+                                    .onTapGesture {
+                                        selectLocation(result: result)
+                                    }
+                            }
+                        }
+                    }
+                } else if showRecentSearches && searchText.isEmpty {
+                    VStack(spacing: 0) {
+                        // Anywhere option at top of recent searches
+                        AnywhereOptionRow()
+                            .onTapGesture {
+                                selectAnywhereLocation()
+                            }
+                        
+                        Spacer()
+                        
+                        RecentLocationSearchView(
+                            onLocationSelected: { result in
+                                selectLocation(result: result)
+                            },
+                            showAnywhereOption: false,
+                            searchType: .destination
+                        )
+                    }
+                    Spacer()
+                } else if shouldShowNoResults() {
+                    Text("No results found")
+                        .foregroundColor(.gray)
+                        .padding()
+                    Spacer()
+                } else {
+                    VStack(spacing: 0) {
+                        AnywhereOptionRow()
+                            .onTapGesture {
+                                selectAnywhereLocation()
+                            }
+                        
+                        Spacer()
+                        
+                        RecentLocationSearchView(
+                            onLocationSelected: { result in
+                                selectLocation(result: result)
+                            },
+                            showAnywhereOption: false,
+                            searchType: .destination
+                        )
+                    }
+                    Spacer()
+                }
+            }
+            .background(Color.white)
+            .onAppear {
+                isTextFieldFocused = true
+            }
+        }
+        
+        private func handleTextChange() {
+            showRecentSearches = searchText.isEmpty
+            
+            if !searchText.isEmpty {
+                searchDebouncer.debounce {
+                    searchLocations(query: searchText)
+                }
+            } else {
+                results = []
+            }
+        }
+        
+        private func selectAnywhereLocation() {
+            // Reset to initial explore state (country list screen)
+            viewModel.goBackToCountries()
+            viewModel.toLocation = "Anywhere"
+            viewModel.toIataCode = ""
+            viewModel.hasSearchedFlights = false
+            viewModel.showingDetailedFlightList = false
+            viewModel.flightResults = []
+            viewModel.detailedFlightResults = []
+            dismiss()
+        }
+        
+        private func shouldShowNoResults() -> Bool {
+            return results.isEmpty && !searchText.isEmpty && !showRecentSearches
+        }
+        
+        private func selectLocation(result: AutocompleteResult) {
+            recentSearchManager.addRecentSearch(result, searchType: .destination)
+            
+            if !viewModel.fromIataCode.isEmpty && result.iataCode == viewModel.fromIataCode {
+                searchError = "Origin and destination cannot be the same"
+                return
+            }
+            
+            viewModel.toLocation = result.cityName
+            viewModel.toIataCode = result.iataCode
+            searchText = result.cityName
+            dismiss()
+        }
+        
+        private func searchLocations(query: String) {
+            guard !query.isEmpty else {
+                results = []
+                return
+            }
+            
+            isSearching = true
+            searchError = nil
+            
+            ExploreAPIService.shared.fetchAutocomplete(query: query)
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { completion in
+                    isSearching = false
+                    if case .failure(let error) = completion {
+                        searchError = error.localizedDescription
+                    }
+                }, receiveValue: { results in
+                    self.results = results
+                })
+                .store(in: &cancellables)
+        }
+    }
+
+    // MARK: - Helper Debouncer Class (if not already defined)
+    class SearchDebouncer {
+        private let delay: TimeInterval
+        private var workItem: DispatchWorkItem?
+        
+        init(delay: TimeInterval) {
+            self.delay = delay
+        }
+        
+        func debounce(action: @escaping () -> Void) {
+            workItem?.cancel()
+            
+            let workItem = DispatchWorkItem(block: action)
+            self.workItem = workItem
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        }
+    }
+    
+    // MARK: - All the existing helper methods remain exactly the same
     
     private func animatedSwapLocations() {
         // Only allow swap if both locations are set and not "Anywhere"
@@ -661,7 +1120,6 @@ struct SearchCard: View {
     }
     
     private func getDateTextColor() -> Color {
- 
         return .primary
     }
     
@@ -783,10 +1241,10 @@ struct FlightResultCard: View {
                     
                     Spacer()
                     
-                    Text(isOutDirect ? "Direct" : "Connecting")
+                    Text(isOutDirect ? "Direct" : "1+stops")
                         .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color("darkGreen"))
+                        .fontWeight(.medium)
+                        .foregroundColor(isOutDirect ? Color("darkGreen") : .primary)
                 }
             }
             .padding(.horizontal)
@@ -819,10 +1277,10 @@ struct FlightResultCard: View {
                         
                         Spacer()
                         
-                        Text(isInDirect ? "Direct" : "Connecting")
+                        Text(isInDirect ? "Direct" : "1+stops")
                             .font(.subheadline)
-                            .foregroundColor(Color("darkGreen"))
-                            .fontWeight(.bold)
+                            .foregroundColor(isOutDirect ? Color("darkGreen") : .primary)
+                            .fontWeight(.medium)
                     }
                 }
                 .padding(.horizontal)
@@ -870,7 +1328,7 @@ struct FlightResultCard: View {
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-        .padding(.horizontal)
+        .padding(.horizontal,5)
     }
     
     private func searchFlights() {
@@ -923,7 +1381,7 @@ struct FlightResultCard: View {
 
 // MARK: - API Destination Card
 struct APIDestinationCard: View {
-    @State private var cardScale: CGFloat = 1.0  // Start at normal scale
+    @State private var cardScale: CGFloat = 1.0
     @State private var isPressed = false
     let item: ExploreDestination
     let viewModel: ExploreViewModel
@@ -946,7 +1404,7 @@ struct APIDestinationCard: View {
                 onTap()
             }
         }) {
-            HStack(spacing: 0) { // Remove spacing to eliminate gap between image and content
+            HStack(spacing: 0) {
                 // OPTIMIZED AsyncImage with full height and left alignment
                 CachedAsyncImage(
                     url: URL(string: "https://image.explore.lascadian.com/\(viewModel.showingCities ? "city" : "country")_\(item.location.entityId).webp")
@@ -956,13 +1414,13 @@ struct APIDestinationCard: View {
                         .scaledToFill()
                         .frame(width: 88, height: 88)
                         .clipped()
-                        .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners to match container
+                        .cornerRadius(12, corners: [.topLeft, .bottomLeft])
                 } placeholder: {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 88, height: 88)
-                            .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners
+                            .cornerRadius(12, corners: [.topLeft, .bottomLeft])
                         
                         VStack(spacing: 3) {
                             Image(systemName: viewModel.showingCities ? "building.2" : "globe")
@@ -979,13 +1437,11 @@ struct APIDestinationCard: View {
                 // Content text with padding only on the right side
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        
-                        
                         Text(item.location.name)
                             .font(.system(size: 18, weight: .semibold))
-                            .padding(.bottom,2)
+                            .padding(.bottom, 2)
                         
-                        Text(item.is_direct ? "Direct" : "Connecting")
+                        Text(item.is_direct ? "Direct" : "1+stops")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                     }
@@ -996,14 +1452,14 @@ struct APIDestinationCard: View {
                         Text("Starting from")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
-                            .padding(.bottom,2)
-                        Text(viewModel.formatPrice(item.price))
+                            .padding(.bottom, 2)
+                        Text(CurrencyManager.shared.formatPrice(item.price))
                             .font(.system(size: 20, weight: .bold))
                     }
                 }
-                .padding(.leading, 12) // Add padding only on the left of text content
-                .padding(.trailing, 12) // Add padding only on the right
-                .padding(.vertical, 12) // Keep vertical padding
+                .padding(.leading, 12)
+                .padding(.trailing, 12)
+                .padding(.vertical, 12)
             }
             .background(
                 RoundedRectangle(cornerRadius: 12)
@@ -1012,9 +1468,8 @@ struct APIDestinationCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(cardScale)
-        // REMOVED: All slide-in animations (opacity, offset, cardAppeared state)
         .shadow(color: Color.black.opacity(isPressed ? 0.15 : 0.05), radius: isPressed ? 8 : 4, x: 0, y: isPressed ? 4 : 2)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed) // Only animate press state
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                 isPressed = pressing
@@ -1701,13 +2156,6 @@ struct SkeletonDestinationCard: View {
 }
 
 
-// MARK: - Enhanced Skeleton Flight Result Card
-struct SkeletonFlightResultCard: View {
-    var body: some View {
-        EnhancedSkeletonFlightResultCard()
-    }
-}
-
 // Add this new component:
 
 struct MonthSelectorView: View {
@@ -1717,7 +2165,7 @@ struct MonthSelectorView: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 ForEach(0..<months.count, id: \.self) { index in
                     MonthButton(
                         month: months[index],
@@ -2351,8 +2799,10 @@ struct DetailedFlightCardWrapper: View {
             let outboundLastSegment = outboundLeg.segments.last!
             
             Button(action: onTap) {
+                let isMultiCitySearch = viewModel.multiCityTrips.count >= 2
+                let hasMultipleLegs = result.legs.count >= 2
                 // Check if this is a multi-city trip (more than 2 legs)
-                if result.legs.count > 2 {
+                if isMultiCitySearch && hasMultipleLegs {
                     // Multi-city trip - show all legs in one card
                     MultiCityModernFlightCard(
                         result: result,
@@ -2409,8 +2859,8 @@ struct DetailedFlightCardWrapper: View {
                             ReturnAirlineCode: returnFirstSegment!.airlineIata,
                             ReturnAirlineLogo: returnFirstSegment!.airlineLogo,
                             
-                            price: "₹\(Int(result.minPrice))",
-                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
+                            price: CurrencyManager.shared.formatPrice(Int(result.minPrice)),
+                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People \(CurrencyManager.shared.formatPrice(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount))))",
                             
                             isRoundTrip: true
                         )
@@ -2549,7 +2999,7 @@ struct MultiCityModernFlightCard: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("₹\(Int(result.minPrice))")
+                    Text(CurrencyManager.shared.formatPrice(Int(result.minPrice)))
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.primary)
                     
@@ -3044,7 +3494,7 @@ struct FlightDetailCard: View {
                         Text(isDirectFlight ? "Direct" : "\((connectionSegments?.count ?? 1) - 1) Stop")
 
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(isDirectFlight ? .green : .primary)
+                            .foregroundColor(isDirectFlight ? Color("darkGreen") : Color("darkGray"))
                     }
                     
                     Text("|").opacity(0.5)
@@ -3052,17 +3502,17 @@ struct FlightDetailCard: View {
                     HStack(spacing: 4) {
                         Text(flightDuration)
                             .font(.system(size: 14))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                     Text("|").opacity(0.5)
                     
                     HStack(spacing: 4) {
                         Image(systemName: "carseat.right.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                         Text(flightClass)
                             .font(.system(size: 14))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -3178,7 +3628,7 @@ struct DirectFlightView: View {
                                 .font(.system(size: 14, weight: .medium))
                             Text("Terminal \(departureTerminal)")
                                 .font(.system(size: 13))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.secondary)
                         }
                         
                         Spacer()
@@ -3268,7 +3718,7 @@ struct DirectFlightView: View {
                                 .font(.system(size: 14, weight: .medium))
                             Text("Terminal \(arrivalTerminal)")
                                 .font(.system(size: 13))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.secondary)
                         }
                         
                         Spacer()
@@ -3534,12 +3984,80 @@ struct DottedLine: Shape {
 }
 
 struct FilterButton: View {
+    @ObservedObject var viewModel: ExploreViewModel
     var action: () -> Void
+    
+    // Computed property to count applied filters
+    private var appliedFiltersCount: Int {
+        var count = 0
+        
+        // Only count filters if we have actual filter data available
+        guard viewModel.lastPollResponse != nil else {
+            return 0
+        }
+        
+        let state = viewModel.filterSheetState
+        
+        // Don't count any filters if this is the first time opening (not initialized properly)
+        guard !state.isFirstTimeOpening else {
+            return 0
+        }
+        
+        // Check stop filters (default: all true)
+        let allStopsSelected = state.directFlightsSelected && state.oneStopSelected && state.multiStopSelected
+        if !allStopsSelected {
+            count += 1
+        }
+        
+        // Check price range (only if we have valid API data and it's actually modified)
+        let apiMinPrice = viewModel.getApiMinPrice()
+        let apiMaxPrice = viewModel.getApiMaxPrice()
+        if apiMinPrice > 0 && apiMaxPrice > apiMinPrice {
+            // Only count as filtered if user has significantly narrowed the range
+            let priceRangeModified = (state.priceRange[0] > apiMinPrice + 50) || (state.priceRange[1] < apiMaxPrice - 50)
+            if priceRangeModified {
+                count += 1
+            }
+        }
+        
+        // Check departure times (default: 0-24)
+        if abs(state.departureTimes[0] - 0.0) > 0.1 || abs(state.departureTimes[1] - 24.0) > 0.1 {
+            count += 1
+        }
+        
+        // Check arrival times (default: 0-24)
+        if abs(state.arrivalTimes[0] - 0.0) > 0.1 || abs(state.arrivalTimes[1] - 24.0) > 0.1 {
+            count += 1
+        }
+        
+        // Check duration range (default: 1.75-8.5)
+        if abs(state.durationRange[0] - 1.75) > 0.1 || abs(state.durationRange[1] - 8.5) > 0.1 {
+            count += 1
+        }
+        
+        // Check airlines (only count if airlines are available and actually filtered)
+        if let pollResponse = viewModel.lastPollResponse, !pollResponse.airlines.isEmpty {
+            let allAirlines = Set(pollResponse.airlines.map { $0.airlineIata })
+            let hasAirlineFilter = !state.selectedAirlines.isEmpty &&
+                                 state.selectedAirlines.count < allAirlines.count &&
+                                 state.selectedAirlines != allAirlines
+            if hasAirlineFilter {
+                count += 1
+            }
+        }
+        
+        // Check sort option (default: .all)
+        if state.sortOption != .best {
+            count += 1
+        }
+        
+        return count
+    }
     
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease")
+                Image("filter")
                     .font(.system(size: 14))
                 Text("Filter")
                     .font(.system(size: 14, weight: .medium))
@@ -3551,8 +4069,23 @@ struct FilterButton: View {
                     .fill(Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                // Filter count badge
+                Group {
+                    if appliedFiltersCount > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 20, height: 20)
+                            
+                            Text("\(appliedFiltersCount)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .offset(x: -40) // Position above the left border
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appliedFiltersCount)
             )
         }
         .foregroundColor(.primary)
@@ -3565,7 +4098,6 @@ struct FlightFilterTabView: View {
     let onSelectFilter: (FilterOption) -> Void
     
     enum FilterOption: String, CaseIterable {
-        case all = "All"
         case best = "Best"
         case cheapest = "Cheapest"
         case fastest = "Fastest"
@@ -3574,7 +4106,7 @@ struct FlightFilterTabView: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 ForEach(Array(FilterOption.allCases.enumerated()), id: \.element) { index, filter in
                     Button(action: {
                         // Haptic feedback
@@ -3602,14 +4134,14 @@ struct FlightFilterTabView: View {
                             .background(Color.white)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(selectedFilter == filter ? Color.blue : Color.black.opacity(0.3), lineWidth: selectedFilter == filter ? 1 : 0.5)
+                                    .stroke(selectedFilter == filter ? Color.blue : Color.clear, lineWidth: selectedFilter == filter ? 1 : 0)
                             )
                             .scaleEffect(tabPressStates[index] ? 0.95 : 1.0)
                             .cornerRadius(8)
                     }
                 }
             }
-            .padding(.horizontal)
+            .padding(.trailing)
         }
     }
 }
@@ -3636,7 +4168,7 @@ struct ModifiedDetailedFlightListView: View {
     @State private var skeletonOpacity: Double = 0
     @State private var skeletonOffset: CGFloat = 20
     @ObservedObject var viewModel: ExploreViewModel
-    @State private var selectedFilter: FlightFilterTabView.FilterOption = .all
+    @State private var selectedFilter: FlightFilterTabView.FilterOption = .best
     @State private var filteredResults: [FlightDetailResult] = []
     @State private var showingFlightDetails = false
     
@@ -3678,9 +4210,8 @@ struct ModifiedDetailedFlightListView: View {
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { index in
-                        DetailedFlightCardSkeleton()
-                            .padding(.bottom, 3)
-                            .padding(.horizontal, 2)
+                        EnhancedDetailedFlightCardSkeleton(isRoundTrip: viewModel.isRoundTrip)
+                           
                             .opacity(skeletonOpacity)
                             .offset(y: skeletonOffset)
                             .animation(
@@ -3693,6 +4224,7 @@ struct ModifiedDetailedFlightListView: View {
                     .padding(.top, 14)
                     Spacer()
                 }
+                .padding(.horizontal, 5)
                 .onAppear {
                     withAnimation {
                         skeletonOpacity = 1.0
@@ -3735,6 +4267,7 @@ struct ModifiedDetailedFlightListView: View {
                         showingFlightDetails = true
                     }
                 )
+                .padding(.horizontal, 5)
                 .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                 .onAppear {
                     cancelRetryTimer()
@@ -3745,14 +4278,13 @@ struct ModifiedDetailedFlightListView: View {
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { _ in
-                        DetailedFlightCardSkeleton()
-                            .padding(.bottom, 3)
-                            .padding(.horizontal,2)
+                        EnhancedDetailedFlightCardSkeleton(isRoundTrip: viewModel.isRoundTrip)
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
                     .padding(.top, 14)
                     Spacer()
                 }
+                .padding(.horizontal, 5)
             }
         }
         .fullScreenCover(isPresented: $showingFlightDetails) {
@@ -3849,7 +4381,7 @@ struct ModifiedDetailedFlightListView: View {
         print("🧹 Clearing all filters and resetting filter sheet state")
         
         // 1. Reset the quick filter selection to "All"
-        selectedFilter = .all
+        selectedFilter = .best
         
         // 2. Reset the filter sheet state to defaults (all options selected)
         viewModel.filterSheetState = ExploreViewModel.FilterSheetState()
@@ -4179,12 +4711,7 @@ struct PriceSection: View {
 }
 
 
-// MARK: - Enhanced Detailed Flight Card Skeleton
-struct DetailedFlightCardSkeleton: View {
-    var body: some View {
-        EnhancedDetailedFlightCardSkeleton()
-    }
-}
+
 
 
 
@@ -5309,7 +5836,6 @@ struct PaginatedFlightList: View {
                 // Bottom spacer
                 Spacer(minLength: 50)
             }
-            .padding(.vertical)
         }
         .background(Color("scroll"))
     }
@@ -5378,7 +5904,7 @@ struct GoodToKnowSection: View {
                         Spacer()
                         
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                             .font(.system(size: 14))
                     }
                     .padding(.horizontal)
@@ -5619,7 +6145,8 @@ struct DealsSection: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
                             .padding(16)
-                            .background(Color.orange)
+                            .padding(.horizontal,10)
+                            .background(Color("buttonColor"))
                             .cornerRadius(12)
                     }
                     .buttonStyle(BorderlessButtonStyle()) // This helps with button responsiveness
@@ -5925,7 +6452,7 @@ struct ProviderRow: View {
             
             // Price and button
             VStack(alignment: .trailing, spacing: 8) {
-                Text("₹\(String(format: "%.2f", provider.price))")
+                Text(CurrencyManager.shared.formatPrice(provider.price))
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.primary)
                 
@@ -6070,7 +6597,7 @@ struct FlightDetailsView: View {
 
             let appearance = UINavigationBarAppearance()
             appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor(named: "homeGrad") // Use your asset color here
+        appearance.backgroundColor = UIColor(named: "homeGrad") // Use your asset color here
             appearance.titleTextAttributes = [.foregroundColor: UIColor.white] // Title text color
             appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
 

@@ -1,8 +1,6 @@
 import Foundation
 import Combine
 
-
-
 // MARK: - Updated SharedFlightSearchViewModel for HomeView with Last Search Persistence (Modified)
 class SharedFlightSearchViewModel: ObservableObject {
     @Published var fromLocation = "Departure?"
@@ -222,6 +220,8 @@ class SharedFlightSearchViewModel: ObservableObject {
             multiCityTrips: multiCityTrips,
             directFlightsOnly: directFlightsOnly
         )
+        
+        print("✅ Search executed and saved to recent searches")
     }
     
     // ENHANCED: Save current search to recent searches with complete information
@@ -283,5 +283,58 @@ class SharedFlightSearchViewModel: ObservableObject {
     func hasLastSearchData() -> Bool {
         return !fromIataCode.isEmpty && !toIataCode.isEmpty &&
                fromLocation != "Departure?" && toLocation != "Destination?"
+    }
+    
+    // 🔥 NEW: Helper properties for UI display
+    var routeDisplay: String {
+        if selectedTab == 2 {
+            // Multi-city route display
+            if multiCityTrips.isEmpty { return "Multi-city" }
+            
+            var codes = multiCityTrips.compactMap { trip in
+                trip.fromIataCode.isEmpty ? nil : trip.fromIataCode
+            }
+            
+            if let lastTrip = multiCityTrips.last, !lastTrip.toIataCode.isEmpty {
+                codes.append(lastTrip.toIataCode)
+            }
+            
+            return codes.joined(separator: " → ")
+        } else {
+            // Regular route display
+            if fromIataCode.isEmpty && toIataCode.isEmpty {
+                return "Select route"
+            } else if fromIataCode.isEmpty {
+                return "FROM → \(toIataCode)"
+            } else if toIataCode.isEmpty {
+                return "\(fromIataCode) → TO"
+            } else {
+                return "\(fromIataCode) → \(toIataCode)"
+            }
+        }
+    }
+    
+    // Get passenger count display
+    var passengerDisplay: String {
+        let total = adultsCount + childrenCount
+        return "\(total) \(total == 1 ? "Person" : "People")"
+    }
+    
+    // Get dates display
+    var datesDisplay: String {
+        if selectedDates.isEmpty { return "Select dates" }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        
+        if selectedDates.count == 1 {
+            return formatter.string(from: selectedDates[0])
+        } else if selectedDates.count >= 2 {
+            let departure = formatter.string(from: selectedDates[0])
+            let returnDate = formatter.string(from: selectedDates[1])
+            return "\(departure) - \(returnDate)"
+        }
+        
+        return "Select dates"
     }
 }

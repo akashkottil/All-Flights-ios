@@ -295,7 +295,7 @@ struct RecentSearch: View {
                 }
             }
             .padding()
-            .padding(.vertical, 4)
+            .padding(.bottom, 4)
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

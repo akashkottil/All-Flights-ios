@@ -137,52 +137,46 @@ struct OriginalStyleCheapFlightCard: View {
     
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Dynamic image with FIXED frame and consistent sizing
-            AsyncImage(url: URL(string: "https://image.explore.lascadian.com/\(imageType)_\(destination.location.entityId).webp")) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill() // Changed from scaledToFit to scaledToFill
-                        .frame(width: 150, height: 120) // FIXED width and height
-                        .clipped() // Clip any overflow
-                        .cornerRadius(10)
-                case .failure(_), .empty:
-                    // Fallback placeholder with EXACT same frame
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.gray.opacity(0.15))
-                        
-                        VStack(spacing: 4) {
-                            Image(systemName: imageType == "city" ? "building.2" : "globe")
-                                .font(.system(size: 24))
-                                .foregroundColor(.gray.opacity(0.7))
-                            
-                            Text(String(destination.location.name.prefix(3)).uppercased())
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.gray.opacity(0.8))
-                        }
-                    }
-                    .frame(width: 150, height: 120) // EXACT same dimensions
+            // Dynamic image with FIXED frame and consistent sizing using CachedAsyncImage
+            CachedAsyncImage(
+                url: URL(string: "https://image.explore.lascadian.com/\(imageType)_\(destination.location.entityId).webp")
+            ) { image in
+                image
+                    .resizable()
+                    .scaledToFill() // Changed from scaledToFit to scaledToFill
+                    .frame(width: 150, height: 120) // FIXED width and height
+                    .clipped() // Clip any overflow
                     .cornerRadius(10)
-                @unknown default:
+            } placeholder: {
+                // Fallback placeholder with EXACT same frame
+                ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Color.gray.opacity(0.15))
-                        .frame(width: 150, height: 120) // EXACT same dimensions
-                        .cornerRadius(10)
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: imageType == "city" ? "building.2" : "globe")
+                            .font(.system(size: 24))
+                            .foregroundColor(.gray.opacity(0.7))
+                        
+                        Text(String(destination.location.name.prefix(3)).uppercased())
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.gray.opacity(0.8))
+                    }
                 }
+                .frame(width: 150, height: 120) // EXACT same dimensions
+                .cornerRadius(10)
             }
             
             // Text content with fixed width container
             VStack(alignment: .leading, spacing: 4) {
                 Text(destination.location.name)
-                    .font(.system(size: 13))
-                    .foregroundColor(.black)
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
                     .fontWeight(.medium)
-                    .lineLimit(2) // Prevent text overflow
-                    .multilineTextAlignment(.leading)
+                    .lineLimit(1) // Prevent text overflow
+                   
                 
-                Text(destination.is_direct ? "Direct" : "Connecting")
+                Text(destination.is_direct ? "Direct" : "1+stops")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
                     .fontWeight(.medium)

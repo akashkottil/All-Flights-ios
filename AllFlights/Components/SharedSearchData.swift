@@ -5,9 +5,13 @@ import Combine
 class SharedSearchDataStore: ObservableObject {
     static let shared = SharedSearchDataStore()
     
+    @Published var isAnyModalVisible = false
+    
     // Search execution trigger
     @Published var shouldExecuteSearch = false
     @Published var searchTimestamp = Date()
+    
+    @Published var isDirectFromHome = false
     
     // Tab bar visibility control
     @Published var isInSearchMode = false
@@ -47,6 +51,14 @@ class SharedSearchDataStore: ObservableObject {
     @Published var shouldNavigateToTab: Int? = nil
     
     private init() {}
+    
+    func showModal() {
+           isAnyModalVisible = true
+       }
+       
+       func hideModal() {
+           isAnyModalVisible = false
+       }
     
     // Navigate to specific tab
     func navigateToTab(_ tabIndex: Int) {
@@ -109,6 +121,8 @@ class SharedSearchDataStore: ObservableObject {
             self.shouldExecuteSearch = true
             self.searchTimestamp = Date()
         }
+        
+        print("🔍 Search execution triggered from SharedSearchDataStore")
     }
     
     // Navigate to explore and show cities for a specific country
@@ -154,23 +168,24 @@ class SharedSearchDataStore: ObservableObject {
     
     // Method to completely reset everything
     func resetAll() {
-        shouldExecuteSearch = false
-        shouldNavigateToExplore = false
-        shouldNavigateToExploreCities = false
-        directFlightsOnly = false
-        isInSearchMode = false
-        isInExploreNavigation = false
-        isInAccountNavigation = false // ADD: Reset account navigation
-        selectedCountryId = ""
-        selectedCountryName = ""
-        fromLocation = ""
-        toLocation = ""
-        fromIataCode = ""
-        toIataCode = ""
-        selectedDates = []
-        multiCityTrips = []
-        shouldNavigateToTab = nil
-    }
+            shouldExecuteSearch = false
+            shouldNavigateToExplore = false
+            shouldNavigateToExploreCities = false
+            directFlightsOnly = false
+            isInSearchMode = false
+            isInExploreNavigation = false
+            isInAccountNavigation = false
+            isAnyModalVisible = false // ADD: Reset modal state
+            selectedCountryId = ""
+            selectedCountryName = ""
+            fromLocation = ""
+            toLocation = ""
+            fromIataCode = ""
+            toIataCode = ""
+            selectedDates = []
+            multiCityTrips = []
+            shouldNavigateToTab = nil
+        }
     
     // Helper method to check if search data is valid
     var hasValidSearchData: Bool {

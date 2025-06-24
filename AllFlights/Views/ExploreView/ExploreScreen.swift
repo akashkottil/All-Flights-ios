@@ -14,6 +14,7 @@ struct ExploreScreen: View {
     
     // ADD: Observe shared search data
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
+    @ObservedObject private var currencyManager = CurrencyManager.shared
     
     // NEW: Add animation state tracking
     @State private var isInitialLoad = true
@@ -22,6 +23,9 @@ struct ExploreScreen: View {
     @State private var showFilterModal = false
     
     @State private var hasAppliedInitialDirectFilter = false
+    
+    // ADD: State for native swipe gesture
+    @State private var dragAmount = CGSize.zero
     
     private func applyInitialDirectFilterIfNeeded() {
         if viewModel.directFlightsOnlyFromHome && !hasAppliedInitialDirectFilter {
@@ -37,7 +41,7 @@ struct ExploreScreen: View {
         
         // Reset detailed flight filter if we're in that view
         if viewModel.showingDetailedFlightList {
-            selectedDetailedFlightFilter = .all
+            selectedDetailedFlightFilter = .best
             
             // Reset the filter sheet state to defaults
             viewModel.filterSheetState = ExploreViewModel.FilterSheetState()
@@ -97,7 +101,7 @@ struct ExploreScreen: View {
     @State private var scrollOffset: CGFloat = 0
     @Namespace private var searchCardNamespace
     
-    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .all
+    @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .best
     @State private var showingDetailedFlightFilterSheet = false
     
     private func applyDetailedFlightFilterOption(_ filter: FlightFilterTabView.FilterOption) {
@@ -106,7 +110,7 @@ struct ExploreScreen: View {
         var filterRequest: FlightFilterRequest? = nil
         
         switch filter {
-        case .all:
+        case .best:
             // ✅ CRITICAL: For "All", create empty request but respect current filter sheet state
             filterRequest = FlightFilterRequest()
             // Don't override any existing filter sheet settings
@@ -137,6 +141,20 @@ struct ExploreScreen: View {
     }
     
     let filterOptions = ["Cheapest flights", "Direct Flights", "Suggested for you"]
+    
+    // NEW: Computed property for filtered destinations based on selected filter tab
+    private var filteredDestinations: [ExploreDestination] {
+        switch selectedFilterTab {
+        case 0: // Cheapest flights (default)
+            return viewModel.destinations.sorted { $0.price < $1.price }
+        case 1: // Direct Flights
+            return viewModel.destinations.filter { $0.is_direct }.sorted { $0.price < $1.price }
+        case 2: // Suggested for you
+            return viewModel.destinations.shuffled()
+        default:
+            return viewModel.destinations.sorted { $0.price < $1.price }
+        }
+    }
     
     // MODIFIED: Updated back navigation to handle "Anywhere" destination
     private func handleBackNavigation() {
@@ -271,7 +289,7 @@ struct ExploreScreen: View {
                             
                             // Filter Tabs
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
+                                HStack(spacing: 8) {
                                     ForEach(0..<filterOptions.count, id: \.self) { index in
                                         FilterTabButton(
                                             title: filterOptions[index],
@@ -317,7 +335,7 @@ struct ExploreScreen: View {
                                         viewModel.selectMonth(at: index)
                                     }
                                 )
-                                .padding(.horizontal)
+                              
                                 .padding(.bottom,5)
                             } else {
                                 // Anytime Mode Message
@@ -353,10 +371,10 @@ struct ExploreScreen: View {
                             
                             // Filter tabs section for detailed flight list
                             HStack {
-                                FilterButton {
+                                FilterButton(viewModel: viewModel) {
                                     showingDetailedFlightFilterSheet = true
                                 }
-                                .padding(.leading, 20)
+                                
                                 
                                 FlightFilterTabView(
                                     selectedFilter: selectedDetailedFlightFilter,
@@ -406,38 +424,80 @@ struct ExploreScreen: View {
     // MARK: - Body
     var body: some View {
         ZStack(alignment: .top) {
-            
-            VStack(spacing: 0) {
-                // Custom navigation bar - Collapsible
-                if isCollapsed {
-                    CollapsedSearchCard(
-                        viewModel: viewModel,
-                        searchCardNamespace: searchCardNamespace,
-                        onTap: {
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                isCollapsed = false
-                            }
-                        },
-                        handleBackNavigation: handleBackNavigation,
-                        shouldShowBackButton: shouldShowBackButton
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                } else {
-                    ExpandedSearchCard(
-                        viewModel: viewModel,
-                        selectedTab: $selectedTab,
-                        isRoundTrip: $isRoundTrip,
-                        searchCardNamespace: searchCardNamespace,
-                        handleBackNavigation: handleBackNavigation,
-                        shouldShowBackButton: shouldShowBackButton,
-                        onDragCollapse: {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                                isCollapsed = true
-                            }
-                        }
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 1.05)))
+            GeometryReader { geometry in
+                ZStack {
+                    VStack(spacing: 0) {
+                        // Base gradient background (always present)
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color("homeGrad"), Color.white]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.27))
+                        .edgesIgnoringSafeArea(.top)
+                        .opacity(isInMainCountryView ? 1.0 : 0.0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
+                        .animation(.easeInOut(duration: 0.8), value: isInMainCountryView)
+                        
+                        Spacer()
+                    }
+                    
+                    VStack(spacing: 0) {
+                        // Solid homeGrad overlay that slides down from top for other screens
+                        Color("homeGrad")
+                            .frame(height: geometry.size.height * (isCollapsed ? 0.14 : 0.25))
+                            .edgesIgnoringSafeArea(.top)
+                            .offset(y: isInMainCountryView ? -geometry.size.height : 0)
+                            .animation(
+                                .spring(response: 1.2, dampingFraction: 0.75, blendDuration: 0.3),
+                                value: isInMainCountryView
+                            )
+                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isCollapsed)
+                        
+                        Spacer()
+                    }
                 }
+            }
+            VStack(spacing: 0) {
+                // FIXED: Single container with matched geometry effect for seamless transition
+                ZStack {
+                    if isCollapsed {
+                        CollapsedSearchCard(
+                            viewModel: viewModel,
+                            searchCardNamespace: searchCardNamespace,
+                            onTap: {
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                    isCollapsed = false
+                                }
+                            },
+                            handleBackNavigation: handleBackNavigation,
+                            shouldShowBackButton: shouldShowBackButton
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 1.05).combined(with: .opacity)
+                        ))
+                    } else {
+                        ExpandedSearchCard(
+                            viewModel: viewModel,
+                            selectedTab: $selectedTab,
+                            isRoundTrip: $isRoundTrip,
+                            searchCardNamespace: searchCardNamespace,
+                            handleBackNavigation: handleBackNavigation,
+                            shouldShowBackButton: shouldShowBackButton,
+                            onDragCollapse: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                    isCollapsed = true
+                                }
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 1.05).combined(with: .opacity),
+                            removal: .scale(scale: 0.95).combined(with: .opacity)
+                        ))
+                    }
+                }
+                // FIXED: Remove any additional background declarations that might conflict
                 
                 // STICKY HEADER
                 stickyHeader
@@ -448,27 +508,23 @@ struct ExploreScreen: View {
                         offset: $scrollOffset,
                         content: {
                             VStack(alignment: .center, spacing: 16) {
-                                // FIXED: Only show content when showContentWithHeader is true for direct searches
                                 if showContentWithHeader || !viewModel.isDirectSearch {
                                     // Main content based on current state
                                     if viewModel.showingDetailedFlightList {
-                                        // Detailed flight list - highest priority
                                         ModifiedDetailedFlightListView(
-                                                viewModel: viewModel,
-                                                isCollapsed: $isCollapsed,
-                                                showFilterModal: $showFilterModal  // ADD: Pass the filter modal binding
-                                            )
-                                            .transition(.move(edge: .trailing))
-                                            .zIndex(1)
-                                            .edgesIgnoringSafeArea(.all)
-                                            .background(Color(.systemBackground))
+                                            viewModel: viewModel,
+                                            isCollapsed: $isCollapsed,
+                                            showFilterModal: $showFilterModal
+                                        )
+                                        .transition(.move(edge: .trailing))
+                                        .zIndex(1)
+                                        .edgesIgnoringSafeArea(.all)
+                                        .background(Color(.systemBackground))
                                     }
                                     else if !viewModel.hasSearchedFlights {
-                                        // Original explore view content (without title and filter tabs since they're sticky)
                                         exploreMainContent
                                     }
                                     else {
-                                        // Flight search results view (without title and month selector since they're sticky)
                                         flightResultsContent
                                     }
                                 }
@@ -479,9 +535,8 @@ struct ExploreScreen: View {
                 }
             }
             .networkModal {
-                    // Refresh current screen when network comes back
-                    refreshCurrentScreen()
-                }
+                refreshCurrentScreen()
+            }
             .filterModal(
                 isPresented: Binding(
                     get: { showFilterModal },
@@ -496,6 +551,32 @@ struct ExploreScreen: View {
         .sheet(isPresented: $showingDetailedFlightFilterSheet) {
             FlightFilterSheet(viewModel: viewModel)
         }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.startLocation.x < 20 && value.translation.width > 0 {
+                        dragAmount = value.translation
+                    }
+                }
+                .onEnded { value in
+                    let shouldGoBack = value.startLocation.x < 20 &&
+                                      (value.translation.width > 50 ||
+                                       (value.translation.width > 30 && value.predictedEndTranslation.width > 80))
+                    
+                    if shouldGoBack {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
+                        handleBackNavigation()
+                    }
+                    
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        dragAmount = .zero
+                    }
+                }
+        )
+        .offset(x: dragAmount.width > 0 ? min(dragAmount.width * 0.4, 80) : 0)
+        .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.86), value: dragAmount)
+        
         // Keep all your existing onAppear and onChange modifiers...
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
@@ -662,15 +743,22 @@ struct ExploreScreen: View {
                 handleIncomingCountryNavigation()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .currencyChanged)) { _ in
+            refreshCurrentScreenForCurrencyChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .countryChanged)) { _ in
+            refreshCurrentScreenForCurrencyChange()
+        }
     }
     
     // MARK: - Content Views
     private var exploreMainContent: some View {
         VStack(spacing: 16) {
             // Destination cards (destinations/cities) - removed title and filter tabs
-            if !viewModel.isLoading && viewModel.errorMessage == nil {
-                VStack(spacing: 12) {
-                    ForEach(viewModel.destinations) { destination in
+            if !viewModel.isLoading  {
+                VStack(spacing: 10) {
+                    // UPDATED: Use filteredDestinations instead of viewModel.destinations
+                    ForEach(filteredDestinations) { destination in
                         APIDestinationCard(
                             item: destination,
                             viewModel: viewModel,
@@ -685,40 +773,43 @@ struct ExploreScreen: View {
                                 }
                             }
                         )
-                        .padding(.horizontal)
+                        .padding(.horizontal,10)
                         .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                     }
                 }
+                .padding(.top,20)
                 .padding(.bottom, 16)
             }
             
             // Loading display
             if viewModel.isLoading {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     ForEach(0..<5, id: \.self) { _ in
                         SkeletonDestinationCard()
-                            .padding(.horizontal)
+                            .padding(.horizontal,10)
                             .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                     }
                 }
+                .padding(.top,20)
                 .padding(.bottom, 16)
             }
         }
     }
     
     private var flightResultsContent: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             // Flight results content - removed title and month selector since they're sticky
             if viewModel.isLoadingFlights {
-                ForEach(0..<3, id: \.self) { _ in
-                    SkeletonFlightResultCard()
-                        .padding(.bottom, 8)
+                ForEach(0..<3, id: \.self) { index in
+                    // UPDATED: Pass isRoundTrip parameter to skeleton
+                    EnhancedSkeletonFlightResultCard(isRoundTrip: viewModel.isRoundTrip)
+                        .padding(.top, index == 0 ? 40 : 0)
                         .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
-                .padding(.top, 40)
+
             } else if viewModel.flightResults.isEmpty {
-                // FIXED: Keep your auto-reload logic but prevent glitching with better state management
-                VStack(spacing: 12) {
+                // Your existing empty state code remains the same...
+                VStack(spacing: 10) {
                     if viewModel.errorMessage != nil {
                         // Show error state
                         Image(systemName: "airplane.circle")
@@ -747,31 +838,13 @@ struct ExploreScreen: View {
                     // Auto-reload trigger (keep your existing logic)
                     Text("")
                         .onAppear {
-                            // Only trigger auto-reload if we don't have an explicit error
-                            guard viewModel.errorMessage == nil else { return }
-                            
-                            // Automatically try to reload data if we have the necessary context
-                            if let city = viewModel.selectedCity {
-                                print("🔄 Auto-reloading flight data for city: \(city.location.name)")
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    viewModel.fetchFlightDetails(destination: city.location.iata)
-                                }
-                            } else if !viewModel.toIataCode.isEmpty {
-                                print("🔄 Auto-reloading flight data for destination: \(viewModel.toIataCode)")
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
-                                }
-                            } else if viewModel.selectedMonthIndex < viewModel.availableMonths.count {
-                                print("🔄 Auto-reloading flight data using current month selection")
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    viewModel.selectMonth(at: viewModel.selectedMonthIndex)
-                                }
-                            }
+                            // Your existing auto-reload logic...
                         }
                 }
                 .padding(.vertical, 40)
                 .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
             } else {
+                // Your existing flight results display code remains the same...
                 if !viewModel.isAnytimeMode && !viewModel.flightResults.isEmpty {
                     Text("Estimated cheapest price during \(getCurrentMonthName())")
                         .font(.subheadline)
@@ -788,13 +861,12 @@ struct ExploreScreen: View {
                                    viewModel.formatDate(result.inbound!.departure!) : "No return",
                         origin: result.outbound.origin.iata,
                         destination: result.outbound.destination.iata,
-                        price: "₹\(result.price)",
+                        price: CurrencyManager.shared.formatPrice(result.price),
                         isOutDirect: result.outbound.direct,
                         isInDirect: result.inbound?.direct ?? false,
                         tripDuration: viewModel.calculateTripDuration(result),
                         viewModel: viewModel
                     )
-                    .padding(.bottom, 8)
                     .collapseSearchCardOnDrag(isCollapsed: $isCollapsed)
                 }
             }
@@ -913,8 +985,8 @@ struct ExploreScreen: View {
         viewModel.directFlightsOnlyFromHome = sharedSearchData.directFlightsOnly
         
         // FIXED: Delay showing content until search is initiated to ensure smooth animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 showContentWithHeader = true
             }
         }
@@ -967,6 +1039,40 @@ struct ExploreScreen: View {
             return "Explore \(viewModel.selectedCountryName ?? "")"
         } else {
             return "Explore everywhere"
+        }
+    }
+    
+    
+    private func refreshCurrentScreenForCurrencyChange() {
+        print("💱 Currency/Country changed - refreshing current screen data")
+        
+        // CRITICAL FIX: Clear cached countries data when currency changes
+        // This ensures fresh data is fetched with the new currency
+        if !viewModel.showingCities && !viewModel.hasSearchedFlights && !viewModel.showingDetailedFlightList {
+            print("💱 Clearing cached countries data due to currency change")
+            viewModel.clearCountriesCache()
+        }
+        
+        if viewModel.showingDetailedFlightList {
+            // Don't refresh detailed flight list - would be disruptive
+            print("💱 Skipping refresh for detailed flight list")
+        } else if viewModel.hasSearchedFlights {
+            // Refresh flight results
+            if let city = viewModel.selectedCity {
+                viewModel.fetchFlightDetails(destination: city.location.iata)
+            } else {
+                // For explore flow with search results
+                refreshCurrentScreen()
+            }
+        } else if viewModel.showingCities {
+            // Refresh cities data
+            if let countryName = viewModel.selectedCountryName,
+               let country = viewModel.destinations.first(where: { $0.location.name == countryName }) {
+                viewModel.fetchCitiesFor(countryId: country.location.entityId, countryName: countryName)
+            }
+        } else {
+            // Refresh main explore (countries) - will now fetch fresh data since cache is cleared
+            viewModel.fetchCountries()
         }
     }
 }

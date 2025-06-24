@@ -2,6 +2,7 @@
 
 import SwiftUICore
 import SwiftUI
+
 struct ShimmerEffect: ViewModifier {
     @State private var phase: CGFloat = 0
     var duration: Double = 1.5
@@ -47,10 +48,10 @@ struct EnhancedSkeletonDestinationCard: View {
     @State private var isAnimating = false
     @State private var breatheScale: CGFloat = 1.0
     @State private var glowOpacity: Double = 0.3
-    @State private var cardAppeared = false  // Keep animation for skeleton
+    @State private var cardAppeared = false
     
     var body: some View {
-        HStack(spacing: 0) { // Remove spacing to eliminate gap between image and content
+        HStack(spacing: 0) {
             // Enhanced image placeholder with gradient - full height and left aligned
             ZStack {
                 Rectangle()
@@ -74,7 +75,7 @@ struct EnhancedSkeletonDestinationCard: View {
                     .foregroundColor(.gray.opacity(0.4))
                     .scaleEffect(breatheScale)
             }
-            .cornerRadius(12, corners: [.topLeft, .bottomLeft]) // Only round left corners
+            .cornerRadius(12, corners: [.topLeft, .bottomLeft])
             
             // Enhanced text placeholders with padding only on the right side
             HStack(spacing: 12) {
@@ -128,9 +129,9 @@ struct EnhancedSkeletonDestinationCard: View {
                         .shimmer(duration: 1.4)
                 }
             }
-            .padding(.leading, 12) // Add padding only on the left of text content
-            .padding(.trailing, 12) // Add padding only on the right
-            .padding(.vertical, 12) // Keep vertical padding
+            .padding(.leading, 12)
+            .padding(.trailing, 12)
+            .padding(.vertical, 12)
         }
         .background(
             RoundedRectangle(cornerRadius: 12)
@@ -141,12 +142,12 @@ struct EnhancedSkeletonDestinationCard: View {
                 )
         )
         .scaleEffect(breatheScale)
-        // KEEP: Slide-in animations for skeleton only
+        // Enhanced slide-in animations for skeleton
         .opacity(cardAppeared ? 1 : 0)
-        .offset(x: cardAppeared ? 0 : 20)
+        .offset(y: cardAppeared ? 0 : 50)
         .animation(
-            .spring(response: 0.6, dampingFraction: 0.8)
-            .delay(Double.random(in: 0...0.3)), // Staggered appearance for skeletons
+            .spring(response: 0.8, dampingFraction: 0.6)
+            .delay(Double.random(in: 0...0.4)),
             value: cardAppeared
         )
         .onAppear {
@@ -168,43 +169,155 @@ struct EnhancedSkeletonDestinationCard: View {
 
 
 
-// MARK: - Enhanced Skeleton Flight Result Card
+// MARK: - Enhanced Skeleton Flight Result Card - Exact Match to FlightResultCard
 struct EnhancedSkeletonFlightResultCard: View {
     @State private var pulseOpacity: Double = 0.6
     @State private var breatheScale: CGFloat = 1.0
     
+    // ADD: Parameter to control whether to show return section
+    var isRoundTrip: Bool = true
+    
     var body: some View {
         VStack(spacing: 5) {
-            // Outbound flight section
-            flightSection(isReturn: false)
-            
-            Divider()
-                .opacity(0.3)
-                .padding(.horizontal, 16)
-            
-            // Return flight section
-            flightSection(isReturn: true)
-            
-            Divider()
-                .opacity(0.3)
-                .padding(.horizontal, 16)
-            
-            // Enhanced price section
-            HStack {
-                VStack(alignment: .leading, spacing: 8) {
-                    // "Flights from" placeholder
+            // Departure section - matching FlightResultCard structure exactly
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Departure")
+                    .font(.subheadline)
+                    .foregroundColor(.clear) // Hidden but maintains spacing
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(.systemGray5))
+                            .frame(width: 70, height: 14)
+                    )
+                
+                HStack {
+                    // Date placeholder - matches "String(departureDate.dropLast(5))"
                     RoundedRectangle(cornerRadius: 6)
                         .fill(
                             LinearGradient(
-                                colors: [Color(.systemGray6), Color(.systemGray5)],
+                                colors: [Color(.systemGray5), Color(.systemGray4)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: 90, height: 14)
-                        .shimmer(duration: 1.8)
+                        .frame(width: 85, height: 20) // Matches headline font size
+                        .shimmer(duration: 1.6)
                     
-                    // Price placeholder with enhanced styling
+                    Spacer()
+                    
+                    // Flight route section - matches HStack with origin, arrow, destination
+                    HStack(spacing: 6) {
+                        // Origin code placeholder
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(.systemGray6))
+                            .frame(width: 35, height: 20) // Matches headline font
+                            .shimmer(duration: 1.8)
+                        
+                        // Arrow placeholder
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(.systemGray6))
+                            .frame(width: 12, height: 8) // Small arrow size
+                            .shimmer(duration: 1.4)
+                        
+                        // Destination code placeholder
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(.systemGray6))
+                            .frame(width: 35, height: 20) // Matches headline font
+                            .shimmer(duration: 1.8)
+                    }
+                    
+                    Spacer()
+                    
+                    // Direct/Connecting status placeholder
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(width: 70, height: 16) // Matches subheadline + fontWeight
+                        .shimmer(duration: 2.0)
+                }
+            }
+            .padding(.horizontal) // Matches FlightResultCard padding
+            .padding(.vertical, 12) // Matches FlightResultCard padding
+            
+            // MODIFIED: Return section - only show for round trips (same structure as departure)
+            if isRoundTrip {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Return")
+                        .font(.subheadline)
+                        .foregroundColor(.clear) // Hidden but maintains spacing
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray5))
+                                .frame(width: 55, height: 14)
+                        )
+                    
+                    HStack {
+                        // Return date placeholder
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(.systemGray5), Color(.systemGray4)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: 85, height: 20) // Matches headline font size
+                            .shimmer(duration: 1.6)
+                        
+                        Spacer()
+                        
+                        // Return route section
+                        HStack(spacing: 6) {
+                            // Destination code (return origin)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 35, height: 20)
+                                .shimmer(duration: 1.8)
+                            
+                            // Arrow placeholder
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 12, height: 8)
+                                .shimmer(duration: 1.4)
+                            
+                            // Origin code (return destination)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 35, height: 20)
+                                .shimmer(duration: 1.8)
+                        }
+                        
+                        Spacer()
+                        
+                        // Return direct status placeholder
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(.systemGray5))
+                            .frame(width: 70, height: 16)
+                            .shimmer(duration: 2.0)
+                    }
+                }
+                .padding(.horizontal) // Matches FlightResultCard padding
+                .padding(.vertical, 12) // Matches FlightResultCard padding
+            }
+            
+            // Divider - matching FlightResultCard exactly
+            Divider()
+                .padding(.horizontal, 16) // Exact match to FlightResultCard
+            
+            // Price section - matching FlightResultCard structure exactly
+            HStack {
+                VStack(alignment: .leading) {
+                    // "Flights from" placeholder
+                    Text("Flights from")
+                        .font(.subheadline)
+                        .foregroundColor(.clear) // Hidden but maintains spacing
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray5))
+                                .frame(width: 80, height: 14)
+                                .shimmer(duration: 1.8)
+                        )
+                    
+                    // Price placeholder - matching title2 + fontWeight(.bold)
                     RoundedRectangle(cornerRadius: 8)
                         .fill(
                             LinearGradient(
@@ -217,31 +330,25 @@ struct EnhancedSkeletonFlightResultCard: View {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: 120, height: 24)
+                        .frame(width: 100, height: 28) // Matches title2 font size
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
                                 .stroke(Color(.systemGray3).opacity(0.3), lineWidth: 1)
                         )
                         .shimmer(duration: 1.4)
                     
-                    // Trip duration placeholder
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(.systemGray6), Color(.systemGray5)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 100, height: 14)
+                    // Trip duration placeholder - matching subheadline
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(width: 90, height: 16) // Matches subheadline font
                         .shimmer(duration: 2.0)
                 }
                 
                 Spacer()
                 
-                // Enhanced button placeholder
+                // Button placeholder - matching exact button dimensions
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 8) // Matches button cornerRadius
                         .fill(
                             LinearGradient(
                                 colors: [
@@ -253,9 +360,9 @@ struct EnhancedSkeletonFlightResultCard: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 140, height: 44)
+                        .frame(width: 146, height: 46) // Exact match to button frame
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 8)
                                 .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                         )
                         .shimmer(duration: 1.6)
@@ -266,137 +373,17 @@ struct EnhancedSkeletonFlightResultCard: View {
                         .frame(width: 100, height: 16)
                 }
             }
-            .padding(16)
+            .padding() // Matches FlightResultCard bottom padding
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color(.systemGray5).opacity(0.4),
-                                    Color(.systemGray4).opacity(0.1)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-        )
-        .shadow(
-            color: Color.black.opacity(0.06),
-            radius: 12,
-            x: 0,
-            y: 6
-        )
+        .background(Color.white) // Exact match to FlightResultCard background
+        .cornerRadius(12) // Exact match to FlightResultCard cornerRadius
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2) // Exact match to FlightResultCard shadow
+        .padding(.horizontal,5) // Exact match to FlightResultCard padding
         .scaleEffect(breatheScale)
         .opacity(pulseOpacity)
-        .padding(.horizontal)
         .onAppear {
             startAnimations()
         }
-    }
-    
-    @ViewBuilder
-    private func flightSection(isReturn: Bool) -> some View {
-        HStack(alignment: .center, spacing: 0) {
-            // Departure info
-            VStack(alignment: .leading, spacing: 6) {
-                // Time placeholder
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(.systemGray5), Color(.systemGray4)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 55, height: 18)
-                    .shimmer(duration: 1.6)
-                
-                // Airport code
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 35, height: 14)
-                    .shimmer(duration: 1.8)
-                
-                // Date
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 65, height: 14)
-                    .shimmer(duration: 2.0)
-            }
-            .frame(width: 70, alignment: .leading)
-            
-            // Enhanced flight path visualization
-            VStack(spacing: 4) {
-                HStack(spacing: 2) {
-                    Circle()
-                        .fill(Color(.systemGray4))
-                        .frame(width: 8, height: 8)
-                        .opacity(pulseOpacity)
-                    
-                    // Animated dashed line
-                    ForEach(0..<8, id: \.self) { index in
-                        Rectangle()
-                            .fill(Color(.systemGray4))
-                            .frame(width: 6, height: 1)
-                            .opacity(pulseOpacity * (isReturn ? (1.0 - Double(index) * 0.1) : (Double(index) * 0.1 + 0.3)))
-                    }
-                    
-                    Circle()
-                        .fill(Color(.systemGray4))
-                        .frame(width: 8, height: 8)
-                        .opacity(pulseOpacity)
-                }
-                
-                // Duration placeholder
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 45, height: 12)
-                    .shimmer(duration: 1.4)
-                
-                // Direct/connecting status
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 50, height: 12)
-                    .shimmer(duration: 1.6)
-            }
-            .frame(maxWidth: .infinity)
-            
-            // Arrival info
-            VStack(alignment: .trailing, spacing: 6) {
-                // Time placeholder
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(.systemGray4), Color(.systemGray5)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 55, height: 18)
-                    .shimmer(duration: 1.8)
-                
-                // Airport code
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 35, height: 14)
-                    .shimmer(duration: 2.0)
-                
-                // Date
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 65, height: 14)
-                    .shimmer(duration: 1.6)
-            }
-            .frame(width: 70, alignment: .trailing)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
     }
     
     private func startAnimations() {
@@ -418,11 +405,20 @@ struct EnhancedSkeletonFlightResultCard: View {
     }
 }
 
-// MARK: - Enhanced Detailed Flight Card Skeleton
+// MARK: - Enhanced Detailed Flight Card Skeleton with Bottom Slide Animation
 struct EnhancedDetailedFlightCardSkeleton: View {
     @State private var shimmerOffset: CGFloat = -200
     @State private var glowIntensity: Double = 0.3
     @State private var breatheScale: CGFloat = 1.0
+    @State private var cardAppeared = false
+    
+    // ADD: Parameter to control trip type
+    let isRoundTrip: Bool
+    
+    // ADD: Initializer with default value for backward compatibility
+    init(isRoundTrip: Bool = true) {
+        self.isRoundTrip = isRoundTrip
+    }
     
     var body: some View {
         VStack(spacing: 6) {
@@ -450,11 +446,13 @@ struct EnhancedDetailedFlightCardSkeleton: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
             
-            // Flight row with synchronized shimmer
+            // Flight row with synchronized shimmer (OUTBOUND/DEPARTURE)
             enhancedFlightRow()
             
-            // Return flight row with synchronized shimmer
-            enhancedFlightRow()
+            // UPDATED: Conditionally show return flight row based on trip type
+            if isRoundTrip {
+                enhancedFlightRow()
+            }
             
             Divider()
                 .opacity(0.2)
@@ -475,7 +473,7 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                         .frame(width: 120, height: 14)
                         .modifier(ShimmerEffectt(offset: shimmerOffset))
                     
-                    // Price with synchronized shimmer (Updated)
+                    // Price with synchronized shimmer
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(
@@ -490,7 +488,6 @@ struct EnhancedDetailedFlightCardSkeleton: View {
                                 )
                             )
                             .frame(width: 100, height: 22)
-                            // Removed the overlay stroke to remove the border
                             .modifier(ShimmerEffectt(offset: shimmerOffset))
                     }
                     
@@ -532,7 +529,23 @@ struct EnhancedDetailedFlightCardSkeleton: View {
             y: 8
         )
         .scaleEffect(breatheScale)
+        // Enhanced bottom slide animation - starts from completely off-screen
+        .opacity(cardAppeared ? 1 : 0)
+        .offset(y: cardAppeared ? 0 : 300)
+        .scaleEffect(cardAppeared ? 1.0 : 0.8)
+        .animation(
+            .spring(
+                response: 0.8,
+                dampingFraction: 0.6,
+                blendDuration: 0.1
+            ),
+            value: cardAppeared
+        )
         .onAppear {
+            // Trigger card appearance immediately
+            withAnimation {
+                cardAppeared = true
+            }
             startPremiumAnimations()
         }
     }
@@ -683,6 +696,7 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     }
 }
 
+// MARK: - Enhanced Shimmer Effect for Synchronized Animation
 struct ShimmerEffectt: ViewModifier {
     var offset: CGFloat
     
@@ -703,11 +717,5 @@ struct ShimmerEffectt: ViewModifier {
             )
     }
 }
-
-
-
-
-
-
 
 

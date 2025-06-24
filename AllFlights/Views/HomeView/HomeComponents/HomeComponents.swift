@@ -15,10 +15,8 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     
     private let locationManager = CLLocationManager()
     private var completion: ((Result<LocationResult, LocationError>) -> Void)?
-    // FIX 1: Make cancellables mutable
     private var cancellables = Set<AnyCancellable>()
     
-    // FIX 2: Make LocationState conform to Equatable
     enum LocationState: Equatable {
         case idle
         case requesting
@@ -27,7 +25,6 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         case success
         case error(LocationError)
         
-        // Add Equatable conformance
         static func == (lhs: LocationState, rhs: LocationState) -> Bool {
             switch (lhs, rhs) {
             case (.idle, .idle), (.requesting, .requesting), (.locating, .locating), (.geocoding, .geocoding), (.success, .success):
@@ -44,7 +41,7 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         case permissionDenied
         case locationUnavailable
         case geocodingFailed
-        case airportNotFound
+        case cityNotFound
         case timeout
         
         var errorDescription: String? {
@@ -55,8 +52,8 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
                 return "Unable to get your location. Please try again."
             case .geocodingFailed:
                 return "Unable to determine your location."
-            case .airportNotFound:
-                return "No nearby airports found."
+            case .cityNotFound:
+                return "No nearby cities found."
             case .timeout:
                 return "Location request timed out. Please try again."
             }
@@ -67,6 +64,7 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         let locationName: String
         let airportCode: String
         let coordinates: CLLocationCoordinate2D
+        let cityName: String? // Add city name from API
     }
     
     override init() {
@@ -79,36 +77,52 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     func getCurrentLocation(completion: @escaping (Result<LocationResult, LocationError>) -> Void) {
         self.completion = completion
         
-        switch locationManager.authorizationStatus {
-        case .notDetermined:
-            locationState = .requesting
-            locationManager.requestWhenInUseAuthorization()
-        case .denied, .restricted:
-            locationState = .error(.permissionDenied)
-            completion(.failure(.permissionDenied))
-        case .authorizedWhenInUse, .authorizedAlways:
-            startLocationUpdate()
-        @unknown default:
-            locationState = .error(.locationUnavailable)
-            completion(.failure(.locationUnavailable))
+        // FIXED: Check authorization status without calling locationServicesEnabled on main thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                switch self.locationManager.authorizationStatus {
+                case .notDetermined:
+                    self.locationState = .requesting
+                    self.locationManager.requestWhenInUseAuthorization()
+                case .denied, .restricted:
+                    self.locationState = .error(.permissionDenied)
+                    completion(.failure(.permissionDenied))
+                case .authorizedWhenInUse, .authorizedAlways:
+                    self.startLocationUpdate()
+                @unknown default:
+                    self.locationState = .error(.locationUnavailable)
+                    completion(.failure(.locationUnavailable))
+                }
+            }
         }
     }
     
     private func startLocationUpdate() {
-        guard CLLocationManager.locationServicesEnabled() else {
-            locationState = .error(.locationUnavailable)
-            completion?(.failure(.locationUnavailable))
-            return
-        }
-        
-        locationState = .locating
-        locationManager.requestLocation()
-        
-        // Set timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
-            if case .locating = self.locationState {
-                self.locationState = .error(.timeout)
-                self.completion?(.failure(.timeout))
+        // FIXED: Check location services on background thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            let isLocationServicesEnabled = CLLocationManager.locationServicesEnabled()
+            
+            DispatchQueue.main.async {
+                guard isLocationServicesEnabled else {
+                    self.locationState = .error(.locationUnavailable)
+                    self.completion?(.failure(.locationUnavailable))
+                    return
+                }
+                
+                self.locationState = .locating
+                self.locationManager.requestLocation()
+                
+                // Set timeout
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+                    if case .locating = self.locationState {
+                        self.locationState = .error(.timeout)
+                        self.completion?(.failure(.timeout))
+                    }
+                }
             }
         }
     }
@@ -144,18 +158,18 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
                 let locationName = self.createLocationName(from: placemark)
                 self.locationName = locationName
                 
-                // Find nearest airport
-                self.findNearestAirport(to: location.coordinate) { result in
+                // MODIFIED: Find nearest city instead of airport
+                self.findNearestCity(to: location.coordinate, placemark: placemark) { result in
                     DispatchQueue.main.async {
                         switch result {
-                        case .success(let airportCode):
-                            self.nearestAirportCode = airportCode
+                        case .success(let cityCode):
+                            self.nearestAirportCode = cityCode.0
                             self.locationState = .success
                             
                             let locationResult = LocationResult(
                                 locationName: locationName,
-                                airportCode: airportCode,
-                                coordinates: location.coordinate
+                                airportCode: cityCode.0,
+                                coordinates: location.coordinate, cityName: cityCode.1
                             )
                             self.completion?(.success(locationResult))
                             
@@ -193,79 +207,161 @@ class CurrentLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     // MARK: - Helper Methods
     
     private func createLocationName(from placemark: CLPlacemark) -> String {
-        var components: [String] = []
-        
-        if let locality = placemark.locality {
-            components.append(locality)
-        } else if let subAdministrativeArea = placemark.subAdministrativeArea {
-            components.append(subAdministrativeArea)
+        // Prioritize district (subAdministrativeArea) over locality for your use case
+        if let district = placemark.subAdministrativeArea {
+            return district
+        } else if let locality = placemark.locality {
+            return locality
+        } else if let administrativeArea = placemark.administrativeArea {
+            return administrativeArea
+        } else {
+            return "Current Location"
         }
-        
-        if let administrativeArea = placemark.administrativeArea {
-            components.append(administrativeArea)
-        }
-        
-        if let country = placemark.country {
-            components.append(country)
-        }
-        
-        return components.isEmpty ? "Current Location" : components.joined(separator: ", ")
     }
     
-    private func findNearestAirport(to coordinate: CLLocationCoordinate2D, completion: @escaping (Result<String, LocationError>) -> Void) {
-        // Use the existing autocomplete API to find airports near the location
-        let searchQuery = "\(locationName.components(separatedBy: ",").first ?? "airport")"
+    // MODIFIED: New method to find nearest city using specific API endpoint
+    private func findNearestCity(to coordinate: CLLocationCoordinate2D, placemark: CLPlacemark, completion: @escaping (Result<(String, String?), LocationError>) -> Void) {
+        // Get the district name from the placemark (subAdministrativeArea is typically the district)
+        let districtName = placemark.subAdministrativeArea ?? placemark.locality ?? "Current Location"
         
-        ExploreAPIService.shared.fetchAutocomplete(query: searchQuery)
+        // Get country code from placemark (ISO country code)
+        let countryCode = placemark.isoCountryCode ?? "IN" // Default to India if not available
+        
+        // Use the specific autocomplete API with district name and country
+        searchDistrictWithAPI(district: districtName, countryCode: countryCode) { result in
+            completion(result)
+        }
+    }
+    
+    // New method to call the specific autocomplete API
+    private func searchDistrictWithAPI(district: String, countryCode: String, completion: @escaping (Result<(String, String?), LocationError>) -> Void) {
+        // Construct the API URL
+        guard let encodedDistrict = district.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://staging.plane.lascade.com/api/autocomplete/?country=\(countryCode)&search=\(encodedDistrict)&language=en-GB") else {
+            completion(.failure(.cityNotFound))
+            return
+        }
+        
+        // Create URL request
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        // Make the API call
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("API Error: \(error.localizedDescription)")
+                    // Fallback to original method if this API fails
+                    self.fallbackToOriginalAPI(district: district, completion: completion)
+                    return
+                }
+                
+                guard let data = data else {
+                    print("No data received from API")
+                    self.fallbackToOriginalAPI(district: district, completion: completion)
+                    return
+                }
+                
+                do {
+                    // Parse the JSON response with the correct structure
+                    if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                       let dataArray = json["data"] as? [[String: Any]] {
+                        
+                        // Take the first result and get both iataCode and cityName
+                        if let firstResult = dataArray.first,
+                           let iataCode = firstResult["iataCode"] as? String,
+                           !iataCode.isEmpty {
+                            
+                            let cityName = firstResult["cityName"] as? String
+                            print("Found IATA code from API: \(iataCode), City: \(cityName ?? "N/A")")
+                            completion(.success((iataCode, cityName)))
+                            return
+                        }
+                        
+                        // If no iataCode found in first result, try other results
+                        for item in dataArray {
+                            if let iataCode = item["iataCode"] as? String, !iataCode.isEmpty {
+                                let cityName = item["cityName"] as? String
+                                print("Found IATA code from API (fallback): \(iataCode), City: \(cityName ?? "N/A")")
+                                completion(.success((iataCode, cityName)))
+                                return
+                            }
+                        }
+                        
+                        // If no IATA code found at all, fallback
+                        print("No IATA code found in API response")
+                        self.fallbackToOriginalAPI(district: district, completion: completion)
+                        
+                    } else {
+                        print("Unexpected JSON structure")
+                        self.fallbackToOriginalAPI(district: district, completion: completion)
+                    }
+                    
+                } catch {
+                    print("JSON parsing error: \(error.localizedDescription)")
+                    self.fallbackToOriginalAPI(district: district, completion: completion)
+                }
+            }
+        }.resume()
+    }
+    
+    // Fallback method using the original ExploreAPIService
+    private func fallbackToOriginalAPI(district: String, completion: @escaping (Result<(String, String?), LocationError>) -> Void) {
+        ExploreAPIService.shared.fetchAutocomplete(query: district)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { result in
                     if case .failure = result {
-                        completion(.failure(.airportNotFound))
+                        // If both APIs fail, generate a fallback code
+                        let fallbackCode = self.generateFallbackCityCode(from: district)
+                        completion(.success((fallbackCode, district)))
                     }
                 },
-                receiveValue: { airports in
-                    // Find the closest airport
-                    let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-                    
-                    var closestAirport: AutocompleteResult?
-                    var closestDistance: Double = Double.infinity
-                    
-                    for airport in airports.filter({ $0.type == "airport" }) {
-                        if let lat = Double(airport.coordinates.latitude),
-                           let lon = Double(airport.coordinates.longitude) {
-                            let airportLocation = CLLocation(latitude: lat, longitude: lon)
-                            let distance = currentLocation.distance(from: airportLocation)
-                            
-                            if distance < closestDistance {
-                                closestDistance = distance
-                                closestAirport = airport
-                            }
-                        }
+                receiveValue: { results in
+                    // First, try to find a city result
+                    if let cityResult = results.first(where: { $0.type == "city" }) {
+                        completion(.success((cityResult.iataCode, cityResult.cityName)))
+                        return
                     }
                     
-                    if let airport = closestAirport {
-                        completion(.success(airport.iataCode))
+                    // If no city found, try to find any result
+                    if let firstResult = results.first {
+                        completion(.success((firstResult.iataCode, firstResult.cityName)))
                     } else {
-                        // Fallback to city search if no airports found
-                        if let cityAirport = airports.first(where: { $0.type == "city" }) {
-                            completion(.success(cityAirport.iataCode))
-                        } else {
-                            completion(.failure(.airportNotFound))
-                        }
+                        // Generate fallback code
+                        let fallbackCode = self.generateFallbackCityCode(from: district)
+                        completion(.success((fallbackCode, district)))
                     }
                 }
             )
-            .store(in: &cancellables) // FIX 3: Now cancellables is mutable
+            .store(in: &cancellables)
+    }
+    
+    // Helper method to generate a fallback district code
+    private func generateFallbackCityCode(from districtName: String) -> String {
+        // Clean the district name and take first 3 characters, or use "LOC" as ultimate fallback
+        let cleanedName = districtName.uppercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "-", with: "")
+        
+        if cleanedName.count >= 3 {
+            return String(cleanedName.prefix(3))
+        } else if !cleanedName.isEmpty {
+            return cleanedName + String(repeating: "X", count: 3 - cleanedName.count)
+        } else {
+            return "LOC"
+        }
     }
 }
 
-// MARK: - Enhanced Current Location Button (Fixed)
+
+// MARK: - Enhanced Current Location Button (Updated to use cityName from API)
 struct EnhancedCurrentLocationButton: View {
     @StateObject private var locationManager = CurrentLocationManager.shared
     @State private var isAnimating = false
     @State private var buttonScale: CGFloat = 1.0
-    @State private var iconRotation: Double = 0
+    @State private var pulseScale: CGFloat = 1.0
     @State private var showError = false
     @State private var errorMessage = ""
     
@@ -276,35 +372,31 @@ struct EnhancedCurrentLocationButton: View {
             HStack(spacing: 12) {
                 ZStack {
                     if case .locating = locationManager.locationState {
-                        // Animated location icon
                         Image(systemName: "location.fill")
                             .foregroundColor(.blue)
-                            .scaleEffect(isAnimating ? 1.2 : 1.0)
+                            .scaleEffect(pulseScale)
+                            .animation(
+                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                                value: pulseScale
+                            )
+                    } else if case .geocoding = locationManager.locationState {
+                        Image(systemName: "location.magnifyingglass")
+                            .foregroundColor(.blue)
+                            .offset(y: isAnimating ? -3 : 0)
+                            .animation(
+                                .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
+                                value: isAnimating
+                            )
+                    } else if case .requesting = locationManager.locationState {
+                        Image(systemName: "location.circle")
+                            .foregroundColor(.orange)
+                            .scaleEffect(isAnimating ? 1.1 : 1.0)
                             .opacity(isAnimating ? 0.7 : 1.0)
                             .animation(
                                 .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
                                 value: isAnimating
                             )
-                    } else if case .geocoding = locationManager.locationState {
-                        // Spinning icon for geocoding
-                        Image(systemName: "location.magnifyingglass")
-                            .foregroundColor(.blue)
-                            .rotationEffect(.degrees(iconRotation))
-                            .animation(
-                                .linear(duration: 1.0).repeatForever(autoreverses: false),
-                                value: iconRotation
-                            )
-                    } else if case .requesting = locationManager.locationState {
-                        // Permission requesting state
-                        Image(systemName: "location.circle")
-                            .foregroundColor(.orange)
-                            .scaleEffect(isAnimating ? 1.1 : 1.0)
-                            .animation(
-                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                                value: isAnimating
-                            )
                     } else {
-                        // Default state
                         Image(systemName: "location.fill")
                             .foregroundColor(.blue)
                     }
@@ -317,7 +409,6 @@ struct EnhancedCurrentLocationButton: View {
                             .foregroundColor(.blue)
                             .fontWeight(.medium)
                         
-                        // FIX 4: Simplified condition check
                         if isLocationLoading {
                             Spacer()
                             ProgressView()
@@ -327,7 +418,7 @@ struct EnhancedCurrentLocationButton: View {
                     }
                     
                     if case .geocoding = locationManager.locationState {
-                        Text("Finding nearest airport...")
+                        Text("Finding Airport near you...")
                             .font(.caption)
                             .foregroundColor(.gray)
                             .transition(.opacity.combined(with: .move(edge: .leading)))
@@ -360,7 +451,7 @@ struct EnhancedCurrentLocationButton: View {
         } message: {
             Text(errorMessage)
         }
-        .onChange(of: locationManager.locationState) { _, newState in // FIX 5: Updated onChange syntax
+        .onChange(of: locationManager.locationState) { _, newState in
             handleLocationStateChange(newState)
         }
     }
@@ -383,7 +474,7 @@ struct EnhancedCurrentLocationButton: View {
         case .locating:
             return "Getting Your Location..."
         case .geocoding:
-            return "Processing Location..."
+            return "Finding Your Airport..."
         case .success:
             return "Location Found!"
         case .error:
@@ -407,11 +498,9 @@ struct EnhancedCurrentLocationButton: View {
     }
     
     private func handleLocationRequest() {
-        // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        // Button press animation
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
             buttonScale = 0.95
         }
@@ -422,11 +511,9 @@ struct EnhancedCurrentLocationButton: View {
             }
         }
         
-        // Start location request
         locationManager.getCurrentLocation { result in
             switch result {
             case .success(let locationResult):
-                // Success animation
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                     buttonScale = 1.05
                 }
@@ -439,11 +526,9 @@ struct EnhancedCurrentLocationButton: View {
                 }
                 
             case .failure(let error):
-                // Error handling
                 errorMessage = error.localizedDescription
                 showError = true
                 
-                // Error animation
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
                     buttonScale = 0.95
                 }
@@ -460,22 +545,20 @@ struct EnhancedCurrentLocationButton: View {
     private func handleLocationStateChange(_ newState: CurrentLocationManager.LocationState) {
         switch newState {
         case .locating:
+            pulseScale = 1.2
             isAnimating = true
         case .geocoding:
-            iconRotation = 360
+            isAnimating = true
         case .requesting:
             isAnimating = true
         case .success, .error, .idle:
             isAnimating = false
-            iconRotation = 0
+            pulseScale = 1.0
         }
     }
 }
 
-
-
-
-// MARK: - Enhanced Search Input Component (exact UI match)
+// MARK: - Enhanced Search Input Component (Updated for in-place transformation)
 struct EnhancedSearchInput: View {
     @State private var swapButtonScale: CGFloat = 1.0
     @State private var searchButtonScale: CGFloat = 1.0
@@ -487,6 +570,9 @@ struct EnhancedSearchInput: View {
 
     @State private var editingTripIndex = 0
     @State private var editingFromOrTo: LocationType = .from
+    
+    // NEW: Callback for search tap
+    let onSearchTap: () -> Void
     
     // ENHANCED: Animation states for location swap
     @State private var swapRotationDegrees: Double = 0
@@ -503,10 +589,16 @@ struct EnhancedSearchInput: View {
     @State private var showDirectFlightsToggle = true
     
     // Animation namespace for matched geometry effects
-       @Namespace private var tripAnimation
+    @Namespace private var tripAnimation
     
     @State private var searchInputScale: CGFloat = 1.0
     @State private var searchInputOffset: CGFloat = 0
+    
+    // Initialize with search callback
+    init(searchViewModel: SharedFlightSearchViewModel, onSearchTap: @escaping () -> Void) {
+        self.searchViewModel = searchViewModel
+        self.onSearchTap = onSearchTap
+    }
     
     var canAddTrip: Bool {
         // Check if the last trip's "To" field is filled (destination selected)
@@ -683,8 +775,7 @@ struct EnhancedSearchInput: View {
         }
     }
 
-       
-    // MARK: - Updated performSearch method in EnhancedSearchInput
+    // MARK: - Updated performSearch method to use callback
     private func performSearch() {
         // MODIFIED: Ensure we always have dates by setting defaults if empty
         if searchViewModel.selectedDates.isEmpty {
@@ -704,14 +795,13 @@ struct EnhancedSearchInput: View {
         }
         
         // NEW: Check for "anytime" or "anywhere" conditions
-        _ = searchViewModel.selectedDates.isEmpty // This should now be false due to above logic
         let isAnywhereSearch = searchViewModel.toLocation == "Anywhere" || searchViewModel.toLocation == "Destination?" || searchViewModel.toIataCode.isEmpty
         
         // If anywhere is selected, navigate to explore screen instead
         if isAnywhereSearch {
             // Clear any search state and navigate to explore mode
             SharedSearchDataStore.shared.isInSearchMode = false
-            SharedSearchDataStore.shared.shouldNavigateToTab = 2 // Navigate to explore tab (index 1)
+            SharedSearchDataStore.shared.shouldNavigateToTab = 2 // Navigate to explore tab
             
             // Clear search execution flags
             SharedSearchDataStore.shared.shouldExecuteSearch = false
@@ -734,21 +824,14 @@ struct EnhancedSearchInput: View {
         if valid {
             showErrorMessage = false
             
-            // Execute search based on trip type
-            if searchViewModel.selectedTab == 2 {
-                // Multi-city search
-                searchViewModel.executeMultiCitySearch()
-            } else {
-                // Regular search (one-way or round-trip)
-                searchViewModel.executeSearch()
-            }
+            // UPDATED: Use callback instead of direct navigation
+            onSearchTap()
         } else {
             withAnimation {
                 showErrorMessage = true
             }
         }
     }
-
     
     enum LocationType {
         case from, to
@@ -795,9 +878,7 @@ struct EnhancedSearchInput: View {
                 childrenAges: $searchViewModel.childrenAges
             )
         }
-        
     }
-    
     
     // MARK: - Updated Trip Type Tabs in EnhancedSearchInput
     private var tripTypeTabs: some View {
@@ -845,8 +926,6 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal, 4)
         .padding(.bottom, 8)
     }
-
-
 
     // MARK: - Fixed Multi-City Interface with Always Visible Add Flight Button
     private var updatedMultiCityInterface: some View {
@@ -1070,7 +1149,6 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal)
     }
 
-    
     private var toLocationButton: some View {
         Button(action: {
             showingToLocationSheet = true
@@ -1135,9 +1213,7 @@ struct EnhancedSearchInput: View {
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 12)
-           
         }
-//        .offset(y: searchViewModel.selectedTab == 2 ? 0 : -12)
     }
     
     private var searchButton: some View {
@@ -1193,23 +1269,6 @@ struct EnhancedSearchInput: View {
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, alignment: .leading) // Align left
     }
-
-
-    
-    private var addFlightButton: some View {
-        Button(action: addTrip) {
-            HStack {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.blue)
-                    .font(.system(size: 24))
-                Text("Add flight")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.blue)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-        }
-    }
     
     // MARK: - Sheet Views
     
@@ -1255,6 +1314,7 @@ struct EnhancedSearchInput: View {
             HomeCalendarSheet(searchViewModel: searchViewModel)
         }
     }
+    
     // MARK: - Computed Properties
     
     private var canSearch: Bool {
@@ -1305,53 +1365,52 @@ struct EnhancedSearchInput: View {
     }
     
     private func addTrip() {
-         guard searchViewModel.multiCityTrips.count < 5,
-               let lastTrip = searchViewModel.multiCityTrips.last else { return }
-         
-         let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
-         
-         let newTrip = MultiCityTrip(
-             fromLocation: lastTrip.toLocation,
-             fromIataCode: lastTrip.toIataCode,
-             toLocation: "Where to?",
-             toIataCode: "",
-             date: nextDay
-         )
-         
-         // Native iOS spring animation with haptic feedback
-         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-         impactFeedback.impactOccurred()
-         
-         withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2)) {
-             searchViewModel.multiCityTrips.append(newTrip)
-         }
-         
-         // Add a slight delay and then focus on the new trip's destination
-         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-             // Optional: Auto-focus on the new trip's destination field
-             editingTripIndex = searchViewModel.multiCityTrips.count - 1
-             editingFromOrTo = .to
-             
-             // Add a subtle scale animation to highlight the new row
-             withAnimation(.easeInOut(duration: 0.3)) {
-                 // This could trigger a highlight state if needed
-             }
-         }
-     }
-    
+        guard searchViewModel.multiCityTrips.count < 5,
+              let lastTrip = searchViewModel.multiCityTrips.last else { return }
+        
+        let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
+        
+        let newTrip = MultiCityTrip(
+            fromLocation: lastTrip.toLocation,
+            fromIataCode: lastTrip.toIataCode,
+            toLocation: "Where to?",
+            toIataCode: "",
+            date: nextDay
+        )
+        
+        // Native iOS spring animation with haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2)) {
+            searchViewModel.multiCityTrips.append(newTrip)
+        }
+        
+        // Add a slight delay and then focus on the new trip's destination
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            // Optional: Auto-focus on the new trip's destination field
+            editingTripIndex = searchViewModel.multiCityTrips.count - 1
+            editingFromOrTo = .to
+            
+            // Add a subtle scale animation to highlight the new row
+            withAnimation(.easeInOut(duration: 0.3)) {
+                // This could trigger a highlight state if needed
+            }
+        }
+    }
     
     private func removeTrip(at index: Int) {
-           guard searchViewModel.multiCityTrips.count > 2,
-                 index < searchViewModel.multiCityTrips.count else { return }
-           
-           // Haptic feedback for deletion
-           let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-           impactFeedback.impactOccurred()
-           
-           withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.2)) {
-               searchViewModel.multiCityTrips.remove(at: index)
-           }
-       }
+        guard searchViewModel.multiCityTrips.count > 2,
+              index < searchViewModel.multiCityTrips.count else { return }
+        
+        // Haptic feedback for deletion
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.2)) {
+            searchViewModel.multiCityTrips.remove(at: index)
+        }
+    }
 }
 
 
@@ -1556,8 +1615,7 @@ struct HomeMultiCityLocationSheet: View {
             }
             .padding(.horizontal)
             
-            Divider()
-                .padding(.top)
+Spacer()
             
             // Results section with recent searches
             if isSearching {
@@ -1680,6 +1738,7 @@ struct HomeMultiCityLocationSheet: View {
 
 
 // MARK: - Home Collapsible Search Input (matching style)
+// MARK: - Home Collapsible Search Input (Updated for transformation)
 struct HomeCollapsibleSearchInput: View {
     @Binding var isExpanded: Bool
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1690,67 +1749,56 @@ struct HomeCollapsibleSearchInput: View {
                 isExpanded = true
             }
         }) {
+            // Route display
+            HStack(spacing: 8) {
+                // From
+                Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+               Text("-")
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                // To
+                Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 4, height: 4)
+                
+                // Date display (always show, will display "Anytime" when no dates selected)
+                Text(formatDatesForCollapsed())
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                
+                Spacer()
+                
+                Text("Search")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 105)
+                    .frame(height: 44)
+                    .background(
+                        RoundedCornerss(tl: 8, tr: 26, bl: 8, br: 26)
+                            .fill(Color.orange)
+                    )
+            }
+            .padding(4)
+            .padding(.leading,16)
             
-
-                
-                // Route display
-                HStack(spacing: 8) {
-                    // From
-             
-
-                        Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
-                  
-                    
-                   Text("-")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    
-                    // To
- 
-                        Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
-                    
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 4, height: 4)
-   
-                    
-                    // Date display (if selected)
-                    // Date display (always show, will display "Anytime" when no dates selected)
-                    Text(formatDatesForCollapsed())
-                        .font(.system(size: 14))
-                        .foregroundColor(.primary)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Spacer()
-
-                    
-                    Spacer()
-                    
-                    Text("Search")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: 105)
-                                .frame(height: 44)
-                                .background(
-                                    RoundedCorners(tl: 8, tr: 26, bl: 8, br: 26)
-                                        .fill(Color.orange)
-                                )
-                }
-                .padding(4)
-                .padding(.leading,16)
-                
-            .background(Color.white)
-            .cornerRadius(26)
-            .overlay(
-                RoundedRectangle(cornerRadius: 26)
-                    .stroke(Color.orange, lineWidth: 2)
-            )
-            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .background(Color.white)
+        .cornerRadius(26)
+        .overlay(
+            RoundedRectangle(cornerRadius: 26)
+                .stroke(Color.orange, lineWidth: 2)
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         }
         .padding(.horizontal, 16)
     }
@@ -1817,10 +1865,43 @@ struct HomeCollapsibleSearchInput: View {
     }
 }
 
+// MARK: - RoundedCorners Helper
+struct RoundedCornerss: Shape {
+    var tl: CGFloat = 0.0
+    var tr: CGFloat = 0.0
+    var bl: CGFloat = 0.0
+    var br: CGFloat = 0.0
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let w = rect.size.width
+        let h = rect.size.height
+
+        // Make sure we do not exceed the size of the rectangle
+        let tr = min(min(self.tr, h/2), w/2)
+        let tl = min(min(self.tl, h/2), w/2)
+        let bl = min(min(self.bl, h/2), w/2)
+        let br = min(min(self.br, h/2), w/2)
+
+        path.move(to: CGPoint(x: w / 2.0, y: 0))
+        path.addLine(to: CGPoint(x: w - tr, y: 0))
+        path.addArc(center: CGPoint(x: w - tr, y: tr), radius: tr, startAngle: Angle(degrees: -90), endAngle: Angle(degrees: 0), clockwise: false)
+        path.addLine(to: CGPoint(x: w, y: h - br))
+        path.addArc(center: CGPoint(x: w - br, y: h - br), radius: br, startAngle: Angle(degrees: 0), endAngle: Angle(degrees: 90), clockwise: false)
+        path.addLine(to: CGPoint(x: bl, y: h))
+        path.addArc(center: CGPoint(x: bl, y: h - bl), radius: bl, startAngle: Angle(degrees: 90), endAngle: Angle(degrees: 180), clockwise: false)
+        path.addLine(to: CGPoint(x: 0, y: tl))
+        path.addArc(center: CGPoint(x: tl, y: tl), radius: tl, startAngle: Angle(degrees: 180), endAngle: Angle(degrees: 270), clockwise: false)
+        path.closeSubpath()
+
+        return path
+    }
+}
 
 
-// MARK: - Updated Home Location Search Sheets with Recent Searches
 
+// MARK: - Corrected Home From Location Search Sheet
 struct HomeFromLocationSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
@@ -1903,9 +1984,11 @@ struct HomeFromLocationSearchSheet: View {
             EnhancedCurrentLocationButton { locationResult in
                 // Handle successful location selection with animation
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    searchViewModel.fromLocation = locationResult.locationName
+                    // FIXED: Use cityName from API if available, otherwise use locationName
+                    let displayName = locationResult.cityName ?? locationResult.locationName
+                    searchViewModel.fromLocation = displayName
                     searchViewModel.fromIataCode = locationResult.airportCode
-                    searchText = locationResult.locationName
+                    searchText = displayName
                 }
                 
                 // Add to recent searches
@@ -1913,8 +1996,8 @@ struct HomeFromLocationSearchSheet: View {
                     iataCode: locationResult.airportCode,
                     airportName: "Current Location",
                     type: "airport",
-                    displayName: locationResult.locationName,
-                    cityName: locationResult.locationName.components(separatedBy: ",").first ?? "",
+                    displayName: locationResult.cityName ?? locationResult.locationName,
+                    cityName: locationResult.cityName ?? locationResult.locationName.components(separatedBy: ",").first ?? "",
                     countryName: locationResult.locationName.components(separatedBy: ",").last ?? "",
                     countryCode: "IN",
                     imageUrl: "",
@@ -1934,7 +2017,7 @@ struct HomeFromLocationSearchSheet: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
             
-            Divider()
+            Spacer()
             
             // Results section with recent searches
             if isSearching {
@@ -2015,8 +2098,6 @@ struct HomeFromLocationSearchSheet: View {
     private func shouldShowNoResults() -> Bool {
         return results.isEmpty && !searchText.isEmpty && !showRecentSearches
     }
-    
-
     
     private func selectLocation(result: AutocompleteResult) {
         // IMPORTANT: Add to recent searches before processing
@@ -2134,8 +2215,7 @@ struct HomeToLocationSearchSheet: View {
             }
             .padding(.horizontal)
             
-            Divider()
-                .padding(.top)
+            Spacer()
             
             // Results section with recent searches (NO ANYWHERE OPTION)
             if isSearching {
@@ -2177,8 +2257,7 @@ struct HomeToLocationSearchSheet: View {
                             selectAnywhereLocation()
                         }
                     
-                    Divider()
-                        .padding(.horizontal)
+                    Spacer()
                     
                     RecentLocationSearchView(
                         onLocationSelected: { result in
@@ -2202,8 +2281,7 @@ struct HomeToLocationSearchSheet: View {
                             selectAnywhereLocation()
                         }
                     
-                    Divider()
-                        .padding(.horizontal)
+                    Spacer()
                     
                     RecentLocationSearchView(
                         onLocationSelected: { result in
@@ -2387,11 +2465,14 @@ struct ExploreScreenWithSearchData: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemBackground))
                     
-                    if viewModel.isLoading || viewModel.isLoadingFlights {
+                    // Animated or static stroke based on loading state
+                    if viewModel.isLoading ||
+                       viewModel.isLoadingFlights ||
+                       (viewModel.isLoadingDetailedFlights && !viewModel.hasInitialResultsLoaded) {
                         LoadingBorderView()
                     } else {
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange, lineWidth: 1)
+                            .stroke(Color.orange, lineWidth: 2)
                     }
                 }
             )
@@ -2503,6 +2584,256 @@ class SearchDebouncer {
     }
 }
 
+// MARK: - Custom Transition for Search Results
+struct SearchResultsTransition: ViewModifier {
+    let isActive: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .opacity(isActive ? 1 : 0)
+            .offset(y: isActive ? 0 : UIScreen.main.bounds.height * 0.3)
+            .scaleEffect(isActive ? 1 : 0.95)
+    }
+}
 
+extension AnyTransition {
+    static var searchResults: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .bottom)
+                .combined(with: .opacity)
+                .combined(with: .scale(scale: 0.95)),
+            removal: .move(edge: .bottom)
+                .combined(with: .opacity)
+                .combined(with: .scale(scale: 0.95))
+        )
+    }
+}
 
+// MARK: - Enhanced Search Input with Transform Support (Overloaded Initializer)
+extension EnhancedSearchInput {
+    // Original initializer for backward compatibility
+    init(searchViewModel: SharedFlightSearchViewModel) {
+        self.searchViewModel = searchViewModel
+        self.onSearchTap = {
+            // Default behavior - use the original navigation system
+            if searchViewModel.selectedTab == 2 {
+                searchViewModel.executeMultiCitySearch()
+            } else {
+                searchViewModel.executeSearch()
+            }
+        }
+    }
+}
+
+// MARK: - Smooth Animation Extensions
+extension View {
+    func smoothTransform(isActive: Bool, duration: Double = 0.6) -> some View {
+        self.modifier(SmoothTransformModifier(isActive: isActive, duration: duration))
+    }
+}
+
+struct SmoothTransformModifier: ViewModifier {
+    let isActive: Bool
+    let duration: Double
+    
+    func body(content: Content) -> some View {
+        content
+            .animation(.spring(response: duration, dampingFraction: 0.8), value: isActive)
+    }
+}
+
+// MARK: - Search Card Transform States
+struct SearchCardTransform {
+    var scale: CGFloat = 1.0
+    var offset: CGSize = .zero
+    var rotation: Double = 0.0
+    var opacity: Double = 1.0
+    
+    static let expanded = SearchCardTransform()
+    static let collapsed = SearchCardTransform(scale: 0.95, offset: CGSize(width: 0, height: -20), opacity: 0.8)
+    static let hidden = SearchCardTransform(scale: 0.8, offset: CGSize(width: 0, height: -100), opacity: 0)
+}
+
+// MARK: - Home Content States for Animation
+enum HomeContentState {
+    case visible
+    case movingUp
+    case hidden
+    
+    var offset: CGFloat {
+        switch self {
+        case .visible: return 0
+        case .movingUp: return -50
+        case .hidden: return -UIScreen.main.bounds.height
+        }
+    }
+    
+    var opacity: Double {
+        switch self {
+        case .visible: return 1.0
+        case .movingUp: return 0.7
+        case .hidden: return 0.0
+        }
+    }
+    
+    var scale: CGFloat {
+        switch self {
+        case .visible: return 1.0
+        case .movingUp: return 0.98
+        case .hidden: return 0.95
+        }
+    }
+}
+
+// MARK: - Results Content States
+enum ResultsContentState {
+    case hidden
+    case appearing
+    case visible
+    
+    var offset: CGFloat {
+        switch self {
+        case .hidden: return UIScreen.main.bounds.height
+        case .appearing: return UIScreen.main.bounds.height * 0.3
+        case .visible: return 0
+        }
+    }
+    
+    var opacity: Double {
+        switch self {
+        case .hidden: return 0.0
+        case .appearing: return 0.5
+        case .visible: return 1.0
+        }
+    }
+    
+    var scale: CGFloat {
+        switch self {
+        case .hidden: return 0.9
+        case .appearing: return 0.95
+        case .visible: return 1.0
+        }
+    }
+}
+
+// MARK: - Animation Timing Helper
+struct AnimationTiming {
+    static let searchTransform: Double = 0.6
+    static let contentSlide: Double = 0.5
+    static let cardExpansion: Double = 0.4
+    static let resultsAppear: Double = 0.5
+    
+    static func spring(duration: Double) -> Animation {
+        .spring(response: duration, dampingFraction: 0.8, blendDuration: 0.1)
+    }
+    
+    static func easeInOut(duration: Double) -> Animation {
+        .easeInOut(duration: duration)
+    }
+}
+
+// MARK: - Transform Coordinator
+@MainActor
+class SearchTransformCoordinator: ObservableObject {
+    @Published var isTransforming = false
+    @Published var homeContentState: HomeContentState = .visible
+    @Published var resultsContentState: ResultsContentState = .hidden
+    @Published var searchCardTransform: SearchCardTransform = .expanded
+    
+    func performTransformToResults() {
+        guard !isTransforming else { return }
+        
+        isTransforming = true
+        
+        // Phase 1: Scale and move search card
+        withAnimation(AnimationTiming.spring(duration: AnimationTiming.cardExpansion)) {
+            searchCardTransform = .collapsed
+        }
+        
+        // Phase 2: Move home content up
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(AnimationTiming.spring(duration: AnimationTiming.contentSlide)) {
+                self.homeContentState = .hidden
+            }
+        }
+        
+        // Phase 3: Show results content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            withAnimation(AnimationTiming.spring(duration: AnimationTiming.resultsAppear)) {
+                self.resultsContentState = .visible
+                self.searchCardTransform = .expanded
+            }
+        }
+        
+        // Complete transformation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.isTransforming = false
+        }
+    }
+    
+    func performTransformToHome() {
+        guard !isTransforming else { return }
+        
+        isTransforming = true
+        
+        // Phase 1: Hide results content
+        withAnimation(AnimationTiming.spring(duration: AnimationTiming.resultsAppear)) {
+            resultsContentState = .hidden
+            searchCardTransform = .collapsed
+        }
+        
+        // Phase 2: Bring back home content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(AnimationTiming.spring(duration: AnimationTiming.contentSlide)) {
+                self.homeContentState = .visible
+                self.searchCardTransform = .expanded
+            }
+        }
+        
+        // Complete transformation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            self.isTransforming = false
+        }
+    }
+    
+    func reset() {
+        isTransforming = false
+        homeContentState = .visible
+        resultsContentState = .hidden
+        searchCardTransform = .expanded
+    }
+}
+
+// MARK: - Enhanced ScrollView Offset Detection for Better Transformations
+struct TransformableScrollView<Content: View>: View {
+    @Binding var offset: CGFloat
+    @State private var scrollViewHeight: CGFloat = 0
+    let content: () -> Content
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                ZStack {
+                    // Offset detection
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: ScrollOffsetPreferenceKeyy.self,
+                                      value: proxy.frame(in: .named("scrollView")).minY)
+                    }
+                    .frame(height: 0)
+                    
+                    // Actual content
+                    content()
+                }
+                .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
+                    offset = value
+                }
+            }
+            .coordinateSpace(name: "scrollView")
+            .onAppear {
+                scrollViewHeight = geometry.size.height
+            }
+        }
+    }
+}
 

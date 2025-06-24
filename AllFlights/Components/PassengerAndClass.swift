@@ -83,7 +83,7 @@ struct PassengersAndClassSelector: View {
                             .font(.system(size: 16, weight: .semibold))
                     }
                     .padding(.vertical, 16)
-                    .padding(.horizontal,150) // Added horizontal padding for balanced spacing
+                    .padding(.horizontal,140) // Added horizontal padding for balanced spacing
                     .background(Color("buttonColor"))
                     .cornerRadius(12)
                     .frame(maxWidth: .infinity) // Ensures the button stretches to take available space
