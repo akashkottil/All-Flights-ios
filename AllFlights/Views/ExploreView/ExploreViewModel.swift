@@ -751,7 +751,6 @@ class ExploreViewModel: ObservableObject {
     }
 
 
-    // Add this to ExploreViewModel
     func loadMoreFlights() {
         guard let searchId = currentSearchId,
               !isLoadingMoreFlights,
@@ -786,10 +785,26 @@ class ExploreViewModel: ObservableObject {
                 
                 if case .failure(let error) = completion {
                     print("❌ Load more flights failed: \(error.localizedDescription)")
-                    // FIXED: Don't immediately stop pagination on error if backend is still processing
+                    
+                    // CRITICAL FIX: Check for "Invalid page" error specifically
+                    let errorDescription = error.localizedDescription.lowercased()
+                    let isInvalidPageError = errorDescription.contains("invalid page") ||
+                                           errorDescription.contains("404") ||
+                                           (error as NSError).code == 404
+                    
+                    if isInvalidPageError {
+                        print("🛑 Invalid page error detected - no more pages available")
+                        self.hasMoreFlights = false
+                        return
+                    }
+                    
+                    // FIXED: For other errors, only stop pagination if data is cached
                     if self.isDataCached {
                         // If data is cached and we get an error, likely no more pages
                         self.hasMoreFlights = false
+                        print("🛑 Error with cached data - stopping pagination")
+                    } else {
+                        print("⚠️ Error with non-cached data - continuing pagination")
                     }
                 }
             },
@@ -812,11 +827,17 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults.append(contentsOf: newResults)
                 self.actualLoadedCount = self.detailedFlightResults.count
                 
-                // CRITICAL: Always determine pagination based on cache status
+                // CRITICAL: Always determine pagination based on cache status and next field
                 if pollResponse.cache {
                     // Backend finished processing - use next field for pagination
                     self.hasMoreFlights = pollResponse.next != nil
                     print("✅ Backend finished - hasMoreFlights based on next: \(self.hasMoreFlights)")
+                    
+                    // ADDITIONAL CHECK: If we have no new results and backend is done, stop pagination
+                    if newResults.isEmpty && pollResponse.results.isEmpty {
+                        print("🛑 No new results and backend finished - stopping pagination")
+                        self.hasMoreFlights = false
+                    }
                 } else {
                     // Backend still processing - continue loading
                     self.hasMoreFlights = true
