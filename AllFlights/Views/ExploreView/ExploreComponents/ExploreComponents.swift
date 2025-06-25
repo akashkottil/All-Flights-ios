@@ -1046,8 +1046,8 @@ struct SearchCard: View {
                 print("🔄 Swapping with default dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
                 
                 let calendar = Calendar.current
-                let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-                let dayAfterTomorrow = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+                let tomorrow = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+                let dayAfterTomorrow = calendar.date(byAdding: .day, value: 14, to: Date()) ?? Date()
                 
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd"
@@ -2627,8 +2627,8 @@ struct LocationSearchSheet: View {
     // Add this helper function to handle default date search
     private func initiateSearchWithDefaultDates() {
         let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+        let tomorrow = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 14, to: Date()) ?? Date()
         
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"

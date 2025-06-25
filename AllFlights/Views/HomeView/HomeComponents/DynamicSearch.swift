@@ -672,13 +672,13 @@ struct EnhancedDynamicSearchInput: View {
             if searchViewModel.isRoundTrip {
                 let today = Date()
                 let calendar = Calendar.current
-                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-                let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
+                let departureDate = calendar.date(byAdding: .day, value: 7, to: today) ?? today
+                let returnDate = calendar.date(byAdding: .day, value: 14, to: today) ?? today
                 return "\(formatter.string(from: departureDate)) - \(formatter.string(from: returnDate))"
             } else {
                 let today = Date()
                 let calendar = Calendar.current
-                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                let departureDate = calendar.date(byAdding: .day, value: 7, to: today) ?? today
                 return formatter.string(from: departureDate)
             }
         }
@@ -749,11 +749,11 @@ struct EnhancedDynamicSearchInput: View {
             let calendar = Calendar.current
             
             if searchViewModel.isRoundTrip {
-                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-                let returnDate = calendar.date(byAdding: .day, value: 8, to: today) ?? today
+                let departureDate = calendar.date(byAdding: .day, value: 7, to: today) ?? today
+                let returnDate = calendar.date(byAdding: .day, value: 14, to: today) ?? today
                 searchViewModel.selectedDates = [departureDate, returnDate]
             } else {
-                let departureDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                let departureDate = calendar.date(byAdding: .day, value: 7, to: today) ?? today
                 searchViewModel.selectedDates = [departureDate]
             }
         }
