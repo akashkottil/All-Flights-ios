@@ -576,8 +576,7 @@ struct ExploreScreen: View {
         )
         .offset(x: dragAmount.width > 0 ? min(dragAmount.width * 0.4, 80) : 0)
         .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.86), value: dragAmount)
-        
-        // Keep all your existing onAppear and onChange modifiers...
+
         .onAppear {
             print("🔍 ExploreScreen onAppear - checking states...")
             print("🔍 hasSearchedFlights: \(viewModel.hasSearchedFlights)")
@@ -589,19 +588,19 @@ struct ExploreScreen: View {
             print("🔍 isCountryNavigationActive: \(isCountryNavigationActive)")
             print("🔍 destinations count: \(viewModel.destinations.count)")
             print("🔍 sharedSearchData.selectedTab: \(sharedSearchData.selectedTab)")
+            print("🔍 multiCityTrips count: \(sharedSearchData.multiCityTrips.count)")
             
-            // UPDATED: Initialize selectedTab based on search mode
-            if sharedSearchData.isInSearchMode {
-                // If coming from direct search, use the original selectedTab but limit to available options
-                if sharedSearchData.selectedTab == 2 {
-                    // Multi-city search - keep as is
-                    selectedTab = 2
-                } else {
-                    // Return or One-way - map appropriately
-                    selectedTab = sharedSearchData.selectedTab
-                }
+            // FIXED: Initialize selectedTab and isRoundTrip based on search mode INCLUDING multi-city
+            if sharedSearchData.isDirectFromHome {
+                // If coming from direct search from home, use the original selectedTab
+                selectedTab = sharedSearchData.selectedTab
                 isRoundTrip = sharedSearchData.isRoundTrip
-                print("🔍 Initialized from search mode: selectedTab=\(selectedTab), isRoundTrip=\(isRoundTrip)")
+                print("🔍 Initialized from direct home search: selectedTab=\(selectedTab), isRoundTrip=\(isRoundTrip)")
+                
+                // CRITICAL: For multi-city searches, ensure we don't reset to one-way/return
+                if selectedTab == 2 {
+                    print("🔍 Multi-city search detected - preserving tab selection")
+                }
             } else {
                 // Not in search mode - ensure we don't have multi-city selected
                 if selectedTab >= 2 {
@@ -951,7 +950,7 @@ struct ExploreScreen: View {
     private func handleIncomingSearchFromHome() {
         print("🔥 ExploreScreen: Received search data from HomeView")
         print("🔥 Original selectedTab: \(sharedSearchData.selectedTab)")
-        print("🔥 Direct flights only: \(sharedSearchData.directFlightsOnly)")
+        print("🔥 Is Multi-city: \(sharedSearchData.selectedTab == 2)")
         
         // FIXED: Initialize showContentWithHeader to false for smooth animation
         showContentWithHeader = false
@@ -967,6 +966,8 @@ struct ExploreScreen: View {
         viewModel.childrenCount = sharedSearchData.childrenCount
         viewModel.childrenAges = sharedSearchData.childrenAges
         viewModel.selectedCabinClass = sharedSearchData.selectedCabinClass
+        
+        // UPDATED: Transfer multi-city trips
         viewModel.multiCityTrips = sharedSearchData.multiCityTrips
         
         // UPDATED: Set selectedTab and isRoundTrip based on shared data
@@ -984,14 +985,14 @@ struct ExploreScreen: View {
         // Store direct flights preference in view model for later use
         viewModel.directFlightsOnlyFromHome = sharedSearchData.directFlightsOnly
         
-        // FIXED: Delay showing content until search is initiated to ensure smooth animation
+        // FIXED: Delay showing content until search is initiated
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 showContentWithHeader = true
             }
         }
         
-        // Handle multi-city vs regular search
+        // UPDATED: Handle multi-city vs regular search
         if sharedSearchData.selectedTab == 2 && !sharedSearchData.multiCityTrips.isEmpty {
             print("🔥 Executing multi-city search")
             // Multi-city search

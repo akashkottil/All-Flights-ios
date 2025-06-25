@@ -557,10 +557,12 @@ struct HomeView: View {
         skeletonsVisible = false
     }
     
-    // NEW: Transfer search data to explore view model
-    // Replace the existing transferSearchDataToExplore method in HomeView with this updated version:
+    // REPLACE the existing transferSearchDataToExplore method in HomeView with this:
 
     private func transferSearchDataToExplore() {
+        print("🔥 Transferring search data to explore - selectedTab: \(searchViewModel.selectedTab)")
+        print("🔥 Multi-city trips count: \(searchViewModel.multiCityTrips.count)")
+        
         // Transfer all search data to the explore view model
         exploreViewModel.fromLocation = searchViewModel.fromLocation
         exploreViewModel.toLocation = searchViewModel.toLocation
@@ -572,7 +574,10 @@ struct HomeView: View {
         exploreViewModel.childrenCount = searchViewModel.childrenCount
         exploreViewModel.childrenAges = searchViewModel.childrenAges
         exploreViewModel.selectedCabinClass = searchViewModel.selectedCabinClass
+        
+        // CRITICAL: Transfer multi-city trips BEFORE setting up search state
         exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
+        print("🔥 Transferred \(exploreViewModel.multiCityTrips.count) multi-city trips to explore view model")
         
         // Set the selected origin and destination codes
         exploreViewModel.selectedOriginCode = searchViewModel.fromIataCode
@@ -590,16 +595,30 @@ struct HomeView: View {
         selectedDetailedFlightFilter = .best
         hasAppliedInitialDirectFilter = false
         
-        // Sync tab states
+        // Sync tab states - CRITICAL for multi-city
         selectedTab = searchViewModel.selectedTab
         isRoundTrip = searchViewModel.isRoundTrip
         
-        // Handle multi-city vs regular search
+        print("🔥 Final selectedTab in explore: \(selectedTab)")
+        print("🔥 Is multi-city search: \(searchViewModel.selectedTab == 2)")
+        
+        // UPDATED: Handle multi-city vs regular search
         if searchViewModel.selectedTab == 2 && !searchViewModel.multiCityTrips.isEmpty {
             // Multi-city search
+            print("🔥 Executing multi-city search from home with \(searchViewModel.multiCityTrips.count) trips")
+            
+            // Ensure exploreViewModel has the multi-city trips
+            if exploreViewModel.multiCityTrips.isEmpty {
+                exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
+                print("🔥 Re-assigned multi-city trips to explore view model")
+            }
+            
+            // Start multi-city search
             exploreViewModel.searchMultiCityFlights()
         } else {
             // Regular search - format dates for API
+            print("🔥 Executing regular search (selectedTab: \(selectedTab))")
+            
             if !searchViewModel.selectedDates.isEmpty {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd"
@@ -625,6 +644,8 @@ struct HomeView: View {
                 isDirectSearch: true
             )
         }
+        
+        print("🔥 Transfer and search initiation completed")
     }
 
     // MARK: - Drag Gesture for manual search card manipulation

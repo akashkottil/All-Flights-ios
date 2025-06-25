@@ -113,6 +113,9 @@ class SharedSearchDataStore: ObservableObject {
         // Set search mode to hide tab bar
         self.isInSearchMode = true
         
+        // NEW: Set direct from home flag
+        self.isDirectFromHome = true
+        
         // Trigger navigation to explore tab
         shouldNavigateToExplore = true
         
@@ -122,7 +125,7 @@ class SharedSearchDataStore: ObservableObject {
             self.searchTimestamp = Date()
         }
         
-        print("🔍 Search execution triggered from SharedSearchDataStore")
+        print("🔍 Multi-city search execution triggered from SharedSearchDataStore")
     }
     
     // Navigate to explore and show cities for a specific country
@@ -164,6 +167,8 @@ class SharedSearchDataStore: ObservableObject {
         shouldNavigateToExplore = false
         directFlightsOnly = false
         shouldNavigateToTab = nil
+        // UPDATED: Reset the direct from home flag when search is complete
+        isDirectFromHome = false
     }
     
     // Method to completely reset everything

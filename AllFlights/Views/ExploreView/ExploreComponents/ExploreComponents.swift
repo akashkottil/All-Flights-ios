@@ -302,194 +302,200 @@ struct SearchCard: View {
     // ADD: Observe shared search data
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     
-    // Determine if multi-city should be shown
+    // FIXED: Determine if multi-city should be shown based on multiple conditions
     private var shouldShowMultiCity: Bool {
-        return sharedSearchData.isInSearchMode && sharedSearchData.selectedTab == 2 && selectedTab == 2
+        // Show multi-city if:
+        // 1. Coming from direct home search with multi-city selected, OR
+        // 2. Currently selected tab is 2 (multi-city), OR
+        // 3. View model has multi-city trips
+        return (sharedSearchData.isDirectFromHome && sharedSearchData.selectedTab == 2) ||
+               selectedTab == 2 ||
+               viewModel.multiCityTrips.count >= 2
     }
     
     var body: some View {
-            // Conditionally show multi-city or regular interface
-            if shouldShowMultiCity {
-                // Multi-city search card - only show when came from direct multi-city search
-                MultiCitySearchCard(viewModel: viewModel)
-            } else {
-                // Regular interface for return/one-way trips
-                ZStack {
-                    // Extended vertical line that goes behind everything except the swap button
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 1, height: 88)
-                        .offset(y: 5)
-                        .zIndex(0) // Ensure it's behind other content
+        // FIXED: Show multi-city or regular interface based on better detection
+        if shouldShowMultiCity {
+            // Multi-city search card
+            MultiCitySearchCard(viewModel: viewModel)
+        } else {
+            // Regular interface for return/one-way trips
+            ZStack {
+                // Extended vertical line that goes behind everything except the swap button
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 1, height: 88)
+                    .offset(y: 5)
+                    .zIndex(0) // Ensure it's behind other content
+                
+                VStack(alignment:.leading,spacing: 5) {
+                    Divider()
+                        .padding(.horizontal,-16)
                     
-                    VStack(alignment:.leading,spacing: 5) {
-                        Divider()
-                            .padding(.horizontal,-16)
-                        
-                        // From row with fixed swap button position
-                        ZStack {
-                            HStack {
-                                // From button - takes available space on left
-                                Button(action: {
-                                    showingFromLocationSheet = true  // Show FROM sheet
-                                }) {
-                                    HStack {
-                                        Image("carddeparture")
-                                            .foregroundColor(.primary)
-                                        Text(getFromLocationDisplayText())
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(getFromLocationTextColor())
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .zIndex(1) // Above the line
-                                
-                                // To button - takes available space on right
-                                Button(action: {
-                                    showingToLocationSheet = true  // Show TO sheet
-                                }) {
-                                    HStack {
-                                        Image("carddestination")
-                                            .foregroundColor(.primary)
-                                        
-                                        Text(getToLocationDisplayText())
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(getToLocationTextColor())
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .padding(.leading, 16)
-                                   
-                                }
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                                .zIndex(1) // Above the line
-                            }
-                            
-                            // Swap button - absolutely centered
-                            Button(action: {
-                                animatedSwapLocations()
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                                        .frame(width: 26, height: 26)
-                                        .background(Circle().fill(Color.white)) // White background to cover the line
-                                    Image("swapexplore")
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.blue)
-                                        .font(.system(size: 14))
-                                        .rotationEffect(.degrees(swapRotationDegrees))
-                                        .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .zIndex(2) // Above everything else
-                        }
-                        .padding(4)
-                        
-                        Divider()
-                            .padding(.horizontal,-16)
-                        
-                        
-                        // Date and passengers row - FIXED VERSION
+                    // From row with fixed swap button position
+                    ZStack {
                         HStack {
-                            // Date button - flexible width with proper constraints
+                            // From button - takes available space on left
                             Button(action: {
-                                // Only show calendar if destination is not "Anywhere"
-                                if viewModel.toLocation == "Anywhere" {
-                                    handleAnywhereDestination()
-                                } else {
-                                    showingCalendar = true
-                                }
+                                showingFromLocationSheet = true  // Show FROM sheet
                             }) {
-                                HStack(spacing: 6) {
-                                    Image("cardcalendar")
+                                HStack {
+                                    Image("carddeparture")
+                                        .foregroundColor(.primary)
+                                    Text(getFromLocationDisplayText())
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(getFromLocationTextColor())
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .zIndex(1) // Above the line
+                            
+                            // To button - takes available space on right
+                            Button(action: {
+                                showingToLocationSheet = true  // Show TO sheet
+                            }) {
+                                HStack {
+                                    Image("carddestination")
                                         .foregroundColor(.primary)
                                     
-                                    Text(getDateDisplayText())
-                                        .foregroundColor(getDateTextColor())
+                                    Text(getToLocationDisplayText())
                                         .font(.system(size: 14, weight: .medium))
-                                        .lineLimit(1) // Force single line
-                                        .minimumScaleFactor(0.8) // Allow text to scale down slightly if needed
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading) // Take available space
-                            .zIndex(1) // Above the line
-                            
-                            // Passenger selection button - fixed width from the right
-                            Button(action: {
-                                viewModel.showingPassengersSheet = true
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image("cardpassenger")
-                                        .foregroundColor(.black)
-                                    
-                                    Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(getToLocationTextColor())
                                         .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .padding(.trailing,56)
+                                .padding(.leading, 16)
+                               
                             }
-                            // Align to right side
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                             .zIndex(1) // Above the line
                         }
-                        .padding(.vertical, 4)
-                      
+                        
+                        // Swap button - absolutely centered
+                        Button(action: {
+                            animatedSwapLocations()
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                                    .frame(width: 26, height: 26)
+                                    .background(Circle().fill(Color.white)) // White background to cover the line
+                                Image("swapexplore")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 14))
+                                    .rotationEffect(.degrees(swapRotationDegrees))
+                                    .animation(.easeInOut(duration: 0.6), value: swapRotationDegrees)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .zIndex(2) // Above everything else
                     }
-                    .zIndex(1) // Ensure VStack content is above the background line
-                }
-                // UPDATED: Separate sheet presentations for FROM and TO
-                .sheet(isPresented: $showingFromLocationSheet) {
-                    ExploreFromLocationSearchSheet(viewModel: viewModel)
-                        .presentationDetents([.large])
-                }
-                .sheet(isPresented: $showingToLocationSheet) {
-                    ExploreToLocationSearchSheet(viewModel: viewModel)
-                        .presentationDetents([.large])
-                }
-                .sheet(isPresented: $showingCalendar, onDismiss: {
-                    // When calendar is dismissed, check if dates were selected and trigger search
-                    if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
-                        viewModel.updateDatesAndRunSearch()
+                    .padding(4)
+                    
+                    Divider()
+                        .padding(.horizontal,-16)
+                    
+                    
+                    // Date and passengers row - FIXED VERSION
+                    HStack {
+                        // Date button - flexible width with proper constraints
+                        Button(action: {
+                            // Only show calendar if destination is not "Anywhere"
+                            if viewModel.toLocation == "Anywhere" {
+                                handleAnywhereDestination()
+                            } else {
+                                showingCalendar = true
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image("cardcalendar")
+                                    .foregroundColor(.primary)
+                                
+                                Text(getDateDisplayText())
+                                    .foregroundColor(getDateTextColor())
+                                    .font(.system(size: 14, weight: .medium))
+                                    .lineLimit(1) // Force single line
+                                    .minimumScaleFactor(0.8) // Allow text to scale down slightly if needed
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading) // Take available space
+                        .zIndex(1) // Above the line
+                        
+                        // Passenger selection button - fixed width from the right
+                        Button(action: {
+                            viewModel.showingPassengersSheet = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image("cardpassenger")
+                                    .foregroundColor(.black)
+                                
+                                Text("\(viewModel.adultsCount + viewModel.childrenCount), \(viewModel.selectedCabinClass)")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.black)
+                                    .lineLimit(1)
+                            }
+                            .padding(.trailing,56)
+                        }
+                        // Align to right side
+                        .zIndex(1) // Above the line
                     }
-                }) {
-                    CalendarView(
-                        fromiatacode: $viewModel.fromIataCode,
-                        toiatacode: $viewModel.toIataCode,
-                        parentSelectedDates: $viewModel.dates,
-                        onAnytimeSelection: { results in
-                            viewModel.handleAnytimeResults(results)
-                        },
-                        onTripTypeChange: { newIsRoundTrip in
-                            isRoundTrip = newIsRoundTrip
-                            viewModel.isRoundTrip = newIsRoundTrip
-                        },
-                        isRoundTrip: isRoundTrip
-                    )
+                    .padding(.vertical, 4)
+                  
                 }
-                .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
-                    triggerSearchAfterPassengerChange()
-                }) {
-                    PassengersAndClassSelector(
-                        adultsCount: $viewModel.adultsCount,
-                        childrenCount: $viewModel.childrenCount,
-                        selectedClass: $viewModel.selectedCabinClass,
-                        childrenAges: $viewModel.childrenAges
-                    )
+                .zIndex(1) // Ensure VStack content is above the background line
+            }
+            // UPDATED: Separate sheet presentations for FROM and TO
+            .sheet(isPresented: $showingFromLocationSheet) {
+                ExploreFromLocationSearchSheet(viewModel: viewModel)
+                    .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showingToLocationSheet) {
+                ExploreToLocationSearchSheet(viewModel: viewModel)
+                    .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showingCalendar, onDismiss: {
+                // When calendar is dismissed, check if dates were selected and trigger search
+                if !viewModel.dates.isEmpty && !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty {
+                    viewModel.updateDatesAndRunSearch()
                 }
-                .onAppear {
-                    viewModel.isRoundTrip = isRoundTrip
-                }
-                .onChange(of: isRoundTrip) { newValue in
-                    viewModel.isRoundTrip = newValue
-                    viewModel.handleTripTypeChange()
-                }
+            }) {
+                CalendarView(
+                    fromiatacode: $viewModel.fromIataCode,
+                    toiatacode: $viewModel.toIataCode,
+                    parentSelectedDates: $viewModel.dates,
+                    onAnytimeSelection: { results in
+                        viewModel.handleAnytimeResults(results)
+                    },
+                    onTripTypeChange: { newIsRoundTrip in
+                        isRoundTrip = newIsRoundTrip
+                        viewModel.isRoundTrip = newIsRoundTrip
+                    },
+                    isRoundTrip: isRoundTrip
+                )
+            }
+            .sheet(isPresented: $viewModel.showingPassengersSheet, onDismiss: {
+                triggerSearchAfterPassengerChange()
+            }) {
+                PassengersAndClassSelector(
+                    adultsCount: $viewModel.adultsCount,
+                    childrenCount: $viewModel.childrenCount,
+                    selectedClass: $viewModel.selectedCabinClass,
+                    childrenAges: $viewModel.childrenAges
+                )
+            }
+            .onAppear {
+                viewModel.isRoundTrip = isRoundTrip
+            }
+            .onChange(of: isRoundTrip) { newValue in
+                viewModel.isRoundTrip = newValue
+                viewModel.handleTripTypeChange()
             }
         }
+    }
     
     // MARK: - NEW: Separate FROM Location Search Sheet for Explore
     struct ExploreFromLocationSearchSheet: View {
@@ -960,203 +966,203 @@ struct SearchCard: View {
     // MARK: - All the existing helper methods remain exactly the same
     
     private func animatedSwapLocations() {
-        // Only allow swap if both locations are set and not "Anywhere"
-        guard !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty,
-              viewModel.toLocation != "Anywhere" else {
-            return
-        }
-        
-        // Animate 360 degrees rotation
-        withAnimation(.easeInOut(duration: 0.6)) {
-            swapRotationDegrees += 360
-        }
+           // Only allow swap if both locations are set and not "Anywhere"
+           guard !viewModel.fromIataCode.isEmpty && !viewModel.toIataCode.isEmpty,
+                 viewModel.toLocation != "Anywhere" else {
+               return
+           }
+           
+           // Animate 360 degrees rotation
+           withAnimation(.easeInOut(duration: 0.6)) {
+               swapRotationDegrees += 360
+           }
 
-        // Delay swap logic to align with animation duration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            // Store original values before swapping
-            let originalFromLocation = viewModel.fromLocation
-            let originalFromCode = viewModel.fromIataCode
-            let originalToLocation = viewModel.toLocation
-            let originalToCode = viewModel.toIataCode
-            
-            // Perform swap
-            viewModel.fromLocation = originalToLocation
-            viewModel.fromIataCode = originalToCode
-            viewModel.toLocation = originalFromLocation
-            viewModel.toIataCode = originalFromCode
-            
-            // Update search context with swapped values
-            viewModel.selectedOriginCode = viewModel.fromIataCode
-            viewModel.selectedDestinationCode = viewModel.toIataCode
-            
-            // Clear existing results before new search
-            viewModel.detailedFlightResults = []
-            viewModel.flightResults = []
-            
-            // Trigger refetch based on current context
-            if viewModel.showingDetailedFlightList {
-                print("🔄 Swapping and refetching detailed flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
-                
-                viewModel.searchFlightsForDates(
-                    origin: viewModel.fromIataCode,
-                    destination: viewModel.toIataCode,
-                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                    departureDate: viewModel.selectedDepartureDatee,
-                    isDirectSearch: viewModel.isDirectSearch
-                )
-            } else if viewModel.hasSearchedFlights {
-                print("🔄 Swapping and refetching basic flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
-                
-                if viewModel.selectedCity != nil {
-                    viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
-                } else {
-                    viewModel.searchFlightsForDates(
-                        origin: viewModel.fromIataCode,
-                        destination: viewModel.toIataCode,
-                        returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                        departureDate: viewModel.selectedDepartureDatee,
-                        isDirectSearch: true
-                    )
-                }
-            } else if !viewModel.dates.isEmpty {
-                print("🔄 Swapping and starting new search with dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
-                
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                
-                if viewModel.dates.count >= 2 {
-                    let sortedDates = viewModel.dates.sorted()
-                    viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
-                    viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
-                } else if viewModel.dates.count == 1 {
-                    viewModel.selectedDepartureDatee = formatter.string(from: viewModel.dates[0])
-                    if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.dates[0]) {
-                        viewModel.selectedReturnDatee = formatter.string(from: nextDay)
-                    }
-                }
-                
-                viewModel.searchFlightsForDates(
-                    origin: viewModel.fromIataCode,
-                    destination: viewModel.toIataCode,
-                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                    departureDate: viewModel.selectedDepartureDatee,
-                    isDirectSearch: true
-                )
-            } else {
-                print("🔄 Swapping with default dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
-                
-                let calendar = Calendar.current
-                let tomorrow = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
-                let dayAfterTomorrow = calendar.date(byAdding: .day, value: 14, to: Date()) ?? Date()
-                
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                
-                viewModel.selectedDepartureDatee = formatter.string(from: tomorrow)
-                viewModel.selectedReturnDatee = formatter.string(from: dayAfterTomorrow)
-                
-                viewModel.dates = viewModel.isRoundTrip ? [tomorrow, dayAfterTomorrow] : [tomorrow]
-                
-                viewModel.searchFlightsForDates(
-                    origin: viewModel.fromIataCode,
-                    destination: viewModel.toIataCode,
-                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                    departureDate: viewModel.selectedDepartureDatee,
-                    isDirectSearch: true
-                )
-            }
-            
-            print("✅ Swap completed and refetch initiated")
-        }
-    }
+           // Delay swap logic to align with animation duration
+           DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+               // Store original values before swapping
+               let originalFromLocation = viewModel.fromLocation
+               let originalFromCode = viewModel.fromIataCode
+               let originalToLocation = viewModel.toLocation
+               let originalToCode = viewModel.toIataCode
+               
+               // Perform swap
+               viewModel.fromLocation = originalToLocation
+               viewModel.fromIataCode = originalToCode
+               viewModel.toLocation = originalFromLocation
+               viewModel.toIataCode = originalFromCode
+               
+               // Update search context with swapped values
+               viewModel.selectedOriginCode = viewModel.fromIataCode
+               viewModel.selectedDestinationCode = viewModel.toIataCode
+               
+               // Clear existing results before new search
+               viewModel.detailedFlightResults = []
+               viewModel.flightResults = []
+               
+               // Trigger refetch based on current context
+               if viewModel.showingDetailedFlightList {
+                   print("🔄 Swapping and refetching detailed flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                   
+                   viewModel.searchFlightsForDates(
+                       origin: viewModel.fromIataCode,
+                       destination: viewModel.toIataCode,
+                       returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                       departureDate: viewModel.selectedDepartureDatee,
+                       isDirectSearch: viewModel.isDirectSearch
+                   )
+               } else if viewModel.hasSearchedFlights {
+                   print("🔄 Swapping and refetching basic flights: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                   
+                   if viewModel.selectedCity != nil {
+                       viewModel.fetchFlightDetails(destination: viewModel.toIataCode)
+                   } else {
+                       viewModel.searchFlightsForDates(
+                           origin: viewModel.fromIataCode,
+                           destination: viewModel.toIataCode,
+                           returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                           departureDate: viewModel.selectedDepartureDatee,
+                           isDirectSearch: true
+                       )
+                   }
+               } else if !viewModel.dates.isEmpty {
+                   print("🔄 Swapping and starting new search with dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                   
+                   let formatter = DateFormatter()
+                   formatter.dateFormat = "yyyy-MM-dd"
+                   
+                   if viewModel.dates.count >= 2 {
+                       let sortedDates = viewModel.dates.sorted()
+                       viewModel.selectedDepartureDatee = formatter.string(from: sortedDates[0])
+                       viewModel.selectedReturnDatee = formatter.string(from: sortedDates[1])
+                   } else if viewModel.dates.count == 1 {
+                       viewModel.selectedDepartureDatee = formatter.string(from: viewModel.dates[0])
+                       if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.dates[0]) {
+                           viewModel.selectedReturnDatee = formatter.string(from: nextDay)
+                       }
+                   }
+                   
+                   viewModel.searchFlightsForDates(
+                       origin: viewModel.fromIataCode,
+                       destination: viewModel.toIataCode,
+                       returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                       departureDate: viewModel.selectedDepartureDatee,
+                       isDirectSearch: true
+                   )
+               } else {
+                   print("🔄 Swapping with default dates: \(viewModel.fromIataCode) → \(viewModel.toIataCode)")
+                   
+                   let calendar = Calendar.current
+                   let tomorrow = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+                   let dayAfterTomorrow = calendar.date(byAdding: .day, value: 14, to: Date()) ?? Date()
+                   
+                   let formatter = DateFormatter()
+                   formatter.dateFormat = "yyyy-MM-dd"
+                   
+                   viewModel.selectedDepartureDatee = formatter.string(from: tomorrow)
+                   viewModel.selectedReturnDatee = formatter.string(from: dayAfterTomorrow)
+                   
+                   viewModel.dates = viewModel.isRoundTrip ? [tomorrow, dayAfterTomorrow] : [tomorrow]
+                   
+                   viewModel.searchFlightsForDates(
+                       origin: viewModel.fromIataCode,
+                       destination: viewModel.toIataCode,
+                       returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                       departureDate: viewModel.selectedDepartureDatee,
+                       isDirectSearch: true
+                   )
+               }
+               
+               print("✅ Swap completed and refetch initiated")
+           }
+       }
 
-    private func getFromLocationDisplayText() -> String {
-        // Always show IATA code and location name when available
-        if !viewModel.fromIataCode.isEmpty && !viewModel.fromLocation.isEmpty {
-            return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
-        } else if !viewModel.fromIataCode.isEmpty {
-            return viewModel.fromIataCode
-        } else if !viewModel.fromLocation.isEmpty {
-            return viewModel.fromLocation
-        } else {
-            // Fallback to default
-            return "COK Kochi"
-        }
-    }
+       private func getFromLocationDisplayText() -> String {
+           // Always show IATA code and location name when available
+           if !viewModel.fromIataCode.isEmpty && !viewModel.fromLocation.isEmpty {
+               return "\(viewModel.fromIataCode) \(viewModel.fromLocation)"
+           } else if !viewModel.fromIataCode.isEmpty {
+               return viewModel.fromIataCode
+           } else if !viewModel.fromLocation.isEmpty {
+               return viewModel.fromLocation
+           } else {
+               // Fallback to default
+               return "COK Kochi"
+           }
+       }
 
-    private func getFromLocationTextColor() -> Color {
-        return .primary
-    }
+       private func getFromLocationTextColor() -> Color {
+           return .primary
+       }
 
-    private func getToLocationDisplayText() -> String {
-        if viewModel.toIataCode.isEmpty {
-            return viewModel.toLocation
-        }
-        return "\(viewModel.toIataCode) \(viewModel.toLocation)"
-    }
+       private func getToLocationDisplayText() -> String {
+           if viewModel.toIataCode.isEmpty {
+               return viewModel.toLocation
+           }
+           return "\(viewModel.toIataCode) \(viewModel.toLocation)"
+       }
 
-    private func getToLocationTextColor() -> Color {
-        return .primary
-    }
-        
-    private func getDateDisplayText() -> String {
-        if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
-            return "Anytime"
-        }
-        
-        if viewModel.toLocation == "Anywhere" {
-            return "Anytime"
-        } else if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
-            return "Anytime"
-        } else if viewModel.dates.isEmpty {
-            return "Anytime"
-        } else if viewModel.dates.count == 1 {
-            return formatDate(viewModel.dates[0])
-        } else if viewModel.dates.count >= 2 {
-            return "\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))"
-        }
-        
-        return "Anytime"
-    }
-    
-    private func getDateTextColor() -> Color {
-        return .primary
-    }
-    
-    private func handleAnywhereDestination() {
-        viewModel.goBackToCountries()
-        viewModel.toLocation = "Anywhere"
-        viewModel.toIataCode = ""
-        viewModel.hasSearchedFlights = false
-        viewModel.showingDetailedFlightList = false
-        viewModel.flightResults = []
-        viewModel.detailedFlightResults = []
-    }
-    
-    private func triggerSearchAfterPassengerChange() {
-        if viewModel.toLocation != "Anywhere" {
-            if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
-                viewModel.detailedFlightResults = []
-                
-                viewModel.searchFlightsForDates(
-                    origin: viewModel.selectedOriginCode,
-                    destination: viewModel.selectedDestinationCode,
-                    returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
-                    departureDate: viewModel.selectedDepartureDatee
-                )
-            }
-            else if let city = viewModel.selectedCity {
-                viewModel.fetchFlightDetails(destination: city.location.iata)
-            }
-        }
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: date)
-    }
-}
+       private func getToLocationTextColor() -> Color {
+           return .primary
+       }
+           
+       private func getDateDisplayText() -> String {
+           if viewModel.dates.isEmpty && viewModel.selectedDepartureDatee.isEmpty {
+               return "Anytime"
+           }
+           
+           if viewModel.toLocation == "Anywhere" {
+               return "Anytime"
+           } else if viewModel.dates.isEmpty && viewModel.hasSearchedFlights && !viewModel.flightResults.isEmpty {
+               return "Anytime"
+           } else if viewModel.dates.isEmpty {
+               return "Anytime"
+           } else if viewModel.dates.count == 1 {
+               return formatDate(viewModel.dates[0])
+           } else if viewModel.dates.count >= 2 {
+               return "\(formatDate(viewModel.dates[0])) - \(formatDate(viewModel.dates[1]))"
+           }
+           
+           return "Anytime"
+       }
+       
+       private func getDateTextColor() -> Color {
+           return .primary
+       }
+       
+       private func handleAnywhereDestination() {
+           viewModel.goBackToCountries()
+           viewModel.toLocation = "Anywhere"
+           viewModel.toIataCode = ""
+           viewModel.hasSearchedFlights = false
+           viewModel.showingDetailedFlightList = false
+           viewModel.flightResults = []
+           viewModel.detailedFlightResults = []
+       }
+       
+       private func triggerSearchAfterPassengerChange() {
+           if viewModel.toLocation != "Anywhere" {
+               if !viewModel.selectedOriginCode.isEmpty && !viewModel.selectedDestinationCode.isEmpty {
+                   viewModel.detailedFlightResults = []
+                   
+                   viewModel.searchFlightsForDates(
+                       origin: viewModel.selectedOriginCode,
+                       destination: viewModel.selectedDestinationCode,
+                       returnDate: viewModel.isRoundTrip ? viewModel.selectedReturnDatee : "",
+                       departureDate: viewModel.selectedDepartureDatee
+                   )
+               }
+               else if let city = viewModel.selectedCity {
+                   viewModel.fetchFlightDetails(destination: city.location.iata)
+               }
+           }
+       }
+       
+       private func formatDate(_ date: Date) -> String {
+           let formatter = DateFormatter()
+           formatter.dateFormat = "d MMM"
+           return formatter.string(from: date)
+       }
+   }
 
 
 
@@ -1729,7 +1735,7 @@ struct TabButton: View {
 }
 
 
-// MARK: - Updated TripTypeTabView with Conditional Multi-City Display
+// MARK: - Updated TripTypeTabView with Fixed Multi-City Display
 struct TripTypeTabView: View {
     @Binding var selectedTab: Int
     @Binding var isRoundTrip: Bool
@@ -1738,17 +1744,21 @@ struct TripTypeTabView: View {
     // ADD: Observe shared search data to determine if multi-city should be shown
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     
-    // Conditional tabs based on search mode and original search type
+    // FIXED: Show multi-city when:
+    // 1. User came directly from home with multi-city search, OR
+    // 2. Current view model has multi-city trips
     private var availableTabs: [String] {
-        // Only show multi-city if user came from direct search AND original search was multi-city
-        if sharedSearchData.isInSearchMode && sharedSearchData.selectedTab == 2 {
+        let shouldShowMultiCity = (sharedSearchData.isDirectFromHome && sharedSearchData.selectedTab == 2) ||
+                                  viewModel.multiCityTrips.count >= 2
+        
+        if shouldShowMultiCity {
             return ["Return", "One way", "Multi city"]
         } else {
             return ["Return", "One way"]
         }
     }
     
-    // Calculate dimensions based on available tabs - Updated to match tripTypeTabs UI
+    // Calculate dimensions based on available tabs
     private var totalWidth: CGFloat {
         return UIScreen.main.bounds.width * 0.65
     }
@@ -1758,7 +1768,7 @@ struct TripTypeTabView: View {
     }
     
     private var padding: CGFloat {
-        return 6 // Consistent padding for all sides
+        return 6
     }
     
     // MARK: - Targeted Loading State Check
@@ -1770,15 +1780,15 @@ struct TripTypeTabView: View {
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Background capsule (gray background, height remains the same)
+            // Background capsule
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .frame(height: 44)  // Keep the gray background height at 44
+                .frame(height: 44)
                 
-            // Sliding white background for selected tab (height slightly increased)
+            // Sliding white background for selected tab
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - (padding * 2), height: 34)  // Slightly increased height of the white background
+                .frame(width: tabWidth - (padding * 2), height: 34)
                 .offset(x: (CGFloat(selectedTab) * tabWidth) + padding)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
             
@@ -1786,7 +1796,7 @@ struct TripTypeTabView: View {
             HStack(spacing: 0) {
                 ForEach(0..<availableTabs.count, id: \.self) { index in
                     Button(action: {
-                        // TARGETED SAFETY CHECK: Only block changes in ModifiedDetailedFlightListView during loading
+                        // TARGETED SAFETY CHECK: Only block changes in detailed view during loading
                         if isLoadingInDetailedView {
                             print("Trip type change blocked - skeleton loading in detailed flight view")
                             return
@@ -1796,8 +1806,10 @@ struct TripTypeTabView: View {
                         
                         // Handle multi-city selection (only if available)
                         if index == 2 && availableTabs.count > 2 {
-                            // Initialize multi city trips
-                            viewModel.initializeMultiCityTrips()
+                            // Initialize multi city trips if not already done
+                            if viewModel.multiCityTrips.count < 2 {
+                                viewModel.initializeMultiCityTrips()
+                            }
                         } else {
                             // Handle return/one-way trip types
                             let newIsRoundTrip = (index == 0)
@@ -1834,12 +1846,16 @@ struct TripTypeTabView: View {
         .padding(.horizontal, 4)
         .padding(.bottom, 8)
         .opacity(isLoadingInDetailedView ? 0.6 : 1.0)
-        .onReceive(sharedSearchData.$isInSearchMode) { _ in
-            // Reset selectedTab when search mode changes and multi-city is not available
-            if !sharedSearchData.isInSearchMode || sharedSearchData.selectedTab != 2 {
-                if selectedTab >= availableTabs.count {
-                    selectedTab = 0 // Reset to "Return" if current tab is not available
-                }
+        .onReceive(sharedSearchData.$isDirectFromHome) { _ in
+            // Don't reset tab when coming from home with multi-city
+            if sharedSearchData.isDirectFromHome && sharedSearchData.selectedTab == 2 {
+                // Keep the multi-city tab selected
+                return
+            }
+            
+            // Reset selectedTab when direct from home flag changes for non-multi-city
+            if !sharedSearchData.isDirectFromHome && selectedTab >= availableTabs.count {
+                selectedTab = 0 // Reset to "Return" if current tab is not available
             }
         }
     }
@@ -2782,10 +2798,7 @@ static let fastest = FlightTag(title: "Fastest", color: Color.purple)
 }
 
 
-
-// Updated Flight Card Components to match the UI design
-
-// REPLACE the existing DetailedFlightCardWrapper in ExploreComponents.swift with this corrected version:
+// REPLACE the existing DetailedFlightCardWrapper in ExploreComponents.swift with this:
 
 struct DetailedFlightCardWrapper: View {
     let result: FlightDetailResult
@@ -2799,16 +2812,21 @@ struct DetailedFlightCardWrapper: View {
             let outboundLastSegment = outboundLeg.segments.last!
             
             Button(action: onTap) {
-                let isMultiCitySearch = viewModel.multiCityTrips.count >= 2
+                // FIXED: Better multi-city detection
+                let isMultiCitySearch = viewModel.multiCityTrips.count >= 2 ||
+                                       (SharedSearchDataStore.shared.isDirectFromHome && SharedSearchDataStore.shared.selectedTab == 2)
                 let hasMultipleLegs = result.legs.count >= 2
-                // Check if this is a multi-city trip (more than 2 legs)
-                if isMultiCitySearch && hasMultipleLegs {
+                
+                // Check if this is a multi-city trip (more than 2 legs OR came from multi-city search)
+                if isMultiCitySearch && (hasMultipleLegs || result.legs.count >= 2) {
+                    
                     // Multi-city trip - show all legs in one card
                     MultiCityModernFlightCard(
                         result: result,
                         viewModel: viewModel
                     )
                 } else {
+                   
                     // Regular trip (return or one-way) - use existing logic
                     let returnLeg = viewModel.isRoundTrip && result.legs.count >= 2 ? result.legs.last : nil
                     
@@ -2892,8 +2910,8 @@ struct DetailedFlightCardWrapper: View {
                             ReturnAirlineCode: outboundFirstSegment.airlineIata,
                             ReturnAirlineLogo: outboundFirstSegment.airlineLogo,
                             
-                            price: "₹\(Int(result.minPrice))",
-                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People ₹\(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount)))",
+                            price: CurrencyManager.shared.formatPrice(Int(result.minPrice)),
+                            priceDetail: "For \(viewModel.adultsCount + viewModel.childrenCount) People \(CurrencyManager.shared.formatPrice(Int(result.minPrice * Double(viewModel.adultsCount + viewModel.childrenCount))))",
                             
                             isRoundTrip: false
                         )
@@ -2929,8 +2947,6 @@ struct DetailedFlightCardWrapper: View {
         return "\(hours)h \(mins)m"
     }
 }
-
-// REPLACE the MultiCityModernFlightCard in ExploreComponents.swift with this corrected version:
 
 struct MultiCityModernFlightCard: View {
     let result: FlightDetailResult

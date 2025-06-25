@@ -772,10 +772,12 @@ struct EnhancedDynamicSearchInput: View {
         // Validation for required fields
         let valid: Bool
         if searchViewModel.selectedTab == 2 {
-            valid = searchViewModel.multiCityTrips.allSatisfy { trip in
-                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
-            }
-        } else {
+                // Multi-city validation: ensure all trips have from and to locations
+                valid = !searchViewModel.multiCityTrips.isEmpty &&
+                        searchViewModel.multiCityTrips.allSatisfy { trip in
+                            !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+                        }
+            } else {
             valid = !searchViewModel.fromIataCode.isEmpty && !searchViewModel.toIataCode.isEmpty
         }
 
