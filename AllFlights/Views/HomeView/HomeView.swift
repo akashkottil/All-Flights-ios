@@ -523,6 +523,9 @@ struct HomeView: View {
     private func transformBackToHome() {
         print("🏠 Transforming back to HomeView")
         
+        // 🔥 SYNC CHANGES BACK TO HOME BEFORE TRANSFORMATION
+        syncExploreChangesToHome()
+        
         SharedSearchDataStore.shared.isDirectFromHome = false
         
         // Phase 1: Hide skeletons first
@@ -544,7 +547,6 @@ struct HomeView: View {
                 homeContentOpacity = 1.0
                 homeContentOffset = 0
                 isShowingExploreScreen = false
-                // Reset search card to expanded state
                 searchCardHeight = 1.0
             }
         }
@@ -800,6 +802,35 @@ struct HomeView: View {
             .padding()
         }
         .padding(.horizontal)
+    }
+    
+    // ADD THIS NEW METHOD:
+    private func syncExploreChangesToHome() {
+        print("🔄 Syncing changes from ExploreScreen back to HomeView")
+        
+        searchViewModel.fromLocation = exploreViewModel.fromLocation
+        searchViewModel.toLocation = exploreViewModel.toLocation
+        searchViewModel.fromIataCode = exploreViewModel.fromIataCode
+        searchViewModel.toIataCode = exploreViewModel.toIataCode
+        searchViewModel.selectedDates = exploreViewModel.dates
+        searchViewModel.isRoundTrip = exploreViewModel.isRoundTrip
+        searchViewModel.adultsCount = exploreViewModel.adultsCount
+        searchViewModel.childrenCount = exploreViewModel.childrenCount
+        searchViewModel.childrenAges = exploreViewModel.childrenAges
+        searchViewModel.selectedCabinClass = exploreViewModel.selectedCabinClass
+        searchViewModel.directFlightsOnly = exploreViewModel.directFlightsOnlyFromHome
+        
+        // 🔥 MOST IMPORTANT: Sync multi-city trips back to home
+        searchViewModel.multiCityTrips = exploreViewModel.multiCityTrips
+        
+        searchViewModel.selectedTab = selectedTab
+        
+        if exploreViewModel.multiCityTrips.count >= 2 {
+            searchViewModel.selectedTab = 2
+            selectedTab = 2
+        }
+        
+        print("✅ Synced \(exploreViewModel.multiCityTrips.count) multi-city trips back to home")
     }
 }
 

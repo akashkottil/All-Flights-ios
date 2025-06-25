@@ -1890,218 +1890,230 @@ struct FilterTabButton: View {
 
 struct MultiCitySearchCard: View {
     @ObservedObject var viewModel: ExploreViewModel
-    @State private var showingSearchSheet = false
-    @State private var initialFocus: LocationSearchSheet.SearchBarType = .origin
+    @State private var showingFromLocationSheet = false
+    @State private var showingToLocationSheet = false
     @State private var showingCalendar = false
-    @State private var editingTripIndex: Int = 0
+    @State private var editingTripIndex = 0
+    @State private var editingFromOrTo: LocationType = .from
+    @Namespace private var tripAnimation
+    
+    enum LocationType {
+        case from, to
+    }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Multi-city trips grid
-            VStack(spacing: 0) {
-                ForEach(0..<viewModel.multiCityTrips.count, id: \.self) { index in
-                    multiCityTripRow(for: index)
-                    
-                    // Add divider between rows (except for last row)
-                    if index < viewModel.multiCityTrips.count - 1 {
-                        Divider()
-                            .padding(.horizontal, 16)
-                    }
+        VStack(spacing: 16) {
+            // Flight segments with enhanced animations - EXACT SAME AS HOME
+            VStack(spacing: 8) {
+                ForEach(viewModel.multiCityTrips.indices, id: \.self) { index in
+                    // 🔥 USE THE EXACT SAME HomeMultiCitySegmentView FROM HOME
+                    HomeMultiCitySegmentView(
+                        searchViewModel: createSharedViewModelFromExplore(),
+                        trip: viewModel.multiCityTrips[index],
+                        index: index,
+                        canRemove: viewModel.multiCityTrips.count > 2,
+                        isLastRow: false,
+                        onFromTap: {
+                            editingTripIndex = index
+                            editingFromOrTo = .from
+                            showingFromLocationSheet = true
+                        },
+                        onToTap: {
+                            editingTripIndex = index
+                            editingFromOrTo = .to
+                            showingToLocationSheet = true
+                        },
+                        onDateTap: {
+                            editingTripIndex = index
+                            showingCalendar = true
+                        },
+                        onRemove: {
+                            removeTrip(at: index)
+                        }
+                    )
+                    .matchedGeometryEffect(id: "trip-\(viewModel.multiCityTrips[index].id)", in: tripAnimation)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.8)),
+                        removal: .move(edge: .trailing)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.6))
+                    ))
                 }
             }
+            .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.3), value: viewModel.multiCityTrips.count)
             
-            // Bottom section with passenger info and add flight
+            // Bottom section with passenger info and add flight - EXACT SAME AS HOME BUT NO SEARCH BUTTON
             VStack(spacing: 0) {
                 Divider()
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, -20)
                 
-                HStack {
-                    // Passenger info button
+                HStack(spacing: 0) {
+                    // Passenger selection button - EXACT SAME AS HOME
                     Button(action: {
-                        // Handle passenger selection
+                        viewModel.showingPassengersSheet = true
                     }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 12) {
                             Image("cardpassenger")
                                 .foregroundColor(.primary)
-                                .font(.system(size: 16))
-                            
-                            Text(getPassengerDisplayText())
+                                .frame(width: 20, height: 20)
+
+                            Text(passengerDisplayText)
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.primary)
+
+                            Spacer()
                         }
+                        .padding(.vertical, 16)
+                        .padding(.leading, 10)
                     }
-                    
-                    Spacer()
-                    
-                    // Add flight button
-                    Button(action: {
-                        addNewTrip()
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 16, weight: .medium))
-                            
-                            Text("Add flight")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.blue)
+                    .frame(maxHeight: .infinity)
+
+                    // Always show vertical divider and add flight button when under limit - EXACT SAME AS HOME
+                    if viewModel.multiCityTrips.count < 4 {
+                        Rectangle()
+                            .frame(width: 1)
+                            .foregroundColor(Color.gray.opacity(0.3))
+                            .frame(maxHeight: .infinity)
+
+                        Spacer()
+
+                        // Always show Add Flight button, but disable when needed - EXACT SAME AS HOME
+                        Button(action: addTrip) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus")
+                                    .foregroundColor(canAddTrip ? .blue : .gray)
+                                    .font(.system(size: 16, weight: .semibold))
+
+                                Text("Add flight")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(canAddTrip ? .blue : .gray)
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.trailing, 12)
                         }
+                        .disabled(!canAddTrip)
+                        .frame(maxHeight: .infinity)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .background(Color.white)
+                .frame(minHeight: 64)
+                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.multiCityTrips.count)
+                
+                if viewModel.multiCityTrips.count < 5 {
+                    Divider()
+                        .padding(.horizontal, -20)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
+            .animation(.easeInOut(duration: 0.3), value: viewModel.multiCityTrips.count < 5)
+
+            // 🔥 REMOVED: Search button and Direct flights toggle (not needed in ExploreScreen)
+            // These are only for HomeView where user initiates search
         }
-        .sheet(isPresented: $showingSearchSheet) {
-            LocationSearchSheet(
-                viewModel: viewModel,
-                initialFocus: initialFocus,
-             
+        .sheet(isPresented: $showingFromLocationSheet) {
+            HomeMultiCityLocationSheet(
+                searchViewModel: createSharedViewModelFromExplore(),
+                tripIndex: editingTripIndex,
+                isFromLocation: editingFromOrTo == .from
+            )
+        }
+        .sheet(isPresented: $showingToLocationSheet) {
+            HomeMultiCityLocationSheet(
+                searchViewModel: createSharedViewModelFromExplore(),
+                tripIndex: editingTripIndex,
+                isFromLocation: false
             )
         }
         .sheet(isPresented: $showingCalendar) {
             CalendarView(
-                fromiatacode: .constant(viewModel.multiCityTrips[editingTripIndex].fromIataCode),
-                toiatacode: .constant(viewModel.multiCityTrips[editingTripIndex].toIataCode),
-                parentSelectedDates: .constant([viewModel.multiCityTrips[editingTripIndex].date]),
-                onAnytimeSelection: { _ in },
-                onTripTypeChange: { _ in },
-                isRoundTrip: false
+                fromiatacode: .constant(""),
+                toiatacode: .constant(""),
+                parentSelectedDates: .constant([]),
+                isMultiCity: true,
+                multiCityTripIndex: editingTripIndex,
+                sharedMultiCityViewModel: createSharedViewModelFromExplore()
             )
         }
     }
     
-    // MARK: - Individual Trip Row
-    @ViewBuilder
-    private func multiCityTripRow(for index: Int) -> some View {
-        let trip = viewModel.multiCityTrips[index]
+    // MARK: - Helper method to convert ExploreViewModel data to SharedFlightSearchViewModel format
+    private func createSharedViewModelFromExplore() -> SharedFlightSearchViewModel {
+        let sharedVM = SharedFlightSearchViewModel()
         
-        HStack(spacing: 12) {
-            // Origin and Destination section
-            HStack(spacing: 8) {
-                // From location
-                Button(action: {
-                    editingTripIndex = index
-                    initialFocus = .origin
-                    showingSearchSheet = true
-                }) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(trip.fromIataCode.isEmpty ? "COK" : trip.fromIataCode)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.primary)
-                        
-                        Text(trip.fromLocation.isEmpty ? "Kochi" : trip.fromLocation)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.gray)
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                
-                // Arrow or connector
-                Image(systemName: "arrow.right")
-                    .foregroundColor(.gray)
-                    .font(.system(size: 12))
-                
-                // To location
-                Button(action: {
-                    editingTripIndex = index
-                    initialFocus = .destination
-                    showingSearchSheet = true
-                }) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(trip.toIataCode.isEmpty ? "DXB" : trip.toIataCode)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.primary)
-                        
-                        Text(trip.toLocation.isEmpty ? "To" : trip.toLocation)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.gray)
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxWidth: .infinity)
-            
-            Spacer()
-            
-            // Date section
-            Button(action: {
-                editingTripIndex = index
-                showingCalendar = true
-            }) {
-                Text(formatTripDate(trip.date))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-                    .frame(minWidth: 80, alignment: .leading)
-            }
-            
-            // Delete button
-            if viewModel.multiCityTrips.count > 2 {
-                Button(action: {
-                    removeTrip(at: index)
-                }) {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                        .font(.system(size: 16))
-                        .frame(width: 24, height: 24)
-                }
-            } else {
-                // Invisible spacer to maintain layout
-                Spacer()
-                    .frame(width: 24, height: 24)
-            }
+        // Transfer the essential data that HomeMultiCitySegmentView needs
+        sharedVM.multiCityTrips = viewModel.multiCityTrips
+        sharedVM.selectedTab = 2 // Multi-city tab
+        sharedVM.adultsCount = viewModel.adultsCount
+        sharedVM.childrenCount = viewModel.childrenCount
+        sharedVM.childrenAges = viewModel.childrenAges
+        sharedVM.selectedCabinClass = viewModel.selectedCabinClass
+        sharedVM.fromLocation = viewModel.fromLocation
+        sharedVM.toLocation = viewModel.toLocation
+        sharedVM.fromIataCode = viewModel.fromIataCode
+        sharedVM.toIataCode = viewModel.toIataCode
+        sharedVM.selectedDates = viewModel.dates
+        sharedVM.isRoundTrip = viewModel.isRoundTrip
+        
+        return sharedVM
+    }
+
+    // MARK: - Helper properties and methods - EXACT SAME AS HOME
+    private var canAddTrip: Bool {
+        if let lastTrip = viewModel.multiCityTrips.last {
+            return !lastTrip.toLocation.isEmpty &&
+                   !lastTrip.toIataCode.isEmpty &&
+                   lastTrip.toLocation != "Destination?" &&
+                   lastTrip.toLocation != "Where to?"
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        return false
     }
     
-    // MARK: - Helper Methods
-    private func getPassengerDisplayText() -> String {
-        let adults = viewModel.adultsCount
-        let children = viewModel.childrenCount
-        let totalPassengers = adults + children
+    private var passengerDisplayText: String {
+        let totalPassengers = viewModel.adultsCount + viewModel.childrenCount
+        return "\(totalPassengers) Adult\(totalPassengers > 1 ? "s" : "") - \(viewModel.selectedCabinClass)"
+    }
+
+    private func addTrip() {
+        guard viewModel.multiCityTrips.count < 5,
+              let lastTrip = viewModel.multiCityTrips.last else { return }
         
-        if totalPassengers == 1 {
-            return "1, Economy"
-        } else if children == 0 {
-            return "\(adults), Economy"
-        } else {
-            return "\(totalPassengers), Economy"
-        }
-    }
-    
-    private func formatTripDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E, d MMM"
-        return formatter.string(from: date)
-    }
-    
-    private func addNewTrip() {
-        guard viewModel.multiCityTrips.count < 5 else { return }
-        
-        let lastTrip = viewModel.multiCityTrips.last!
         let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: lastTrip.date) ?? Date()
         
         let newTrip = MultiCityTrip(
             fromLocation: lastTrip.toLocation,
             fromIataCode: lastTrip.toIataCode,
-            toLocation: "To",
+            toLocation: "Where to?",
             toIataCode: "",
             date: nextDay
         )
         
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2)) {
             viewModel.multiCityTrips.append(newTrip)
         }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            editingTripIndex = viewModel.multiCityTrips.count - 1
+            editingFromOrTo = .to
+            
+            withAnimation(.easeInOut(duration: 0.3)) {
+                // Highlight animation if needed
+            }
+        }
     }
-    
+
     private func removeTrip(at index: Int) {
         guard viewModel.multiCityTrips.count > 2,
               index < viewModel.multiCityTrips.count else { return }
         
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.2)) {
             viewModel.multiCityTrips.remove(at: index)
         }
     }
