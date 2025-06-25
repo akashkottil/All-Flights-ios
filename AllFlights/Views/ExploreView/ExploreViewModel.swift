@@ -345,6 +345,7 @@ class ExploreViewModel: ObservableObject {
         isDataCached = false
         hasMoreFlights = true
         isLoadingMoreFlights = false
+        isFirstLoad = true  // 🚨 ADD: Mark as first load
         
         // Store the first and last cities for display
         selectedOriginCode = multiCityTrips.first?.fromIataCode ?? ""
@@ -399,15 +400,16 @@ class ExploreViewModel: ObservableObject {
                 
                 switch response.result {
                 case .success(let searchResponse):
-                    // In searchMultiCityFlightsWithPagination success block
                     self.hasInitialResultsLoaded = true
                     print("Multi-city search successful, got searchId: \(searchResponse.searchId)")
                     self.currentSearchId = searchResponse.searchId
                     
+                    // 🚨 FIX: Use same polling parameters as regular search
                     self.service.pollFlightResultsPaginated(
                         searchId: searchResponse.searchId,
                         page: 1,
-                        limit: 20
+                        limit: 8,  // 🚨 CHANGE: Use same limit as regular search
+                        filterRequest: nil
                     )
                     .receive(on: DispatchQueue.main)
                     .sink(
@@ -419,24 +421,32 @@ class ExploreViewModel: ObservableObject {
                             }
                         },
                         receiveValue: { pollResponse in
-                            // FIXED: Always check cache status first
+                            // 🚨 FIX: Use EXACT same logic as regular search
                             self.totalFlightCount = pollResponse.count
                             self.isDataCached = pollResponse.cache
                             self.actualLoadedCount = pollResponse.results.count
                             self.detailedFlightResults = pollResponse.results
                             
-                            // 🚨 ADD THIS NEW CONDITION CHECK FOR MULTI-CITY:
-                            // CRITICAL: Check for initial empty results with cache = true for multi-city
+                            // Store the last poll response for filter operations
+                            self.lastPollResponse = pollResponse
+                            
+                            // 🚨 FIX: Set hasInitialResultsLoaded immediately when results arrive
+                            if !pollResponse.results.isEmpty {
+                                self.hasInitialResultsLoaded = true
+                                print("✅ Multi-city initial results loaded: \(pollResponse.results.count) flights received")
+                            }
+                            
+                            // 🚨 FIX: Use EXACT same condition logic as regular search
                             if pollResponse.cache && pollResponse.count == 0 && self.isFirstLoad {
                                 print("🚨 Multi-city initial empty result detected (cache: true, count: 0)")
                                 self.isInitialEmptyResult = true
                                 self.showNoResultsModal = true
                                 self.hasMoreFlights = false
                                 self.detailedFlightError = nil
+                                self.hasInitialResultsLoaded = true
                             }
-                            // CRITICAL: Normal handling for multi-city
                             else if pollResponse.cache {
-                                // Backend finished processing multi-city search
+                                // Backend finished processing - final results
                                 if pollResponse.count == 0 {
                                     if !self.isFirstLoad {
                                         self.detailedFlightError = "No flights found for your multi-city route"
@@ -446,17 +456,33 @@ class ExploreViewModel: ObservableObject {
                                     self.detailedFlightError = nil
                                     self.hasMoreFlights = pollResponse.next != nil
                                 }
+                                self.hasInitialResultsLoaded = true
                                 print("✅ Multi-city search complete (cached): \(pollResponse.results.count)/\(pollResponse.count) flights, hasMore: \(self.hasMoreFlights)")
                             } else {
-                                // Backend still processing multi-city
+                                // Backend still processing - continue loading
                                 self.detailedFlightError = nil
                                 self.hasMoreFlights = true
                                 print("🔄 Multi-city search (processing): \(pollResponse.results.count)/\(pollResponse.count) flights, backend still processing")
+                                
+                                // 🚨 FIX: Set hasInitialResultsLoaded even when backend is still processing
+                                if !pollResponse.results.isEmpty {
+                                    self.hasInitialResultsLoaded = true
+                                    print("✅ Multi-city initial results received while backend processing: \(pollResponse.results.count) flights")
+                                }
+                                
+                                // 🚨 ADD: Schedule retry if we haven't received substantial results yet
+                                if pollResponse.results.isEmpty || pollResponse.results.count < 3 {
+                                    self.scheduleRetryAfterDelay()
+                                }
                             }
                             
-                            self.isLoadingDetailedFlights = false
-                            // 🚨 ADD THIS: Mark first load complete
+                            // 🚨 ADD: Mark first load complete
                             self.isFirstLoad = false
+                            
+                            // 🚨 FIX: Stop loading immediately if we have results or if backend is done
+                            if !pollResponse.results.isEmpty || pollResponse.cache {
+                                self.isLoadingDetailedFlights = false
+                            }
                         }
                     )
                     .store(in: &self.cancellables)
@@ -628,10 +654,14 @@ class ExploreViewModel: ObservableObject {
             }
             
             print("🔄 Executing retry poll for more results")
+            
+            // 🚨 FIX: Use consistent retry parameters for all search types
+            let retryLimit = self.multiCityTrips.count >= 2 ? 20 : 30  // Slightly smaller for multi-city
+            
             self.service.pollFlightResultsPaginated(
                 searchId: searchId,
                 page: self.currentPage,
-                limit: 30,
+                limit: retryLimit,
                 filterRequest: self._currentFilterRequest
             )
             .receive(on: DispatchQueue.main)
@@ -655,8 +685,7 @@ class ExploreViewModel: ObservableObject {
                     print("✅ Retry fetched \(newResults.count) new results, total now: \(self.detailedFlightResults.count)")
                     print("📊 Cache status: \(pollResponse.cache)")
                     
-                    // 🚨 ADD THIS NEW CONDITION CHECK:
-                    // CRITICAL: Check if this becomes an empty result during retry
+                    // 🚨 FIX: Use EXACT same logic for all search types
                     if pollResponse.cache {
                         // Backend finished - check final state
                         if self.detailedFlightResults.isEmpty && pollResponse.count == 0 {
@@ -664,7 +693,7 @@ class ExploreViewModel: ObservableObject {
                             if !self.isInitialEmptyResult {
                                 print("🚨 Empty result detected during retry (cache: true, count: 0)")
                                 self.showNoResultsModal = true
-                                self.detailedFlightError = nil // Clear error message since modal will handle it
+                                self.detailedFlightError = nil
                             }
                             self.hasMoreFlights = false
                         } else {
@@ -771,10 +800,13 @@ class ExploreViewModel: ObservableObject {
         isLoadingMoreFlights = true
         let nextPage = currentPage + 1
         
+        // 🚨 FIX: Use consistent limit for all search types
+        let pageLimit = multiCityTrips.count >= 2 ? 20 : 30  // Slightly smaller for multi-city
+        
         service.pollFlightResultsPaginated(
             searchId: searchId,
             page: nextPage,
-            limit: 30,
+            limit: pageLimit,
             filterRequest: _currentFilterRequest
         )
         .receive(on: DispatchQueue.main)
@@ -800,7 +832,6 @@ class ExploreViewModel: ObservableObject {
                     
                     // FIXED: For other errors, only stop pagination if data is cached
                     if self.isDataCached {
-                        // If data is cached and we get an error, likely no more pages
                         self.hasMoreFlights = false
                         print("🛑 Error with cached data - stopping pagination")
                     } else {
@@ -827,7 +858,7 @@ class ExploreViewModel: ObservableObject {
                 self.detailedFlightResults.append(contentsOf: newResults)
                 self.actualLoadedCount = self.detailedFlightResults.count
                 
-                // CRITICAL: Always determine pagination based on cache status and next field
+                // 🚨 FIX: Use EXACT same pagination logic for all search types
                 if pollResponse.cache {
                     // Backend finished processing - use next field for pagination
                     self.hasMoreFlights = pollResponse.next != nil
@@ -843,8 +874,8 @@ class ExploreViewModel: ObservableObject {
                     self.hasMoreFlights = true
                     print("🔄 Backend processing - continue loading")
                     
-                    // Schedule another retry for more data
-                    self.scheduleRetryAfterDelay()
+                    // 🚨 FIX: Don't schedule retry here - let normal retry logic handle it
+                    // The scheduleRetryAfterDelay will be called from the initial search if needed
                 }
                 
                 self.isLoadingMoreFlights = false
