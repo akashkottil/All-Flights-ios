@@ -14,7 +14,7 @@ struct RootTabView: View {
                     case 0:
                         HomeView()
                     case 1:
-                        AlertsView()
+                        FlightDetailDesignScreen()
                     case 2:
                         ExploreScreen()
                     case 3:
