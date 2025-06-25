@@ -4238,7 +4238,11 @@ struct ModifiedDetailedFlightListView: View {
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { index in
-                        EnhancedDetailedFlightCardSkeleton(isRoundTrip: viewModel.isRoundTrip)
+                        EnhancedDetailedFlightCardSkeleton(
+                                        isRoundTrip: viewModel.isRoundTrip,
+                                        isMultiCity: viewModel.multiCityTrips.count >= 2,
+                                        multiCityLegsCount: viewModel.multiCityTrips.count
+                                    )
                            
                             .opacity(skeletonOpacity)
                             .offset(y: skeletonOffset)
@@ -4306,7 +4310,11 @@ struct ModifiedDetailedFlightListView: View {
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { _ in
-                        EnhancedDetailedFlightCardSkeleton(isRoundTrip: viewModel.isRoundTrip)
+                        EnhancedDetailedFlightCardSkeleton(
+                                       isRoundTrip: viewModel.isRoundTrip,
+                                       isMultiCity: viewModel.multiCityTrips.count >= 2,
+                                       multiCityLegsCount: viewModel.multiCityTrips.count
+                                   )
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
                     .padding(.top, 14)

@@ -405,19 +405,24 @@ struct EnhancedSkeletonFlightResultCard: View {
     }
 }
 
-// MARK: - Enhanced Detailed Flight Card Skeleton with Bottom Slide Animation
+
+// MARK: - Enhanced Detailed Flight Card Skeleton with Multi-City Support
 struct EnhancedDetailedFlightCardSkeleton: View {
     @State private var shimmerOffset: CGFloat = -200
     @State private var glowIntensity: Double = 0.3
     @State private var breatheScale: CGFloat = 1.0
     @State private var cardAppeared = false
     
-    // ADD: Parameter to control trip type
+    // UPDATED: Support for different trip types
     let isRoundTrip: Bool
+    let isMultiCity: Bool
+    let multiCityLegsCount: Int
     
-    // ADD: Initializer with default value for backward compatibility
-    init(isRoundTrip: Bool = true) {
+    // UPDATED: Enhanced initializers
+    init(isRoundTrip: Bool = true, isMultiCity: Bool = false, multiCityLegsCount: Int = 0) {
         self.isRoundTrip = isRoundTrip
+        self.isMultiCity = isMultiCity
+        self.multiCityLegsCount = multiCityLegsCount
     }
     
     var body: some View {
@@ -446,12 +451,19 @@ struct EnhancedDetailedFlightCardSkeleton: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
             
-            // Flight row with synchronized shimmer (OUTBOUND/DEPARTURE)
-            enhancedFlightRow()
-            
-            // UPDATED: Conditionally show return flight row based on trip type
-            if isRoundTrip {
-                enhancedFlightRow()
+            // UPDATED: Dynamic flight rows based on trip type
+            if isMultiCity {
+                // Multi-city: Show multiple flight legs
+                ForEach(0..<max(2, multiCityLegsCount), id: \.self) { _ in
+                    enhancedFlightRow()
+                }
+            } else if isRoundTrip {
+                // Round trip: Show 2 flight rows
+                enhancedFlightRow() // Outbound
+                enhancedFlightRow() // Return
+            } else {
+                // One way: Show 1 flight row
+                enhancedFlightRow() // Outbound only
             }
             
             Divider()

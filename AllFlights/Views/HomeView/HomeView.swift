@@ -253,7 +253,11 @@ struct HomeView: View {
                                                 // Enhanced skeleton cards with slide-in animation
                                                 VStack(spacing: 16) {
                                                     ForEach(0..<5, id: \.self) { index in
-                                                        EnhancedDetailedFlightCardSkeleton()
+                                                        EnhancedDetailedFlightCardSkeleton(
+                                                                                        isRoundTrip: isRoundTrip,
+                                                                                        isMultiCity: selectedTab == 2,
+                                                                                        multiCityLegsCount: searchViewModel.multiCityTrips.count
+                                                                                    )
                                                             .padding(.horizontal)
                                                             // Enhanced slide-in animation from bottom
                                                             .offset(y: skeletonsVisible ? 0 : 300)
