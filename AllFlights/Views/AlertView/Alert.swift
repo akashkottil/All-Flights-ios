@@ -1,7 +1,28 @@
 import SwiftUI
 
-struct AlertsView : View {
+struct Alert : View {
     var body: some View {
-        Text("Hello, World!")
+        NavigationView{
+            ZStack{
+                GradientColor.BlueWhite
+                    .ignoresSafeArea()
+                
+                VStack{
+                    HStack{
+                        Image("FlightAlert")
+                        Spacer()
+                        HStack{
+                            Image("passengeralert")
+                            Text("1")
+                        }
+                    }
+                    Spacer()
+                }
+            }
+        }
     }
+}
+
+#Preview {
+    Alert()
 }
