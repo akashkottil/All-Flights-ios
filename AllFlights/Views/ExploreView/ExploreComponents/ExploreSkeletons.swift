@@ -418,7 +418,8 @@ struct EnhancedDetailedFlightCardSkeleton: View {
     let isMultiCity: Bool
     let multiCityLegsCount: Int
     
-    // UPDATED: Enhanced initializers
+
+    // REPLACE the existing init with this enhanced version
     init(isRoundTrip: Bool = true, isMultiCity: Bool = false, multiCityLegsCount: Int = 0) {
         self.isRoundTrip = isRoundTrip
         self.isMultiCity = isMultiCity

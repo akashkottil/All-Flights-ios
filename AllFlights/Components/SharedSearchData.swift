@@ -50,6 +50,9 @@ class SharedSearchDataStore: ObservableObject {
     // Tab navigation
     @Published var shouldNavigateToTab: Int? = nil
     
+    @Published var savedMultiCityState: MultiCitySearchState? = nil
+    @Published var isRestoringMultiCityState = false
+    
     private init() {}
     
     func showModal() {
@@ -125,6 +128,22 @@ class SharedSearchDataStore: ObservableObject {
             self.searchTimestamp = Date()
         }
         
+        if selectedTab == 2 {
+            saveMultiCityState(
+                fromLocation: fromLocation,
+                toLocation: toLocation,
+                fromIataCode: fromIataCode,
+                toIataCode: toIataCode,
+                selectedDates: selectedDates,
+                multiCityTrips: multiCityTrips,
+                adultsCount: adultsCount,
+                childrenCount: childrenCount,
+                childrenAges: childrenAges,
+                selectedCabinClass: selectedCabinClass,
+                directFlightsOnly: directFlightsOnly
+            )
+        }
+        
         print("🔍 Multi-city search execution triggered from SharedSearchDataStore")
     }
     
@@ -160,6 +179,9 @@ class SharedSearchDataStore: ObservableObject {
         // Reset search state
         shouldExecuteSearch = false
         shouldNavigateToExplore = false
+        
+        // ADD this line to clear saved multi-city state when returning home
+        clearSavedMultiCityState()
     }
     
     func resetSearch() {
@@ -204,4 +226,84 @@ class SharedSearchDataStore: ObservableObject {
             return !fromIataCode.isEmpty && !toIataCode.isEmpty && !selectedDates.isEmpty
         }
     }
+    
+    func saveMultiCityState(
+        fromLocation: String,
+        toLocation: String,
+        fromIataCode: String,
+        toIataCode: String,
+        selectedDates: [Date],
+        multiCityTrips: [MultiCityTrip],
+        adultsCount: Int,
+        childrenCount: Int,
+        childrenAges: [Int?],
+        selectedCabinClass: String,
+        directFlightsOnly: Bool
+    ) {
+        savedMultiCityState = MultiCitySearchState(
+            fromLocation: fromLocation,
+            toLocation: toLocation,
+            fromIataCode: fromIataCode,
+            toIataCode: toIataCode,
+            selectedDates: selectedDates,
+            multiCityTrips: multiCityTrips,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            childrenAges: childrenAges,
+            selectedCabinClass: selectedCabinClass,
+            directFlightsOnly: directFlightsOnly
+        )
+        print("💾 Multi-city state saved with \(multiCityTrips.count) trips")
+    }
+
+    func restoreMultiCityState() -> MultiCitySearchState? {
+        guard let state = savedMultiCityState else {
+            print("⚠️ No saved multi-city state to restore")
+            return nil
+        }
+        
+        isRestoringMultiCityState = true
+        print("🔄 Restoring multi-city state with \(state.multiCityTrips.count) trips")
+        
+        // Restore the state
+        fromLocation = state.fromLocation
+        toLocation = state.toLocation
+        fromIataCode = state.fromIataCode
+        toIataCode = state.toIataCode
+        selectedDates = state.selectedDates
+        multiCityTrips = state.multiCityTrips
+        adultsCount = state.adultsCount
+        childrenCount = state.childrenCount
+        childrenAges = state.childrenAges
+        selectedCabinClass = state.selectedCabinClass
+        directFlightsOnly = state.directFlightsOnly
+        
+        // Reset restoration flag after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.isRestoringMultiCityState = false
+        }
+        
+        return state
+    }
+
+    func clearSavedMultiCityState() {
+        savedMultiCityState = nil
+        isRestoringMultiCityState = false
+        print("🗑️ Cleared saved multi-city state")
+    }
+}
+
+// MARK: - Multi-City Search State Structure
+struct MultiCitySearchState {
+    let fromLocation: String
+    let toLocation: String
+    let fromIataCode: String
+    let toIataCode: String
+    let selectedDates: [Date]
+    let multiCityTrips: [MultiCityTrip]
+    let adultsCount: Int
+    let childrenCount: Int
+    let childrenAges: [Int?]
+    let selectedCabinClass: String
+    let directFlightsOnly: Bool
 }

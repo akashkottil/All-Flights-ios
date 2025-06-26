@@ -304,13 +304,8 @@ struct SearchCard: View {
     
     // FIXED: Determine if multi-city should be shown based on multiple conditions
     private var shouldShowMultiCity: Bool {
-        // Show multi-city if:
-        // 1. Coming from direct home search with multi-city selected, OR
-        // 2. Currently selected tab is 2 (multi-city), OR
-        // 3. View model has multi-city trips
-        return (sharedSearchData.isDirectFromHome && sharedSearchData.selectedTab == 2) ||
-               selectedTab == 2 ||
-               viewModel.multiCityTrips.count >= 2
+        // FIXED: Show multi-city when selectedTab is 2, regardless of other conditions
+        return selectedTab == 2
     }
     
     var body: some View {
@@ -1802,28 +1797,50 @@ struct TripTypeTabView: View {
                             return
                         }
                         
+                        let previousTab = selectedTab
                         selectedTab = index
                         
-                        // Handle multi-city selection (only if available)
-                        if index == 2 && availableTabs.count > 2 {
-                            // Initialize multi city trips if not already done
-                            if viewModel.multiCityTrips.count < 2 {
-                                viewModel.initializeMultiCityTrips()
+                        // Handle multi-city selection
+                        if index == 2 {
+                            print("🔄 Switching to multi-city mode")
+                            
+                            // Check if we have saved multi-city state to restore
+                            if sharedSearchData.savedMultiCityState != nil {
+                                print("🔄 Restoring saved multi-city state")
+                                viewModel.handleSwitchToMultiCity()
+                            } else {
+                                print("🔄 Initializing new multi-city trips")
+                                // Initialize multi city trips if not already done
+                                if viewModel.multiCityTrips.count < 2 {
+                                    viewModel.initializeMultiCityTrips()
+                                }
                             }
+                            
+                            // Update shared search data
+                            sharedSearchData.selectedTab = 2
+                            
                         } else {
                             // Handle return/one-way trip types
                             let newIsRoundTrip = (index == 0)
+                            let wasMultiCity = (previousTab == 2)
                             
-                            if isRoundTrip != newIsRoundTrip {
-                                // Update the trip type
+                            print("🔄 Switching to \(newIsRoundTrip ? "Return" : "One Way") trip")
+                            print("🔄 Was multi-city: \(wasMultiCity)")
+                            
+                            // Update trip type
+                            if isRoundTrip != newIsRoundTrip || wasMultiCity {
                                 isRoundTrip = newIsRoundTrip
                                 viewModel.isRoundTrip = newIsRoundTrip
                                 
-                                // Call the centralized method
+                                // Update shared search data
+                                sharedSearchData.isRoundTrip = newIsRoundTrip
+                                sharedSearchData.selectedTab = index
+                                
+                                // Call the centralized method which will handle state saving/restoring
                                 viewModel.handleTripTypeChange()
                             }
                         }
-                    }) {
+                    }){
                         Text(availableTabs[index])
                             .font(.system(size: 13, weight: selectedTab == index ? .semibold : .regular))
                             .foregroundColor(
@@ -4477,10 +4494,10 @@ struct ModifiedDetailedFlightListView: View {
                     Spacer()
                     ForEach(0..<4, id: \.self) { index in
                         EnhancedDetailedFlightCardSkeleton(
-                                        isRoundTrip: viewModel.isRoundTrip,
-                                        isMultiCity: viewModel.multiCityTrips.count >= 2,
-                                        multiCityLegsCount: viewModel.multiCityTrips.count
-                                    )
+                            isRoundTrip: viewModel.isRoundTrip,
+                            isMultiCity: viewModel.multiCityTrips.count >= 2 || (SharedSearchDataStore.shared.isDirectFromHome && SharedSearchDataStore.shared.selectedTab == 2),
+                            multiCityLegsCount: viewModel.multiCityTrips.count
+                        )
                            
                             .opacity(skeletonOpacity)
                             .offset(y: skeletonOffset)
@@ -4549,10 +4566,10 @@ struct ModifiedDetailedFlightListView: View {
                     Spacer()
                     ForEach(0..<4, id: \.self) { _ in
                         EnhancedDetailedFlightCardSkeleton(
-                                       isRoundTrip: viewModel.isRoundTrip,
-                                       isMultiCity: viewModel.multiCityTrips.count >= 2,
-                                       multiCityLegsCount: viewModel.multiCityTrips.count
-                                   )
+                            isRoundTrip: viewModel.isRoundTrip,
+                            isMultiCity: viewModel.multiCityTrips.count >= 2 || (SharedSearchDataStore.shared.isDirectFromHome && SharedSearchDataStore.shared.selectedTab == 2),
+                            multiCityLegsCount: viewModel.multiCityTrips.count
+                        )
                             .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
                     .padding(.top, 14)

@@ -254,10 +254,10 @@ struct HomeView: View {
                                                 VStack(spacing: 16) {
                                                     ForEach(0..<5, id: \.self) { index in
                                                         EnhancedDetailedFlightCardSkeleton(
-                                                                                        isRoundTrip: isRoundTrip,
-                                                                                        isMultiCity: selectedTab == 2,
-                                                                                        multiCityLegsCount: searchViewModel.multiCityTrips.count
-                                                                                    )
+                                                            isRoundTrip: exploreViewModel.isRoundTrip,
+                                                            isMultiCity: exploreViewModel.multiCityTrips.count >= 2 || (SharedSearchDataStore.shared.isDirectFromHome && SharedSearchDataStore.shared.selectedTab == 2),
+                                                            multiCityLegsCount: exploreViewModel.multiCityTrips.count
+                                                        )
                                                             .padding(.horizontal)
                                                             // Enhanced slide-in animation from bottom
                                                             .offset(y: skeletonsVisible ? 0 : 300)

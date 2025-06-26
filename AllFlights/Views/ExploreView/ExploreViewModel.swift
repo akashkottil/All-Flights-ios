@@ -83,6 +83,105 @@ class ExploreViewModel: ObservableObject {
     @Published var showNoResultsModal = false
     @Published var isInitialEmptyResult = false
     
+
+    // REPLACE the handleSwitchToMultiCity method in ExploreViewModel.swift
+
+    func handleSwitchToMultiCity() {
+        print("🔄 Switching back to multi-city mode")
+        
+        let sharedData = SharedSearchDataStore.shared
+        
+        // Restore saved multi-city state if available
+        if let restoredState = sharedData.restoreMultiCityState() {
+            print("✅ Restored multi-city state with \(restoredState.multiCityTrips.count) trips")
+            
+            // Update view model with restored state
+            fromLocation = restoredState.fromLocation
+            toLocation = restoredState.toLocation
+            fromIataCode = restoredState.fromIataCode
+            toIataCode = restoredState.toIataCode
+            dates = restoredState.selectedDates
+            multiCityTrips = restoredState.multiCityTrips
+            adultsCount = restoredState.adultsCount
+            childrenCount = restoredState.childrenCount
+            childrenAges = restoredState.childrenAges
+            selectedCabinClass = restoredState.selectedCabinClass
+            directFlightsOnlyFromHome = restoredState.directFlightsOnly
+            
+            // Update selected codes from first and last trips
+            if !restoredState.multiCityTrips.isEmpty {
+                let firstTrip = restoredState.multiCityTrips[0]
+                let lastTrip = restoredState.multiCityTrips.last!
+                
+                selectedOriginCode = firstTrip.fromIataCode
+                selectedDestinationCode = lastTrip.toIataCode
+            }
+            
+            // Clear current results and set loading state
+            detailedFlightResults = []
+            flightResults = []
+            isLoadingDetailedFlights = true
+            detailedFlightError = nil
+            
+            // Execute multi-city search using your existing method
+            if hasValidMultiCityData() {
+                print("🔍 Executing multi-city search with restored data")
+                
+                // Use your existing searchMultiCityFlights method
+                searchMultiCityFlights()
+                
+            } else {
+                print("⚠️ Invalid multi-city data after restoration")
+                isLoadingDetailedFlights = false
+            }
+        } else {
+            // No saved state, initialize empty multi-city trips
+            print("ℹ️ No saved multi-city state, initializing new trips")
+            initializeMultiCityTrips()
+        }
+    }
+
+    // ADD this helper method
+    private func hasValidMultiCityData() -> Bool {
+        return multiCityTrips.count >= 2 &&
+               multiCityTrips.allSatisfy { trip in
+                   !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+               }
+    }
+    
+    func switchToMultiCity() {
+        print("🔄 Switching to multi-city mode")
+        
+        // Re-initialize multi-city trips based on current from/to locations
+        if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+            let calendar = Calendar.current
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+            let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: Date()) ?? Date()
+            
+            multiCityTrips = [
+                MultiCityTrip(
+                    fromLocation: fromLocation,
+                    fromIataCode: fromIataCode,
+                    toLocation: toLocation,
+                    toIataCode: toIataCode,
+                    date: tomorrow
+                ),
+                MultiCityTrip(
+                    fromLocation: toLocation,
+                    fromIataCode: toIataCode,
+                    toLocation: "",
+                    toIataCode: "",
+                    date: dayAfterTomorrow
+                )
+            ]
+        }
+        
+        // Execute multi-city search if we have valid data
+        if multiCityTrips.count >= 2 && multiCityTrips.allSatisfy({ !$0.fromIataCode.isEmpty && !$0.toIataCode.isEmpty }) {
+            searchMultiCityFlights()
+        }
+    }
+    
     func formatPrice(_ price: Int) -> String {
         return CurrencyManager.shared.formatPrice(price)
     }
@@ -1527,6 +1626,49 @@ class ExploreViewModel: ObservableObject {
     func handleTripTypeChange() {
         print("🔄 Trip type changed to: \(isRoundTrip ? "Round Trip" : "One Way")")
         
+        // Get shared search data store
+        let sharedData = SharedSearchDataStore.shared
+        
+        // Check if we were previously in multi-city mode and now switching to Return/One Way
+        if !multiCityTrips.isEmpty && sharedData.selectedTab == 2 {
+            print("💾 Saving multi-city state before switching to Return/One Way")
+            
+            // Save current multi-city state
+            sharedData.saveMultiCityState(
+                fromLocation: fromLocation,
+                toLocation: toLocation,
+                fromIataCode: fromIataCode,
+                toIataCode: toIataCode,
+                selectedDates: dates,
+                multiCityTrips: multiCityTrips,
+                adultsCount: adultsCount,
+                childrenCount: childrenCount,
+                childrenAges: childrenAges,
+                selectedCabinClass: selectedCabinClass,
+                directFlightsOnly: directFlightsOnlyFromHome
+            )
+            
+            // Clear multi-city trips for Return/One Way search
+            multiCityTrips = []
+            
+            // Update first and last multi-city trip locations for Return/One Way
+            if let savedState = sharedData.savedMultiCityState,
+               !savedState.multiCityTrips.isEmpty {
+                let firstTrip = savedState.multiCityTrips[0]
+                let lastTrip = savedState.multiCityTrips.last!
+                
+                fromLocation = firstTrip.fromLocation
+                fromIataCode = firstTrip.fromIataCode
+                toLocation = lastTrip.toLocation
+                toIataCode = lastTrip.toIataCode
+                
+                selectedOriginCode = firstTrip.fromIataCode
+                selectedDestinationCode = lastTrip.toIataCode
+                
+                print("🔄 Updated origin/destination from multi-city: \(fromIataCode) → \(toIataCode)")
+            }
+        }
+        
         // Handle date changes when switching trip types
         if isRoundTrip { // Switching TO round trip
             // Make sure we have both departure and return dates for round trip
@@ -1568,71 +1710,31 @@ class ExploreViewModel: ObservableObject {
             print("Cleared return date for one-way trip")
         }
         
-        // ✅ CRITICAL FIX: Check current state and only trigger appropriate refresh
-        // Don't automatically navigate to detailed view unless we're already there
+        // Clear current results before new search
+        detailedFlightResults = []
+        flightResults = []
         
-        if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
-            // 🔥 We're already in detailed flight list - refresh with new trip type
-            print("🔄 Already in detailed view - refreshing with new trip type")
-            
-            // Clear current results first
-            detailedFlightResults = []
-            
-            // For round trip, ensure we have a return date
-            let returnDate = isRoundTrip ? selectedReturnDatee : ""
-            
-            searchFlightsForDates(
-                origin: selectedOriginCode,
-                destination: selectedDestinationCode,
-                returnDate: returnDate,
-                departureDate: selectedDepartureDatee,
-                isDirectSearch: isDirectSearch
-            )
-        } else if hasSearchedFlights && !showingDetailedFlightList {
-            // ✅ NEW CONDITION: We're in the flight results view (FlightResultCard screen)
-            // Just refresh the flight results without navigating to detailed view
-            print("🔄 In flight results view - refreshing flight results only")
-            
-            if let city = selectedCity {
-                // Use the simpler flight details fetch for explore flow
-                fetchFlightDetails(destination: city.location.iata)
-            } else if !fromIataCode.isEmpty && !toIataCode.isEmpty {
-                // For direct searches that are showing results, use fetchFlightDetails
-                fetchFlightDetails(departure: fromIataCode, destination: toIataCode)
-            }
-        } else if !dates.isEmpty && !fromIataCode.isEmpty && !toIataCode.isEmpty {
-            // We have all the data needed but not in any specific view - trigger search
-            print("🔄 Have all data - triggering search")
-            updateDatesAndRunSearch()
-        } else if !selectedDepartureDatee.isEmpty && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty {
-            // We have search parameters but need to reconstruct dates
-            print("🔄 Reconstructing search from stored parameters")
-            
-            // Reconstruct dates array from stored strings
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            
-            var newDates: [Date] = []
-            if let departureDate = formatter.date(from: selectedDepartureDatee) {
-                newDates.append(departureDate)
+        // Execute new search with updated trip type
+        if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+            // Scenario 1: We're on the detailed flight list (most common case)
+            if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
+                print("🔄 Re-searching detailed flights with new trip type")
                 
-                if isRoundTrip && !selectedReturnDatee.isEmpty,
-                   let returnDate = formatter.date(from: selectedReturnDatee) {
-                    newDates.append(returnDate)
-                }
+                // For round trip, ensure we have a return date
+                let returnDate = isRoundTrip ? (selectedReturnDatee.isEmpty ? "" : selectedReturnDatee) : ""
+                
+                searchFlightsForDates(
+                    origin: selectedOriginCode,
+                    destination: selectedDestinationCode,
+                    returnDate: returnDate,
+                    departureDate: selectedDepartureDatee,
+                    isDirectSearch: isDirectSearch
+                )
+            } else {
+                updateDatesAndRunSearch()
             }
-            
-            dates = newDates
-            
-            // Now trigger the search
-            searchFlightsForDates(
-                origin: selectedOriginCode,
-                destination: selectedDestinationCode,
-                returnDate: isRoundTrip ? selectedReturnDatee : "",
-                departureDate: selectedDepartureDatee,
-                isDirectSearch: isDirectSearch
-            )
-        } else {
+        }
+        else {
             print("⚠️ No valid search context found for trip type change")
         }
     }
@@ -2255,10 +2357,5 @@ extension ExploreViewModel {
             sharedData.multiCityTrips[index].date = date
         }
     }
-    
-    var hasValidMultiCityData: Bool {
-        return multiCityTrips.allSatisfy { trip in
-            !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
-        }
-    }
+
 }
