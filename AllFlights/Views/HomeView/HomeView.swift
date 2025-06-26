@@ -581,9 +581,14 @@ struct HomeView: View {
         exploreViewModel.childrenAges = searchViewModel.childrenAges
         exploreViewModel.selectedCabinClass = searchViewModel.selectedCabinClass
         
-        // CRITICAL: Transfer multi-city trips BEFORE setting up search state
-        exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
-        print("🔥 Transferred \(exploreViewModel.multiCityTrips.count) multi-city trips to explore view model")
+        // 🔥 FIX: Clear multi-city trips when not in multi-city mode
+        if searchViewModel.selectedTab == 2 {
+            exploreViewModel.multiCityTrips = searchViewModel.multiCityTrips
+            print("🔥 Transferred \(exploreViewModel.multiCityTrips.count) multi-city trips to explore view model")
+        } else {
+            exploreViewModel.multiCityTrips = [] // Clear multi-city trips for regular searches
+            print("🔥 Cleared multi-city trips for regular search")
+        }
         
         // Set the selected origin and destination codes
         exploreViewModel.selectedOriginCode = searchViewModel.fromIataCode
