@@ -2045,7 +2045,7 @@ struct MultiCitySearchCard: View {
             return !lastTrip.toLocation.isEmpty &&
                    !lastTrip.toIataCode.isEmpty &&
                    lastTrip.toLocation != "To" &&
-                   viewModel.multiCityTrips.count < 5
+                   viewModel.multiCityTrips.count < 4
         }
         return false
     }
@@ -2075,7 +2075,7 @@ struct MultiCitySearchCard: View {
         let newTrip = MultiCityTrip(
             fromLocation: lastTrip.toLocation,
             fromIataCode: lastTrip.toIataCode,
-            toLocation: "To",
+            toLocation: "Where To",
             toIataCode: "",
             date: nextDay
         )
