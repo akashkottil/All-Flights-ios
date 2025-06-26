@@ -2216,3 +2216,49 @@ class ExploreViewModel: ObservableObject {
         }
     }
 }
+
+
+
+// MARK: - Multi-City Extensions
+extension ExploreViewModel {
+    
+    func updateMultiCityTripLocation(at index: Int, location: AutocompleteResult, isFrom: Bool) {
+        guard index < multiCityTrips.count else { return }
+        
+        if isFrom {
+            multiCityTrips[index].fromLocation = location.cityName
+            multiCityTrips[index].fromIataCode = location.iataCode
+        } else {
+            multiCityTrips[index].toLocation = location.cityName
+            multiCityTrips[index].toIataCode = location.iataCode
+        }
+        
+        let sharedData = SharedSearchDataStore.shared
+        if index < sharedData.multiCityTrips.count {
+            if isFrom {
+                sharedData.multiCityTrips[index].fromLocation = location.cityName
+                sharedData.multiCityTrips[index].fromIataCode = location.iataCode
+            } else {
+                sharedData.multiCityTrips[index].toLocation = location.cityName
+                sharedData.multiCityTrips[index].toIataCode = location.iataCode
+            }
+        }
+    }
+    
+    func updateMultiCityTripDate(at index: Int, date: Date) {
+        guard index < multiCityTrips.count else { return }
+        
+        multiCityTrips[index].date = date
+        
+        let sharedData = SharedSearchDataStore.shared
+        if index < sharedData.multiCityTrips.count {
+            sharedData.multiCityTrips[index].date = date
+        }
+    }
+    
+    var hasValidMultiCityData: Bool {
+        return multiCityTrips.allSatisfy { trip in
+            !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+        }
+    }
+}
