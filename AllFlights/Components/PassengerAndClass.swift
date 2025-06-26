@@ -36,8 +36,9 @@ struct PassengersAndClassSelector: View {
                 
                 Spacer()
             }
-            .padding(.horizontal)
+            .padding(.horizontal,18)
             .padding(.vertical)
+            .padding(.top,8)
             
             // Main content - no ScrollView
             VStack(alignment: .leading, spacing: 20) {
@@ -417,11 +418,15 @@ struct ClassButton: View {
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(isSelected ? Color.blue : Color.gray.opacity(0.5), lineWidth: 1)
+                        .background(Color.white) // Optional: ensures a white base behind the text
+                        .cornerRadius(6)
+                        .shadow(color: isSelected ? Color.black.opacity(0.1) : .clear, radius: 4, x: 0, y: 2)
                 )
                 .foregroundColor(isSelected ? Color.blue : Color.black)
         }
     }
 }
+
 
 struct FigmaCounterRow: View {
     let title: String

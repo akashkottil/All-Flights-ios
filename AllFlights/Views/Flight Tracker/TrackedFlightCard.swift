@@ -14,17 +14,58 @@ struct TrackedFlightCard: View {
     let duration: String
     let flightType: String
     
+    // ✅ CHANGE: Make this a stored property instead of computed
+    let airlineIataCode: String?
+    
+    // ✅ UPDATE: Add airlineIataCode parameter to initializer
+    init(
+        airlineLogo: String,
+        airlineName: String,
+        flightNumber: String,
+        status: String,
+        departureTime: String,
+        departureAirport: String,
+        departureDate: String,
+        arrivalTime: String,
+        arrivalAirport: String,
+        arrivalDate: String,
+        duration: String,
+        flightType: String,
+        airlineIataCode: String? = nil
+    ) {
+        self.airlineLogo = airlineLogo
+        self.airlineName = airlineName
+        self.flightNumber = flightNumber
+        self.status = status
+        self.departureTime = departureTime
+        self.departureAirport = departureAirport
+        self.departureDate = departureDate
+        self.arrivalTime = arrivalTime
+        self.arrivalAirport = arrivalAirport
+        self.arrivalDate = arrivalDate
+        self.duration = duration
+        self.flightType = flightType
+        // ✅ NOW THIS WORKS: Assign to stored property
+        self.airlineIataCode = airlineIataCode
+    }
+    
+    // ✅ NEW: Computed property to get the best IATA code available
+    private var displayAirlineIataCode: String? {
+        // Use provided IATA code first, otherwise extract from flight number
+        return airlineIataCode ?? flightNumber.airlineIataCode
+    }
+    
     var body: some View {
         VStack(spacing: 16) {
             // Header section
             HStack {
                 HStack(spacing: 8) {
-                    // Airline logo
-                    ZStack {
-                        Image("FlightTrackLogo")
-                            .frame(width: 24, height: 24)
-                            .cornerRadius(6)
-                    }
+                    // ✅ USE: displayAirlineIataCode instead of airlineIataCode
+                    AirlineLogoView(
+                        iataCode: displayAirlineIataCode,
+                        fallbackImage: "FlightTrackLogo",
+                        size: 24
+                    )
                     
                     Text(airlineName)
                         .font(.system(size: 14, weight: .medium))
@@ -38,13 +79,18 @@ struct TrackedFlightCard: View {
                 Spacer()
                 
                 // Status badge
-                Text(status)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.1))
-                    .cornerRadius(4)
+                VStack {
+                    Text(status)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.rainForest)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.rainForest, lineWidth: 1)
+                        )
+                        .cornerRadius(6)
+                }
             }
             
             // Flight timeline
@@ -69,24 +115,42 @@ struct TrackedFlightCard: View {
                 
                 // Flight path visualization
                 VStack(spacing: 4) {
-                    HStack(spacing: 0) {
+                    HStack{
+                        // Departure circle
                         Circle()
-                            .fill(Color.gray.opacity(0.4))
-                            .frame(width: 8, height: 8)
+                          .stroke(Color.primary, lineWidth: 1)
+                          .frame(width: 8, height: 8)
                         
                         Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(height: 1)
+                          .fill(Color.primary)
+                          .frame(width: 10, height: 1)
+                          .padding(.top, 4)
+                          .padding(.bottom, 4)
+                        
+                        HStack {
+                            Text(duration)
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                                .padding(.vertical,3)
+                        }
+                        .frame(width: 70)
+                        .background(Color.white)
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.black, lineWidth: 1)
+                        )
+                        
+                        Rectangle()
+                          .fill(Color.primary)
+                          .frame(width: 10, height: 1)
+                          .padding(.top, 4)
+                          .padding(.bottom, 4)
                         
                         Circle()
-                            .fill(Color.gray.opacity(0.4))
-                            .frame(width: 8, height: 8)
+                          .stroke(Color.primary, lineWidth: 1)
+                          .frame(width: 8, height: 8)
                     }
-                    .frame(width: 100)
-                    
-                    Text(duration)
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
                     
                     Text(flightType)
                         .font(.system(size: 11, weight: .medium))
@@ -119,23 +183,44 @@ struct TrackedFlightCard: View {
     }
 }
 
-// Usage example:
+// Usage examples:
 struct TrackedFlightCard_Previews: PreviewProvider {
     static var previews: some View {
-        TrackedFlightCard(
-            airlineLogo: "6E",
-            airlineName: "Indigo",
-            flightNumber: "6E 6083",
-            status: "Scheduled",
-            departureTime: "17:10",
-            departureAirport: "COK",
-            departureDate: "10 Apr",
-            arrivalTime: "18:30",
-            arrivalAirport: "CNN",
-            arrivalDate: "10 Apr",
-            duration: "12h 10m",
-            flightType: "Direct"
-        )
+        VStack(spacing: 20) {
+            // Example 1: With explicit IATA code
+            TrackedFlightCard(
+                airlineLogo: "6E",
+                airlineName: "Indigo",
+                flightNumber: "6E 6083",
+                status: "Scheduled",
+                departureTime: "17:10",
+                departureAirport: "COK",
+                departureDate: "10 Apr",
+                arrivalTime: "18:30",
+                arrivalAirport: "CNN",
+                arrivalDate: "10 Apr",
+                duration: "12h 30m",
+                flightType: "Direct",
+                airlineIataCode: "6E" // ✅ Explicit IATA code provided
+            )
+            
+            // Example 2: Without IATA code (will extract from flight number)
+            TrackedFlightCard(
+                airlineLogo: "AI",
+                airlineName: "Air India",
+                flightNumber: "AI 131",
+                status: "On Time",
+                departureTime: "09:15",
+                departureAirport: "DEL",
+                departureDate: "10 Apr",
+                arrivalTime: "11:45",
+                arrivalAirport: "BOM",
+                arrivalDate: "10 Apr",
+                duration: "2h 30m",
+                flightType: "Direct"
+                // ✅ No airlineIataCode parameter - will extract "AI" from flight number
+            )
+        }
         .padding()
         .background(Color.gray.opacity(0.1))
     }

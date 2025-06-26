@@ -35,11 +35,33 @@ struct FlightTrackerScreen: View {
     @State private var flightDetailDate: String = ""
     
     // ADDED: Recently viewed flights for tracked tab
-    @State private var recentlyViewedFlights: [TrackedFlightData] = []
+    @State private var recentlyViewedFlights: [TrackedFlightData] = [] {
+        didSet {
+            // Keep only last 10 flights to reduce memory
+            if recentlyViewedFlights.count > 10 {
+                recentlyViewedFlights = Array(recentlyViewedFlights.prefix(10))
+            }
+        }
+    }
     
     // ADDED: Cached flight results for better performance
-    @State private var cachedDepartureResults: [FlightInfo] = []
-    @State private var cachedArrivalResults: [FlightInfo] = []
+    @State private var cachedDepartureResults: [FlightInfo] = [] {
+        didSet {
+            // Limit cache size
+            if cachedDepartureResults.count > 50 {
+                cachedDepartureResults = Array(cachedDepartureResults.prefix(50))
+            }
+        }
+    }
+    @State private var cachedArrivalResults: [FlightInfo] = [] {
+        didSet {
+            // Limit cache size
+            if cachedArrivalResults.count > 50 {
+                cachedArrivalResults = Array(cachedArrivalResults.prefix(50))
+            }
+        }
+    }
+    
     @State private var currentCachedAirport: FlightTrackAirport?
     @State private var lastCachedDate: String?
     
@@ -55,6 +77,8 @@ struct FlightTrackerScreen: View {
     // ADDED: Last searched airport storage (persistent)
     @State private var lastSearchedAirportData: LastSearchedAirportData?
     @State private var lastSearchType: FlightSearchType = .departure
+    
+    
     
     // Network manager
     private let networkManager = FlightTrackNetworkManager.shared
@@ -97,6 +121,12 @@ struct FlightTrackerScreen: View {
                     if selectedTab == 1 {
                         loadLastSearchedAirport()
                     }
+                    
+                    // Setup performance monitoring
+                    PerformanceMonitor.shared // Initialize monitoring
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .memoryPressure)) { _ in
+                    handleMemoryPressure()
                 }
             }
             .navigationBarHidden(true)
@@ -615,6 +645,7 @@ struct FlightTrackerScreen: View {
                                         addRecentlyViewedFlight(flight)
                                     }
                                 )) {
+                                    // FIXED: Remove the extra schedule parameter
                                     flightRowContent(scheduleResults[index])
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -654,15 +685,6 @@ struct FlightTrackerScreen: View {
     
     private var recentlyViewedFlightsListView: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Recently Viewed")
-                    .font(.system(size: 18, weight: .semibold))
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                Spacer()
-            }
-            
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(recentlyViewedFlights) { flight in
@@ -686,6 +708,7 @@ struct FlightTrackerScreen: View {
                                 arrivalDate: flight.arrivalDate,
                                 duration: flight.duration,
                                 flightType: flight.flightType
+                                // ✅ REMOVED: airlineIataCode parameter
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -962,6 +985,7 @@ struct FlightTrackerScreen: View {
                                 addRecentlyViewedFlight(flight)
                             }
                         )) {
+                            // FIXED: Remove the extra schedule parameter
                             flightRowContent(scheduleResults[index])
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -991,6 +1015,7 @@ struct FlightTrackerScreen: View {
                                 addRecentlyViewedFlight(flight)
                             }
                         )) {
+                            // FIXED: Remove the extra schedule parameter
                             flightRowContent(displayingRecentResults[index])
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -1074,7 +1099,12 @@ struct FlightTrackerScreen: View {
     // Create a separate content view for reusability
     private func flightRowContent(_ flight: FlightInfo) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image("FlightTrackLogo")
+            // UPDATED: Use airline IATA code from FlightInfo
+            AirlineLogoView(
+                        iataCode: flight.airlineIataCode ?? flight.flightNumber.airlineIataCode,
+                        fallbackImage: "FlightTrackLogo",
+                        size: 24
+                    )
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(flight.flightNumber)
@@ -1139,7 +1169,6 @@ struct FlightTrackerScreen: View {
         }
         .padding(.vertical, 12)
     }
-    
     private func openTrackLocationSheet(source: SheetSource) {
         // Force state update before showing sheet
         DispatchQueue.main.async {
@@ -1367,6 +1396,7 @@ struct FlightTrackerScreen: View {
             [
                 "flightNumber": flight.flightNumber,
                 "airline": flight.airline,
+                "airlineIataCode": flight.airlineIataCode ?? "", // ADD THIS
                 "destination": flight.destination,
                 "destinationName": flight.destinationName,
                 "time": flight.time,
@@ -1395,7 +1425,10 @@ struct FlightTrackerScreen: View {
                       let time = dict["time"],
                       let scheduledTime = dict["scheduledTime"],
                       let statusString = dict["status"],
-                      let delay = dict["delay"] else { return nil }
+                      let delay = dict["delay"] else {
+                    // FIXED: Return nil instead of nothing
+                    return nil
+                }
                 
                 let status: FlightStatus
                 switch statusString.lowercased() {
@@ -1408,6 +1441,7 @@ struct FlightTrackerScreen: View {
                 return FlightInfo(
                     flightNumber: flightNumber,
                     airline: airline,
+                    airlineIataCode: dict["airlineIataCode"], // ADD THIS - may be nil for old data
                     destination: destination,
                     destinationName: destinationName,
                     time: time,
@@ -1527,6 +1561,7 @@ struct FlightTrackerScreen: View {
         return FlightInfo(
             flightNumber: schedule.flightNumber,
             airline: schedule.airline.name,
+            airlineIataCode: schedule.airline.iataCode, // ADD THIS
             destination: destination,
             destinationName: destinationName,
             time: arrivalTime,
@@ -1549,6 +1584,28 @@ struct FlightTrackerScreen: View {
         
         return timeString
     }
+    
+    private func handleMemoryPressure() {
+        // Clear caches on memory pressure
+        APICache.shared.clearCache()
+        ImageCache.shared.clearCache()
+        
+        // Reduce in-memory data
+        if recentlyViewedFlights.count > 5 {
+            recentlyViewedFlights = Array(recentlyViewedFlights.prefix(5))
+        }
+        
+        if cachedDepartureResults.count > 20 {
+            cachedDepartureResults = Array(cachedDepartureResults.prefix(20))
+        }
+        
+        if cachedArrivalResults.count > 20 {
+            cachedArrivalResults = Array(cachedArrivalResults.prefix(20))
+        }
+        
+        print("🧹 Cleared caches due to memory pressure")
+    }
+    
 }
 
 // MARK: - Supporting Models (Keep existing)
@@ -1579,6 +1636,7 @@ struct TrackedFlightData: Codable, Identifiable {
 struct FlightInfo {
     let flightNumber: String
     let airline: String
+    let airlineIataCode: String? // ADD THIS FIELD
     let destination: String
     let destinationName: String
     let time: String
