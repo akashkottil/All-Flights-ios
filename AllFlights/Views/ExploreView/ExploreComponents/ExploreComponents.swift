@@ -1951,22 +1951,25 @@ struct MultiCitySearchCard: View {
                     .padding(.horizontal, -20)
                 
                 HStack(spacing: 0) {
-                    // Passenger selection button
+                    
                     Button(action: {
                         showingPassengersSheet = true
                     }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "person.fill")
-                                .foregroundColor(.black)
-                                .font(.system(size: 14))
+                        HStack(spacing: 12) {
+                            Image("cardpassenger")
+                                .foregroundColor(.primary)
+                                .frame(width: 20, height: 20)
                             
                             Text(getPassengerDisplayText())
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.black)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
                         }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
+                        .padding(.vertical, 16)
+                        .padding(.leading, 10)
                     }
+                    .frame(maxHeight: .infinity)
                     
                     Spacer()
                     
@@ -1994,51 +1997,47 @@ struct MultiCitySearchCard: View {
             }
         }
         .sheet(isPresented: $showingFromLocationSheet) {
-            MultiCityLocationSearchSheet(
-                viewModel: viewModel,
-                tripIndex: editingTripIndex,
-                searchType: .from,
-                onLocationSelected: { location in
-                    updateTripLocation(at: editingTripIndex, location: location, isFrom: true)
-                    triggerSearchAfterLocationChange()
+                    ExploreMultiCityLocationSheet(
+                        exploreViewModel: viewModel,
+                        tripIndex: editingTripIndex,
+                        isFromLocation: true
+                    )
                 }
-            )
-        }
-        .sheet(isPresented: $showingToLocationSheet) {
-            MultiCityLocationSearchSheet(
-                viewModel: viewModel,
-                tripIndex: editingTripIndex,
-                searchType: .to,
-                onLocationSelected: { location in
-                    updateTripLocation(at: editingTripIndex, location: location, isFrom: false)
-                    triggerSearchAfterLocationChange()
+                .sheet(isPresented: $showingToLocationSheet) {
+                    ExploreMultiCityLocationSheet(
+                        exploreViewModel: viewModel,
+                        tripIndex: editingTripIndex,
+                        isFromLocation: false
+                    )
                 }
-            )
-        }
-        .sheet(isPresented: $showingCalendar) {
-            MultiCityCalendarSheet(
-                viewModel: viewModel,
-                tripIndex: editingTripIndex,
-                onDateSelected: { date in
-                    updateTripDate(at: editingTripIndex, date: date)
-                    triggerSearchAfterDateChange()
+                .sheet(isPresented: $showingCalendar) {
+                    ExploreMultiCityCalendarSheet(
+                        exploreViewModel: viewModel,
+                        tripIndex: editingTripIndex
+                    )
                 }
-            )
-        }
-        .sheet(isPresented: $showingPassengersSheet) {
-            PassengersAndClassSelector(
-                adultsCount: $viewModel.adultsCount,
-                childrenCount: $viewModel.childrenCount,
-                selectedClass: $viewModel.selectedCabinClass,
-                childrenAges: $viewModel.childrenAges
-            )
-            .onDisappear {
-                triggerSearchAfterPassengerChange()
-            }
-        }
+                .sheet(isPresented: $showingPassengersSheet, onDismiss: {
+                            triggerSearchAfterPassengerChange()
+                        }) {
+                            PassengersAndClassSelector(
+                                adultsCount: $viewModel.adultsCount,
+                                childrenCount: $viewModel.childrenCount,
+                                selectedClass: $viewModel.selectedCabinClass,
+                                childrenAges: $viewModel.childrenAges
+                            )
+                        }
     }
     
     // MARK: - Helper Methods
+    
+    private func triggerSearchAfterPassengerChange() {
+            if hasValidMultiCityData() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    print("🔍 Triggering multi-city search after passenger change in explore")
+                    viewModel.searchMultiCityFlights()
+                }
+            }
+        }
     
     private var canAddTrip: Bool {
         if let lastTrip = viewModel.multiCityTrips.last {
@@ -2089,72 +2088,271 @@ struct MultiCitySearchCard: View {
     }
     
     private func removeTrip(at index: Int) {
-        guard viewModel.multiCityTrips.count > 2,
-              index < viewModel.multiCityTrips.count else { return }
-        
-        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-        impactFeedback.impactOccurred()
-        
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            viewModel.multiCityTrips.remove(at: index)
-        }
-        
-        if hasValidMultiCityData() {
-            triggerSearchAfterLocationChange()
-        }
-    }
-    
-    private func updateTripLocation(at index: Int, location: AutocompleteResult, isFrom: Bool) {
-        guard index < viewModel.multiCityTrips.count else { return }
-        
-        if isFrom {
-            viewModel.multiCityTrips[index].fromLocation = location.cityName
-            viewModel.multiCityTrips[index].fromIataCode = location.iataCode
-        } else {
-            viewModel.multiCityTrips[index].toLocation = location.cityName
-            viewModel.multiCityTrips[index].toIataCode = location.iataCode
-        }
-        
-        print("Updated trip \(index): \(isFrom ? "FROM" : "TO") -> \(location.cityName) (\(location.iataCode))")
-    }
-    
-    private func updateTripDate(at index: Int, date: Date) {
-        guard index < viewModel.multiCityTrips.count else { return }
-        
-        viewModel.multiCityTrips[index].date = date
-        print("Updated trip \(index) date: \(date)")
-    }
-    
-    private func triggerSearchAfterLocationChange() {
-        if hasValidMultiCityData() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                print("🔍 Triggering multi-city search after location change")
-                viewModel.searchMultiCityFlights()
+            guard viewModel.multiCityTrips.count > 2,
+                  index < viewModel.multiCityTrips.count else { return }
+            
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
+            
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                viewModel.multiCityTrips.remove(at: index)
+            }
+            
+            if hasValidMultiCityData() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    print("🔍 Triggering multi-city search after trip removal")
+                    viewModel.searchMultiCityFlights()
+                }
             }
         }
-    }
-    
-    private func triggerSearchAfterDateChange() {
-        if hasValidMultiCityData() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                print("🔍 Triggering multi-city search after date change")
-                viewModel.searchMultiCityFlights()
-            }
-        }
-    }
-    
-    private func triggerSearchAfterPassengerChange() {
-        if hasValidMultiCityData() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                print("🔍 Triggering multi-city search after passenger change")
-                viewModel.searchMultiCityFlights()
-            }
-        }
-    }
     
     private func hasValidMultiCityData() -> Bool {
         return viewModel.multiCityTrips.allSatisfy { trip in
             !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+        }
+    }
+    
+    // MARK: - Explore Multi-City Location Sheet (matches Home Multi-City interface)
+    struct ExploreMultiCityLocationSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @ObservedObject var exploreViewModel: ExploreViewModel
+        let tripIndex: Int
+        let isFromLocation: Bool
+        
+        @State private var searchText = ""
+        @State private var results: [AutocompleteResult] = []
+        @State private var isSearching = false
+        @State private var searchError: String? = nil
+        @FocusState private var isTextFieldFocused: Bool
+        @State private var cancellables = Set<AnyCancellable>()
+        @State private var showRecentSearches = true
+        
+        // Add recent search manager
+        @ObservedObject private var recentSearchManager = RecentLocationSearchManager.shared
+        
+        private let searchDebouncer = SearchDebouncer(delay: 0.3)
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(isFromLocation ? "From Where?" : "Where to?")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Empty space to balance the X button
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(.clear)
+                }
+                .padding()
+                
+                // Search bar
+                HStack {
+                    TextField(isFromLocation ? "Origin City, Airport or place" : "Destination City, Airport or place", text: $searchText)
+                        .padding(12)
+                        .background(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.orange, lineWidth: 2)
+                        )
+                        .cornerRadius(8)
+                        .focused($isTextFieldFocused)
+                        .onChange(of: searchText) {
+                            handleTextChange()
+                        }
+                    
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            results = []
+                            showRecentSearches = true
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                // Results section with recent searches
+                if isSearching {
+                    VStack {
+                        ProgressView()
+                        Text("Searching...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    Spacer()
+                } else if let error = searchError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding()
+                    Spacer()
+                } else if !results.isEmpty {
+                    // Show search results
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(results) { result in
+                                LocationResultRow(result: result)
+                                    .onTapGesture {
+                                        selectLocation(result: result)
+                                    }
+                            }
+                        }
+                    }
+                } else if showRecentSearches && searchText.isEmpty {
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: isFromLocation ? .departure : .destination
+                    )
+                    Spacer()
+                } else if shouldShowNoResults() {
+                    Text("No results found")
+                        .foregroundColor(.gray)
+                        .padding()
+                    Spacer()
+                } else {
+                    RecentLocationSearchView(
+                        onLocationSelected: { result in
+                            selectLocation(result: result)
+                        },
+                        showAnywhereOption: false,
+                        searchType: isFromLocation ? .departure : .destination
+                    )
+                    Spacer()
+                }
+            }
+            .background(Color.white)
+            .onAppear {
+                isTextFieldFocused = true
+            }
+        }
+        
+        private func handleTextChange() {
+            showRecentSearches = searchText.isEmpty
+            
+            if !searchText.isEmpty {
+                searchDebouncer.debounce {
+                    searchLocations(query: searchText)
+                }
+            } else {
+                results = []
+            }
+        }
+        
+        private func shouldShowNoResults() -> Bool {
+            return results.isEmpty && !searchText.isEmpty && !showRecentSearches
+        }
+        
+        private func selectLocation(result: AutocompleteResult) {
+            let searchType: LocationSearchType = isFromLocation ? .departure : .destination
+            recentSearchManager.addRecentSearch(result, searchType: searchType)
+            
+            if isFromLocation {
+                exploreViewModel.multiCityTrips[tripIndex].fromLocation = result.cityName
+                exploreViewModel.multiCityTrips[tripIndex].fromIataCode = result.iataCode
+            } else {
+                exploreViewModel.multiCityTrips[tripIndex].toLocation = result.cityName
+                exploreViewModel.multiCityTrips[tripIndex].toIataCode = result.iataCode
+            }
+            
+            searchText = result.cityName
+            
+            // Trigger search after location change
+            if hasValidMultiCityData() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    print("🔍 Triggering multi-city search after location change in explore")
+                    exploreViewModel.searchMultiCityFlights()
+                }
+            }
+            
+            dismiss()
+        }
+        
+        private func searchLocations(query: String) {
+            guard !query.isEmpty else {
+                results = []
+                return
+            }
+            
+            isSearching = true
+            searchError = nil
+            
+            ExploreAPIService.shared.fetchAutocomplete(query: query)
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { completion in
+                    isSearching = false
+                    if case .failure(let error) = completion {
+                        searchError = error.localizedDescription
+                    }
+                }, receiveValue: { results in
+                    self.results = results
+                })
+                .store(in: &cancellables)
+        }
+        
+        private func hasValidMultiCityData() -> Bool {
+            return exploreViewModel.multiCityTrips.allSatisfy { trip in
+                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+            }
+        }
+    }
+
+    // MARK: - Explore Multi-City Calendar Sheet (matches Home Multi-City interface)
+    struct ExploreMultiCityCalendarSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @ObservedObject var exploreViewModel: ExploreViewModel
+        let tripIndex: Int
+        
+        var body: some View {
+            CalendarView(
+                fromiatacode: .constant(""),
+                toiatacode: .constant(""),
+                parentSelectedDates: .constant([]),
+                onAnytimeSelection: { _ in },
+                onTripTypeChange: { _ in },
+                isRoundTrip: false,
+                isMultiCity: true,
+                multiCityTripIndex: tripIndex,
+                multiCityViewModel: exploreViewModel,
+                sharedMultiCityViewModel: nil
+            )
+            .onDisappear {
+                // Trigger search after date change when calendar is dismissed
+                if hasValidMultiCityData() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        print("🔍 Triggering multi-city search after date change in explore")
+                        exploreViewModel.searchMultiCityFlights()
+                    }
+                }
+            }
+        }
+        
+        private func hasValidMultiCityData() -> Bool {
+            return exploreViewModel.multiCityTrips.allSatisfy { trip in
+                !trip.fromIataCode.isEmpty && !trip.toIataCode.isEmpty
+            }
         }
     }
 }
@@ -6986,144 +7184,5 @@ struct InViewKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
-    }
-}
-
-
-
-// MARK: - Multi-City Location Search Sheet
-struct MultiCityLocationSearchSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: ExploreViewModel
-    let tripIndex: Int
-    let searchType: SearchType
-    let onLocationSelected: (AutocompleteResult) -> Void
-    
-    @State private var searchText = ""
-    @State private var results: [AutocompleteResult] = []
-    @State private var isSearching = false
-    @State private var searchError: String? = nil
-    
-    enum SearchType {
-        case from, to
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                HStack {
-                    Image(systemName: searchType == .from ? "airplane.departure" : "airplane.arrival")
-                        .foregroundColor(.gray)
-                    
-                    TextField(searchType == .from ? "From" : "To", text: $searchText)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .onChange(of: searchText) { newValue in
-                            searchLocations(query: newValue)
-                        }
-                }
-                .padding()
-                
-                if isSearching {
-                    ProgressView("Searching...")
-                        .padding()
-                } else if let error = searchError {
-                    Text("Error: \(error)")
-                        .foregroundColor(.red)
-                        .padding()
-                } else {
-                    List(results, id: \.iataCode) { result in
-                        Button(action: {
-                            selectLocation(result)
-                        }) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(result.cityName)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.primary)
-                                
-                                if !result.countryName.isEmpty {
-                                    Text(result.countryName)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Text(result.iataCode)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.blue)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                
-                Spacer()
-            }
-            .navigationTitle(searchType == .from ? "Select Origin" : "Select Destination")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                trailing: Button("Cancel") {
-                    dismiss()
-                }
-            )
-        }
-    }
-    
-    private func searchLocations(query: String) {
-        guard !query.isEmpty else {
-            results = []
-            return
-        }
-        
-        isSearching = true
-        searchError = nil
-        
-        ExploreAPIService.shared.fetchAutocomplete(query: query)
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { completion in
-                isSearching = false
-                if case .failure(let error) = completion {
-                    searchError = error.localizedDescription
-                }
-            }, receiveValue: { searchResults in
-                self.results = searchResults
-            })
-            .store(in: &viewModel.cancellables)
-    }
-    
-    private func selectLocation(_ result: AutocompleteResult) {
-        onLocationSelected(result)
-        dismiss()
-    }
-}
-
-// MARK: - Multi-City Calendar Sheet
-struct MultiCityCalendarSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: ExploreViewModel
-    let tripIndex: Int
-    let onDateSelected: (Date) -> Void
-    
-    var body: some View {
-        NavigationView {
-            CalendarView(
-                fromiatacode: .constant(""),
-                toiatacode: .constant(""),
-                parentSelectedDates: .constant([]),
-                onAnytimeSelection: { _ in },
-                onTripTypeChange: { _ in },
-                isRoundTrip: false,
-                isMultiCity: true,
-                multiCityTripIndex: tripIndex,
-                multiCityViewModel: nil,
-                sharedMultiCityViewModel: nil
-            )
-            .navigationTitle("Select Date")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                trailing: Button("Cancel") {
-                    dismiss()
-                }
-            )
-        }
     }
 }
