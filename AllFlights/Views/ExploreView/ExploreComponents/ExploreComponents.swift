@@ -1730,7 +1730,7 @@ struct TabButton: View {
 }
 
 
-// MARK: - Updated TripTypeTabView with Fixed Multi-City Display
+// MARK: - Updated TripTypeTabView with Fixed Multi-City Search Trigger
 struct TripTypeTabView: View {
     @Binding var selectedTab: Int
     @Binding var isRoundTrip: Bool
@@ -1804,20 +1804,11 @@ struct TripTypeTabView: View {
                         if index == 2 {
                             print("🔄 Switching to multi-city mode")
                             
-                            // Check if we have saved multi-city state to restore
-                            if sharedSearchData.savedMultiCityState != nil {
-                                print("🔄 Restoring saved multi-city state")
-                                viewModel.handleSwitchToMultiCity()
-                            } else {
-                                print("🔄 Initializing new multi-city trips")
-                                // Initialize multi city trips if not already done
-                                if viewModel.multiCityTrips.count < 2 {
-                                    viewModel.initializeMultiCityTrips()
-                                }
-                            }
-                            
                             // Update shared search data
                             sharedSearchData.selectedTab = 2
+                            
+                            // Always trigger multi-city search when multi-city is selected
+                            viewModel.searchMultiCityFlights()
                             
                         } else {
                             // Handle return/one-way trip types
