@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 import CoreLocation
 
-// MARK: - Enhanced Dynamic Height Search Input Component
+// MARK: - Enhanced Dynamic Height Search Input Component with Morphing Search Button
 struct EnhancedDynamicSearchInput: View {
     @ObservedObject var searchViewModel: SharedFlightSearchViewModel
     let heightProgress: CGFloat
@@ -61,15 +61,34 @@ struct EnhancedDynamicSearchInput: View {
         return collapsedRadius + (expandedRadius - collapsedRadius) * heightProgress
     }
 
-    
     // Content opacity based on height - ADJUSTED for better visibility
     private var contentOpacity: Double {
         heightProgress > 0.1 ? min(1.0, (heightProgress - 0.1) / 0.2) : 0
     }
     
-    // Collapsed content opacity - ADJUSTED for smoother transition
+    // NEW: Calculate slide offset for collapsed content behind button
+    private var collapsedContentSlideOffset: CGFloat {
+        // SLIDE ANIMATION LOGIC:
+        // When heightProgress = 1.0 (expanded): content is fully behind button (offset = 250px right)
+        // When heightProgress = 0.0 (collapsed): content is visible (offset = 0px)
+        // As button moves from left to right, content slides out from behind it
+        // Using easeOut curve (sin) for more dramatic reveal effect
+        let maxOffset: CGFloat = 250
+        let easedProgress = sin(heightProgress * .pi / 2) // EaseOut curve
+        return maxOffset * easedProgress
+    }
+    
+    // NEW: Scale effect for content sliding out
+    private var collapsedContentScale: CGFloat {
+        // Slightly scale up as content slides out for more dramatic effect
+        let minScale: CGFloat = 0.95
+        let maxScale: CGFloat = 1.0
+        return minScale + (maxScale - minScale) * (1 - heightProgress)
+    }
+    
+    // Collapsed content opacity - Always visible when needed, no fade
     private var collapsedContentOpacity: Double {
-        heightProgress < 0.7 ? max(0, (0.7 - heightProgress) / 0.7) : 0
+        heightProgress < 0.8 ? 1.0 : 0
     }
     
     var canAddTrip: Bool {
@@ -85,18 +104,25 @@ struct EnhancedDynamicSearchInput: View {
         VStack(spacing: 0) {
             // Container with dynamic height
             ZStack {
-                // Expanded content - LOWERED visibility threshold
+                // Expanded content - LOWERED visibility threshold (WITHOUT search button)
                 if heightProgress > 0.05 {
-                    expandedSearchContent
+                    expandedSearchContentWithoutButton
                         .opacity(contentOpacity)
                         .scaleEffect(max(0.9, 0.9 + (heightProgress * 0.1))) // Adjusted scale for better fit
                 }
                 
-                // Collapsed content - ADJUSTED visibility threshold
-                if heightProgress < 0.75 {
-                    collapsedSearchContent
+                // Collapsed content - ENHANCED with slide and scale animation
+                if heightProgress < 0.8 {
+                    collapsedSearchContentWithoutButton
                         .opacity(collapsedContentOpacity)
+                        .offset(x: collapsedContentSlideOffset) // Slide from behind button
+                        .scaleEffect(collapsedContentScale) // Subtle scale effect
+                        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: collapsedContentSlideOffset)
+                        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: collapsedContentScale)
                 }
+                
+                // NEW: Morphing Search Button - ALWAYS VISIBLE
+                morphingSearchButton
             }
             .frame(height: currentHeight)
             .clipped() // Important: clips content that overflows
@@ -129,119 +155,206 @@ struct EnhancedDynamicSearchInput: View {
         }
     }
     
-    // MARK: - Expanded Content - INCREASED padding and spacing for proper visibility
+    // MARK: - NEW: Morphing Search Button
     @ViewBuilder
-        private var expandedSearchContent: some View {
-            VStack(spacing: 16) {
-                // Trip Type Tabs - ALWAYS show at the top
-                tripTypeTabs
-                
-                // Search Interface
-                if searchViewModel.selectedTab == 2 {
-                    updatedMultiCityInterface
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                } else {
-                    regularInterface
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                }
-            }
-            .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
-            .padding(20) // Consistent with original
-        }
-        
-        // MARK: - Collapsed Content
-        @ViewBuilder
-        private var collapsedSearchContent: some View {
-            Button(action: onSearchTap) {
-                HStack(spacing: 8) {
-                    // From
-                    Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    Text("-")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    
-                    // To
-                    Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 4, height: 4)
-                    
-                    // Date display
-                    Text(formatDatesForCollapsed())
-                        .font(.system(size: 14))
-                        .foregroundColor(.primary)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    
-                    Spacer()
-                    
-                    Text("Search")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: 105)
-                        .frame(height: 44)
-                        .background(
-                            RoundedCornersss(tl: 8, tr: 26, bl: 8, br: 26)
-                                .fill(Color.orange)
-                        )
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
-        }
-    
-    // MARK: - Trip Type Tabs - ENSURE ALWAYS VISIBLE
-    private var tripTypeTabs: some View {
-        let titles = ["Return", "One way", "Multi city"]
-        let totalWidth = UIScreen.main.bounds.width * 0.65
-        let tabWidth = totalWidth / 3
-        let padding: CGFloat = 6
-        
-        return ZStack(alignment: .leading) {
-            Capsule()
-                .fill(Color(UIColor.systemGray6))
-                .frame(height: 44)
-                
-            Capsule()
-                .fill(Color.white)
-                .frame(width: tabWidth - (padding * 2), height: 34)
-                .offset(x: (CGFloat(searchViewModel.selectedTab) * tabWidth) + padding)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: searchViewModel.selectedTab)
+    private var morphingSearchButton: some View {
+        GeometryReader { geometry in
+            let containerWidth = geometry.size.width
+            let containerHeight = geometry.size.height
             
-            HStack(spacing: 0) {
-                ForEach(0..<3, id: \.self) { index in
-                    Button(action: {
-                        if index == 2 {
-                            searchViewModel.updateTripType(newTab: index, newIsRoundTrip: searchViewModel.isRoundTrip)
-                            searchViewModel.initializeMultiCityTrips()
-                        } else {
-                            let newIsRoundTrip = (index == 0)
-                            searchViewModel.updateTripType(newTab: index, newIsRoundTrip: newIsRoundTrip)
-                        }
-                    }) {
-                        Text(titles[index])
-                            .font(.system(size: 13, weight: searchViewModel.selectedTab == index ? .semibold : .regular))
-                            .foregroundColor(searchViewModel.selectedTab == index ? .blue : .primary)
-                            .frame(width: tabWidth)
-                            .padding(.vertical, 8)
+            // Calculate positions and sizes based on heightProgress
+            let expandedButtonFrame = calculateExpandedButtonFrame(containerWidth: containerWidth, containerHeight: containerHeight)
+            let collapsedButtonFrame = calculateCollapsedButtonFrame(containerWidth: containerWidth, containerHeight: containerHeight)
+            
+            // Interpolate between expanded and collapsed states
+            let currentX = expandedButtonFrame.minX + (collapsedButtonFrame.minX - expandedButtonFrame.minX) * (1 - heightProgress)
+            let currentY = expandedButtonFrame.minY + (collapsedButtonFrame.minY - expandedButtonFrame.minY) * (1 - heightProgress)
+            let currentWidth = expandedButtonFrame.width + (collapsedButtonFrame.width - expandedButtonFrame.width) * (1 - heightProgress)
+            let currentHeight = expandedButtonFrame.height + (collapsedButtonFrame.height - expandedButtonFrame.height) * (1 - heightProgress)
+            
+            // Calculate corner radius for the button
+            let expandedCornerRadius: CGFloat = 14
+            let collapsedCornerRadius: CGFloat = 26
+            let currentCornerRadius = expandedCornerRadius + (collapsedCornerRadius - expandedCornerRadius) * (1 - heightProgress)
+            
+            Button(action: {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                impactFeedback.impactOccurred()
+                
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    searchButtonScale = 0.96
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        searchButtonScale = 1.0
                     }
                 }
+                
+                performSearch()
+            }) {
+                Text(heightProgress > 0.5 ? "Search Flights" : "Search")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: currentWidth, height: currentHeight)
+                    .background(
+                        RoundedCornersss(
+                            tl: heightProgress > 0.5 ? currentCornerRadius : 8,
+                            tr: currentCornerRadius,
+                            bl: heightProgress > 0.5 ? currentCornerRadius : 8,
+                            br: currentCornerRadius
+                        )
+                        .fill(heightProgress > 0.5 ? Color("buttonColor") : Color.orange)
+                    )
+                    .scaleEffect(searchButtonScale)
             }
+            .position(x: currentX + currentWidth/2, y: currentY + currentHeight/2)
+            .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: heightProgress)
         }
-        .frame(width: totalWidth, height: 44) // Increased frame height to match original
-        .padding(.horizontal, 4)
-        .padding(.bottom, 8)
     }
     
-    // MARK: - Multi-City Interface (Maintained from original)
-    private var updatedMultiCityInterface: some View {
+    // MARK: - Button Frame Calculations
+    private func calculateExpandedButtonFrame(containerWidth: CGFloat, containerHeight: CGFloat) -> CGRect {
+        // Position the expanded button at the bottom of the expanded content
+        let buttonHeight: CGFloat = 52
+        let horizontalPadding: CGFloat = 20
+        let bottomPadding: CGFloat = 60 // Account for direct flights toggle
+        
+        return CGRect(
+            x: horizontalPadding,
+            y: containerHeight - buttonHeight - bottomPadding,
+            width: containerWidth - (horizontalPadding * 2),
+            height: buttonHeight
+        )
+    }
+    
+    private func calculateCollapsedButtonFrame(containerWidth: CGFloat, containerHeight: CGFloat) -> CGRect {
+        // Position for the collapsed "Search" button (right side of collapsed content)
+        let buttonWidth: CGFloat = 105
+        let buttonHeight: CGFloat = 44
+        let rightPadding: CGFloat = 20
+        let verticalCenter = containerHeight / 2
+        
+        return CGRect(
+            x: containerWidth - buttonWidth - rightPadding,
+            y: verticalCenter - (buttonHeight / 2),
+            width: buttonWidth,
+            height: buttonHeight
+        )
+    }
+    
+    // MARK: - Expanded Content WITHOUT Search Button
+    @ViewBuilder
+    private var expandedSearchContentWithoutButton: some View {
+        VStack(spacing: 16) {
+            // Trip Type Tabs - ALWAYS show at the top
+            tripTypeTabs
+            
+            // Search Interface
+            if searchViewModel.selectedTab == 2 {
+                updatedMultiCityInterfaceWithoutButton
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                regularInterfaceWithoutButton
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
+        .padding(20) // Consistent with original
+    }
+    
+    // MARK: - Collapsed Content WITHOUT Search Button (Enhanced with slide animation)
+    @ViewBuilder
+    private var collapsedSearchContentWithoutButton: some View {
+        HStack(spacing: 8) {
+            // From
+            Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.primary)
+            
+            Text("-")
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            // To
+            Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.primary)
+            
+            Circle()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 4, height: 4)
+            
+            // Date display
+            Text(formatDatesForCollapsed())
+                .font(.system(size: 14))
+                .foregroundColor(.primary)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            
+            Spacer()
+            
+            // REMOVED: Search button (now handled by morphingSearchButton)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .clipped() // NEW: Clip content that goes outside bounds for cleaner slide effect
+    }
+    
+    // MARK: - Regular Interface WITHOUT Search Button
+    private var regularInterfaceWithoutButton: some View {
+        VStack(spacing: 5) {
+            fromLocationButton
+                .offset(y: fromLocationOffset)
+                .opacity(fromLocationOpacity)
+                .scaleEffect(fromLocationScale)
+                .animation(.easeInOut(duration: 0.3), value: fromLocationOffset)
+                .animation(.easeInOut(duration: 0.25), value: fromLocationOpacity)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: fromLocationScale)
+                
+            ZStack {
+                Divider()
+                    .padding(.leading, 40)
+                    .padding(.trailing, -20)
+                    .padding(.vertical, 1)
+                
+                enhancedSwapButton
+            }
+            
+            toLocationButton
+                .offset(y: toLocationOffset)
+                .opacity(toLocationOpacity)
+                .scaleEffect(toLocationScale)
+                .animation(.easeInOut(duration: 0.3), value: toLocationOffset)
+                .animation(.easeInOut(duration: 0.25), value: toLocationOpacity)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: toLocationScale)
+                
+            Divider()
+                .padding(.leading, 40)
+                .padding(.trailing, -20)
+                .padding(.vertical, 6)
+                
+            dateButton
+                .padding(.vertical, 4)
+                
+            Divider()
+                .padding(.leading, 40)
+                .padding(.trailing, -20)
+                .padding(.vertical, 6)
+                
+            passengerButton
+                .padding(.bottom, 4)
+           
+            // REMOVED: searchButton (now handled by morphingSearchButton)
+            
+            directFlightsToggle
+                .padding(.top, 52 + 16) // Add space where search button would be
+        }
+    }
+    
+    // MARK: - Multi-City Interface WITHOUT Search Button
+    private var updatedMultiCityInterfaceWithoutButton: some View {
         VStack(spacing: 16) {
             // Flight segments with enhanced animations
             VStack(spacing: 8) {
@@ -347,66 +460,58 @@ struct EnhancedDynamicSearchInput: View {
             }
             .animation(.easeInOut(duration: 0.3), value: searchViewModel.multiCityTrips.count < 5)
 
-            // Search button
-            searchButton
+            // REMOVED: searchButton (now handled by morphingSearchButton)
             
             // Direct flights toggle
             directFlightsToggle
+                .padding(.top, 52 + 16) // Add space where search button would be
         }
     }
     
-    // MARK: - Regular Interface
-    private var regularInterface: some View {
-        VStack(spacing: 5) {
-            fromLocationButton
-                .offset(y: fromLocationOffset)
-                .opacity(fromLocationOpacity)
-                .scaleEffect(fromLocationScale)
-                .animation(.easeInOut(duration: 0.3), value: fromLocationOffset)
-                .animation(.easeInOut(duration: 0.25), value: fromLocationOpacity)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: fromLocationScale)
+    // MARK: - Trip Type Tabs - ENSURE ALWAYS VISIBLE
+    private var tripTypeTabs: some View {
+        let titles = ["Return", "One way", "Multi city"]
+        let totalWidth = UIScreen.main.bounds.width * 0.65
+        let tabWidth = totalWidth / 3
+        let padding: CGFloat = 6
+        
+        return ZStack(alignment: .leading) {
+            Capsule()
+                .fill(Color(UIColor.systemGray6))
+                .frame(height: 44)
                 
-            ZStack {
-                Divider()
-                    .padding(.leading, 40)
-                    .padding(.trailing, -20)
-                    .padding(.vertical, 1)
-                
-                enhancedSwapButton
+            Capsule()
+                .fill(Color.white)
+                .frame(width: tabWidth - (padding * 2), height: 34)
+                .offset(x: (CGFloat(searchViewModel.selectedTab) * tabWidth) + padding)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: searchViewModel.selectedTab)
+            
+            HStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { index in
+                    Button(action: {
+                        if index == 2 {
+                            searchViewModel.updateTripType(newTab: index, newIsRoundTrip: searchViewModel.isRoundTrip)
+                            searchViewModel.initializeMultiCityTrips()
+                        } else {
+                            let newIsRoundTrip = (index == 0)
+                            searchViewModel.updateTripType(newTab: index, newIsRoundTrip: newIsRoundTrip)
+                        }
+                    }) {
+                        Text(titles[index])
+                            .font(.system(size: 13, weight: searchViewModel.selectedTab == index ? .semibold : .regular))
+                            .foregroundColor(searchViewModel.selectedTab == index ? .blue : .primary)
+                            .frame(width: tabWidth)
+                            .padding(.vertical, 8)
+                    }
+                }
             }
-            
-            toLocationButton
-                .offset(y: toLocationOffset)
-                .opacity(toLocationOpacity)
-                .scaleEffect(toLocationScale)
-                .animation(.easeInOut(duration: 0.3), value: toLocationOffset)
-                .animation(.easeInOut(duration: 0.25), value: toLocationOpacity)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: toLocationScale)
-                
-            Divider()
-                .padding(.leading, 40)
-                .padding(.trailing, -20)
-                .padding(.vertical, 6)
-                
-            dateButton
-                .padding(.vertical, 4)
-                
-            Divider()
-                .padding(.leading, 40)
-                .padding(.trailing, -20)
-                .padding(.vertical, 6)
-                
-            passengerButton
-                .padding(.bottom, 4)
-           
-            searchButton
-            
-            directFlightsToggle
-                .padding(.top, 4)
         }
+        .frame(width: totalWidth, height: 44)
+        .padding(.horizontal, 4)
+        .padding(.bottom, 8)
     }
     
-    // MARK: - UI Components
+    // MARK: - UI Components (Keep all existing ones)
     private var fromLocationButton: some View {
         Button(action: { showingFromLocationSheet = true }) {
             HStack(spacing: 12) {
@@ -469,7 +574,6 @@ struct EnhancedDynamicSearchInput: View {
            }
            .padding(.horizontal)
        }
-       
 
     private var toLocationButton: some View {
         Button(action: { showingToLocationSheet = true }) {
@@ -532,44 +636,6 @@ struct EnhancedDynamicSearchInput: View {
         }
     }
     
-    private var searchButton: some View {
-        VStack(spacing: 4) {
-            Button(action: {
-                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                impactFeedback.impactOccurred()
-                
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                    searchButtonScale = 0.96
-                }
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        searchButtonScale = 1.0
-                    }
-                }
-                
-                performSearch()
-            }) {
-                Text("Search Flights")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color("buttonColor"))
-                    .cornerRadius(14)
-                    .scaleEffect(searchButtonScale)
-            }
-
-            if showErrorMessage {
-                Label("Select location to search flight", systemImage: "exclamationmark.triangle")
-                    .foregroundColor(.red)
-                    .font(.system(size: 14))
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-    
     private var directFlightsToggle: some View {
         HStack(spacing: 8) {
             Text("Direct flights only")
@@ -584,7 +650,7 @@ struct EnhancedDynamicSearchInput: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     
-    // MARK: - Sheet Views
+    // MARK: - Sheet Views (Keep all existing ones)
     @ViewBuilder
     private var fromLocationSheet: some View {
         if searchViewModel.selectedTab == 2 {
@@ -627,7 +693,7 @@ struct EnhancedDynamicSearchInput: View {
         }
     }
     
-    // MARK: - Helper Methods and Properties
+    // MARK: - Helper Methods and Properties (Keep all existing ones)
     private func getFromLocationDisplayText() -> String {
         if searchViewModel.fromIataCode.isEmpty {
             return ""
