@@ -433,32 +433,43 @@ struct EnhancedDynamicSearchInput: View {
     }
     
     private var enhancedSwapButton: some View {
-        HStack {
-            Spacer()
-            Button(action: animatedSwapLocations) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 48, height: 48)
-                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
-                        .scaleEffect(swapButtonScale)
-                    
-                    Image("swap")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(Color.blue)
-                        .rotationEffect(.degrees(swapRotationDegrees))
-                        .scaleEffect(isSwapping ? 1.1 : 1.0)
-                        .animation(.interpolatingSpring(stiffness: 200, damping: 15), value: swapRotationDegrees)
-                        .animation(.easeInOut(duration: 0.2), value: isSwapping)
-                }
-            }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(isSwapping)
-        }
-        .padding(.horizontal)
-    }
+           HStack {
+               Spacer()
+               Button(action: {
+                   animatedSwapLocations()
+               }) {
+                   ZStack {
+                       // White background circle to cover the divider line - always full opacity
+                       Circle()
+                           .fill(Color.white)
+                           .frame(width: 50, height: 50) // Slightly larger to ensure line coverage
+                       
+                       // Main button circle - always full opacity
+                       Circle()
+                           .fill(Color.white)
+                           .frame(width: 48, height: 48)
+                           .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                           .scaleEffect(swapButtonScale)
+                       
+                       // Only the icon opacity changes when disabled
+                       Image("swap")
+                           .resizable()
+                           .scaledToFit()
+                           .frame(width: 20, height: 20)
+                           .foregroundColor(shouldDisableSwap ? Color.gray.opacity(0.4) : (isSwapping ? Color.blue.opacity(0.8) : Color.blue))
+                           .opacity(shouldDisableSwap ? 0.5 : 1.0) // Additional opacity reduction for disabled state
+                           .rotationEffect(.degrees(swapRotationDegrees))
+                           .scaleEffect(isSwapping ? 1.1 : 1.0)
+                           .animation(.interpolatingSpring(stiffness: 200, damping: 15), value: swapRotationDegrees)
+                           .animation(.easeInOut(duration: 0.2), value: isSwapping)
+                   }
+               }
+               .buttonStyle(PlainButtonStyle())
+               .disabled(shouldDisableSwap) // Disable when Anywhere is selected or during animation
+           }
+           .padding(.horizontal)
+       }
+       
 
     private var toLocationButton: some View {
         Button(action: { showingToLocationSheet = true }) {
@@ -911,6 +922,13 @@ struct EnhancedDynamicSearchInput: View {
             searchViewModel.multiCityTrips.remove(at: index)
         }
     }
+    
+    private var shouldDisableSwap: Bool {
+            return isSwapping ||
+                   searchViewModel.toLocation == "Anywhere" ||
+                   searchViewModel.fromIataCode.isEmpty ||
+                   searchViewModel.toIataCode.isEmpty
+        }
 }
 
 // MARK: - RoundedCorners Helper (if not already defined)
