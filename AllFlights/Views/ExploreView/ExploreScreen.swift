@@ -187,7 +187,9 @@ struct ExploreScreen: View {
                 // CHANGED: If we have flight results and we're coming from search dates button
                 // Just go back to flight results instead of clearing the form
                 print("Action: Going back to flight results from search dates view")
+              
                 viewModel.showingDetailedFlightList = false
+                viewModel.selectMonth(at: viewModel.selectedMonthIndex)
                 // Don't clear search form here
             } else if viewModel.showingDetailedFlightList {
                 // If on flight list from direct search (not from View these dates), go back and clear form
