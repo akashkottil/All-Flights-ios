@@ -12,9 +12,8 @@ struct PassengersAndClassSelector: View {
     // Local state for UI control
     @State private var showInfoDetails = false
     
-    // State for age selection
-    @State private var isShowingAgeSelector = false
-    @State private var currentEditingChildIndex: Int = 0
+    // State for validation toast
+    @State private var showValidationToast = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -70,8 +69,25 @@ struct PassengersAndClassSelector: View {
                 Divider()
                 
                 Button(action: {
-                    // Apply changes and dismiss
-                    dismiss()
+                    // Validate that all children have ages selected
+                    let hasUnselectedAges = childrenCount > 0 && childrenAges.contains(where: { $0 == nil })
+                    
+                    if hasUnselectedAges {
+                        // Show validation toast
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showValidationToast = true
+                        }
+                        
+                        // Hide toast after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showValidationToast = false
+                            }
+                        }
+                    } else {
+                        // Apply changes and dismiss
+                        dismiss()
+                    }
                 }) {
                     HStack {
                         Text("Apply")
@@ -96,23 +112,36 @@ struct PassengersAndClassSelector: View {
             .background(Color(UIColor.systemBackground))
         }
         .background(Color(UIColor.systemBackground))
+        .overlay(
+            // Validation Toast
+            VStack {
+                Spacer()
+                
+                if showValidationToast {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                        
+                        Text("Please select age for all children")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.red)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.red.opacity(0.1))
+                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .padding(.bottom, 100) // Position above the Apply button
+            .padding(.horizontal, 16)
+        )
         .onAppear {
             // Initialize the children ages array when the view appears
             updateChildrenAgesArray(for: childrenCount)
-        }
-        .sheet(isPresented: $isShowingAgeSelector) {
-            ChildAgePickerView(
-                selectedAge: childrenAges[currentEditingChildIndex],
-                childNumber: currentEditingChildIndex + 1,
-                onSelectAge: { age in
-                    childrenAges[currentEditingChildIndex] = age
-                    isShowingAgeSelector = false
-                },
-                onCancel: {
-                    isShowingAgeSelector = false
-                }
-            )
-            .presentationDetents([.medium])
         }
     }
     
@@ -281,11 +310,8 @@ struct PassengersAndClassSelector: View {
                     FigmaChildAgeRow(
                         childNumber: index + 1,
                         selectedAge: index < childrenAges.count ? childrenAges[index] : nil,
-                        onSelectTapped: {
-                            // Show age selection for this child
-                            currentEditingChildIndex = index
-                            isShowingAgeSelector = true
-                        }
+                        childrenAges: $childrenAges,
+                        childIndex: index
                     )
                     .padding(.horizontal)
                 }
@@ -304,98 +330,6 @@ struct PassengersAndClassSelector: View {
         } else if newCount < childrenAges.count {
             // Remove excess ages
             childrenAges = Array(childrenAges.prefix(newCount))
-        }
-    }
-}
-
-// MARK: - Child Age Picker View
-struct ChildAgePickerView: View {
-    let selectedAge: Int?
-    let childNumber: Int
-    let onSelectAge: (Int) -> Void
-    let onCancel: () -> Void
-    
-    // Available ages for children
-    let availableAges: [Int] = Array(1...12)
-    
-    // Grid layout - 3 columns
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .foregroundColor(.black)
-                        .padding(10)
-                }
-                
-                Spacer()
-                
-                Text("Select Age for Child \(childNumber)")
-                    .font(.headline)
-                
-                Spacer()
-                
-                // Empty space for balance
-                Color.clear
-                    .frame(width: 40, height: 40)
-            }
-            .padding(.horizontal)
-            .padding(.top)
-            
-            Text("Select an age between 1 and 12 years")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .padding(.top, 8)
-            
-            // Age grid
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(availableAges, id: \.self) { age in
-                    AgeSelectionButton(
-                        age: age,
-                        isSelected: selectedAge == age,
-                        onTap: {
-                            onSelectAge(age)
-                        }
-                    )
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 24)
-            
-            Spacer()
-        }
-        .background(Color(UIColor.systemBackground))
-    }
-}
-
-// Age selection button component
-struct AgeSelectionButton: View {
-    let age: Int
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                Circle()
-                    .stroke(isSelected ? Color.blue : Color.gray.opacity(0.3), lineWidth: 1.5)
-                    .background(
-                        Circle()
-                            .fill(isSelected ? Color.blue.opacity(0.1) : Color.white)
-                    )
-                    .frame(height: 60)
-                
-                Text("\(age)")
-                    .font(.system(size: 20, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .blue : .black)
-            }
         }
     }
 }
@@ -493,7 +427,14 @@ struct FigmaCounterRow: View {
 struct FigmaChildAgeRow: View {
     let childNumber: Int
     let selectedAge: Int?
-    let onSelectTapped: () -> Void
+    @Binding var childrenAges: [Int?]
+    let childIndex: Int
+    
+    // Available ages for children (1-12 years)
+    let availableAges = Array(1...12)
+    
+    // State to control whether picker is shown
+    @State private var showPicker = false
     
     var body: some View {
         HStack {
@@ -502,23 +443,50 @@ struct FigmaChildAgeRow: View {
             
             Spacer()
             
-            Button(action: onSelectTapped) {
-                HStack(spacing: 6) {
-                    if let age = selectedAge {
+            if showPicker {
+                // Native iOS Wheel Picker
+                Picker("Select age for Child \(childNumber)", selection: Binding<Int>(
+                    get: { selectedAge ?? 1 },
+                    set: { newAge in
+                        childrenAges[childIndex] = newAge
+                        // Auto-hide picker after selection
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showPicker = false
+                        }
+                    }
+                )) {
+                    ForEach(availableAges, id: \.self) { age in
                         Text("\(age)")
-                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.blue)
-                    } else {
-                        Text("Select age")
+                            .tag(age)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 80, height: 80)
+                .clipped()
+            } else {
+                // Select age button
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showPicker = true
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        if let age = selectedAge {
+                            Text("\(age)")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.blue)
+                        } else {
+                            Text("Select age")
+                                .fontWeight(.bold)
+                                .font(.system(size: 16))
+                                .foregroundColor(.blue)
+                        }
+                        
+                        Image(systemName: "chevron.right")
                             .fontWeight(.bold)
-                            .font(.system(size: 16))
                             .foregroundColor(.blue)
                     }
-                    
-                    Image(systemName: "chevron.right")
-                        .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                        
                 }
             }
         }
