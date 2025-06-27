@@ -1623,51 +1623,10 @@ class ExploreViewModel: ObservableObject {
         ExploreAPIService.shared.viewModelReference = self
     }
     
+    // MARK: - Fixed handleTripTypeChange Method in ExploreViewModel.swift
+
     func handleTripTypeChange() {
         print("🔄 Trip type changed to: \(isRoundTrip ? "Round Trip" : "One Way")")
-        
-        // Get shared search data store
-        let sharedData = SharedSearchDataStore.shared
-        
-        // Check if we were previously in multi-city mode and now switching to Return/One Way
-        if !multiCityTrips.isEmpty && sharedData.selectedTab == 2 {
-            print("💾 Saving multi-city state before switching to Return/One Way")
-            
-            // Save current multi-city state
-            sharedData.saveMultiCityState(
-                fromLocation: fromLocation,
-                toLocation: toLocation,
-                fromIataCode: fromIataCode,
-                toIataCode: toIataCode,
-                selectedDates: dates,
-                multiCityTrips: multiCityTrips,
-                adultsCount: adultsCount,
-                childrenCount: childrenCount,
-                childrenAges: childrenAges,
-                selectedCabinClass: selectedCabinClass,
-                directFlightsOnly: directFlightsOnlyFromHome
-            )
-            
-            // Clear multi-city trips for Return/One Way search
-            multiCityTrips = []
-            
-            // Update first and last multi-city trip locations for Return/One Way
-            if let savedState = sharedData.savedMultiCityState,
-               !savedState.multiCityTrips.isEmpty {
-                let firstTrip = savedState.multiCityTrips[0]
-                let lastTrip = savedState.multiCityTrips.last!
-                
-                fromLocation = firstTrip.fromLocation
-                fromIataCode = firstTrip.fromIataCode
-                toLocation = lastTrip.toLocation
-                toIataCode = lastTrip.toIataCode
-                
-                selectedOriginCode = firstTrip.fromIataCode
-                selectedDestinationCode = lastTrip.toIataCode
-                
-                print("🔄 Updated origin/destination from multi-city: \(fromIataCode) → \(toIataCode)")
-            }
-        }
         
         // Handle date changes when switching trip types
         if isRoundTrip { // Switching TO round trip
@@ -1710,32 +1669,83 @@ class ExploreViewModel: ObservableObject {
             print("Cleared return date for one-way trip")
         }
         
-        // Clear current results before new search
-        detailedFlightResults = []
-        flightResults = []
-        
-        // Execute new search with updated trip type
+        // FIXED: Enhanced logic to handle all search scenarios
         if !fromIataCode.isEmpty && !toIataCode.isEmpty {
+            // Clear current results first
+            detailedFlightResults = []
+            flightResults = []
+            
             // Scenario 1: We're on the detailed flight list (most common case)
             if showingDetailedFlightList && !selectedOriginCode.isEmpty && !selectedDestinationCode.isEmpty && !selectedDepartureDatee.isEmpty {
                 print("🔄 Re-searching detailed flights with new trip type")
                 
                 // For round trip, ensure we have a return date
-                let returnDate = isRoundTrip ? (selectedReturnDatee.isEmpty ? "" : selectedReturnDatee) : ""
+                let returnDate = isRoundTrip ? selectedReturnDatee : ""
                 
-                searchFlightsForDates(
+                // Re-search with new trip type
+                searchFlightsForDatesWithPagination(
                     origin: selectedOriginCode,
                     destination: selectedDestinationCode,
                     returnDate: returnDate,
                     departureDate: selectedDepartureDatee,
                     isDirectSearch: isDirectSearch
                 )
-            } else {
+            }
+            // Scenario 2: We're in flight results view with monthly data (THIS IS THE KEY FIX)
+            else if hasSearchedFlights && !showingDetailedFlightList {
+                print("🔄 Re-searching flight results with new trip type for current month")
+                
+                // FIXED: Auto-search with current month when trip type changes
+                if let city = selectedCity {
+                    // If we have a selected city, fetch flight details for current month
+                    fetchFlightDetails(destination: city.location.iata)
+                } else if !toIataCode.isEmpty {
+                    // If we have destination code but no city, still fetch flight details
+                    fetchFlightDetails(destination: toIataCode)
+                } else {
+                    // Fallback: trigger month selection to reload data
+                    print("🔄 Triggering month selection to reload data")
+                    selectMonth(at: selectedMonthIndex)
+                }
+            }
+            // Scenario 3: We have search context with specific dates
+            else if !dates.isEmpty {
+                print("🔄 Re-searching with existing dates and new trip type")
                 updateDatesAndRunSearch()
             }
-        }
-        else {
-            print("⚠️ No valid search context found for trip type change")
+            // Scenario 4: We have at least origin/destination but no specific dates - use defaults
+            else {
+                print("🔄 Re-searching with default dates and new trip type")
+                
+                // Create default dates (7 days from now for departure, 14 days for return)
+                let calendar = Calendar.current
+                let defaultDeparture = calendar.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+                let defaultReturn = calendar.date(byAdding: .day, value: 14, to: Date()) ?? Date()
+                
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                selectedDepartureDatee = formatter.string(from: defaultDeparture)
+                selectedReturnDatee = isRoundTrip ? formatter.string(from: defaultReturn) : ""
+                
+                // Update dates array
+                dates = isRoundTrip ? [defaultDeparture, defaultReturn] : [defaultDeparture]
+                
+                // Trigger search
+                if showingDetailedFlightList {
+                    searchFlightsForDatesWithPagination(
+                        origin: fromIataCode,
+                        destination: toIataCode,
+                        returnDate: selectedReturnDatee,
+                        departureDate: selectedDepartureDatee,
+                        isDirectSearch: isDirectSearch
+                    )
+                } else {
+                    updateDatesAndRunSearch()
+                }
+            }
+        } else {
+            print("⚠️ Missing origin/destination codes for trip type change")
         }
     }
 
