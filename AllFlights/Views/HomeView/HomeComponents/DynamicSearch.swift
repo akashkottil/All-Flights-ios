@@ -66,29 +66,50 @@ struct EnhancedDynamicSearchInput: View {
         heightProgress > 0.1 ? min(1.0, (heightProgress - 0.1) / 0.2) : 0
     }
     
-    // NEW: Calculate slide offset for collapsed content behind button
-    private var collapsedContentSlideOffset: CGFloat {
-        // SLIDE ANIMATION LOGIC:
-        // When heightProgress = 1.0 (expanded): content is fully behind button (offset = 250px right)
-        // When heightProgress = 0.0 (collapsed): content is visible (offset = 0px)
-        // As button moves from left to right, content slides out from behind it
-        // Using easeOut curve (sin) for more dramatic reveal effect
-        let maxOffset: CGFloat = 250
-        let easedProgress = sin(heightProgress * .pi / 2) // EaseOut curve
-        return maxOffset * easedProgress
+    // MODIFIED: Collapsed content positioning - always follows button
+    private var collapsedContentPosition: CGPoint {
+        // Calculate the collapsed button position
+        let containerWidth = UIScreen.main.bounds.width - 32 // Account for horizontal padding
+        let collapsedButtonFrame = calculateCollapsedButtonFrame(containerWidth: containerWidth, containerHeight: currentHeight)
+        
+        // Position collapsed content to the left of the button
+        let contentWidth: CGFloat = 200 // Approximate width of collapsed content
+        let xPosition = collapsedButtonFrame.minX - contentWidth - 8 // 8px gap from button
+        let yPosition = collapsedButtonFrame.midY
+        
+        return CGPoint(x: xPosition, y: yPosition)
     }
     
-    // NEW: Scale effect for content sliding out
-    private var collapsedContentScale: CGFloat {
-        // Slightly scale up as content slides out for more dramatic effect
-        let minScale: CGFloat = 0.95
-        let maxScale: CGFloat = 1.0
-        return minScale + (maxScale - minScale) * (1 - heightProgress)
+    // Row folding animations - each row disappears at different progress points
+    private func rowOpacity(rowIndex: Int, totalRows: Int) -> Double {
+        // Rows fold from bottom to top (highest index folds first)
+        // Use rowIndex directly so bottom rows (higher index) fold first
+        let foldStartProgress = 0.2 + (Double(rowIndex) * 0.1) // Start folding at different points
+        let foldEndProgress = foldStartProgress + 0.2
+        
+        if heightProgress >= foldEndProgress {
+            return 1.0 // Fully visible when expanded
+        } else if heightProgress <= foldStartProgress {
+            return 0.0 // Fully hidden when collapsed
+        } else {
+            // Fade out during folding
+            return (heightProgress - foldStartProgress) / (foldEndProgress - foldStartProgress)
+        }
     }
     
-    // Collapsed content opacity - Always visible when needed, no fade
-    private var collapsedContentOpacity: Double {
-        heightProgress < 0.8 ? 1.0 : 0
+    private func rowScale(rowIndex: Int, totalRows: Int) -> CGFloat {
+        // Scale effect during folding
+        let foldStartProgress = 0.2 + (Double(rowIndex) * 0.1)
+        let foldEndProgress = foldStartProgress + 0.2
+        
+        if heightProgress >= foldEndProgress {
+            return 1.0
+        } else if heightProgress <= foldStartProgress {
+            return 0.8
+        } else {
+            let progress = (heightProgress - foldStartProgress) / (foldEndProgress - foldStartProgress)
+            return 0.8 + (0.2 * CGFloat(progress))
+        }
     }
     
     var canAddTrip: Bool {
@@ -104,33 +125,26 @@ struct EnhancedDynamicSearchInput: View {
         VStack(spacing: 0) {
             // Container with dynamic height
             ZStack {
-                // Expanded content - LOWERED visibility threshold (WITHOUT search button)
+                // MODIFIED: Expanded content with row folding animations
                 if heightProgress > 0.05 {
-                    expandedSearchContentWithoutButton
+                    expandedSearchContentWithRowFolding
                         .opacity(contentOpacity)
-                        .scaleEffect(max(0.9, 0.9 + (heightProgress * 0.1))) // Adjusted scale for better fit
+                        .scaleEffect(max(0.9, 0.9 + (heightProgress * 0.1)))
                 }
                 
-                // Collapsed content - ENHANCED with slide and scale animation
-                if heightProgress < 0.8 {
-                    collapsedSearchContentWithoutButton
-                        .opacity(collapsedContentOpacity)
-                        .offset(x: collapsedContentSlideOffset) // Slide from behind button
-                        .scaleEffect(collapsedContentScale) // Subtle scale effect
-                        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: collapsedContentSlideOffset)
-                        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: collapsedContentScale)
-                }
+                // MODIFIED: Collapsed content - ALWAYS present and follows button position
+                collapsedSearchContentBehindButton
                 
-                // NEW: Morphing Search Button - ALWAYS VISIBLE
+                // Morphing Search Button - ALWAYS VISIBLE
                 morphingSearchButton
             }
             .frame(height: currentHeight)
-            .clipped() // Important: clips content that overflows
+            .clipped()
         }
         .background(Color.white)
-        .cornerRadius(dynamicCornerRadius) // UPDATED: Use dynamic corner radius
+        .cornerRadius(dynamicCornerRadius)
         .overlay(
-            RoundedRectangle(cornerRadius: dynamicCornerRadius) // UPDATED: Use dynamic corner radius
+            RoundedRectangle(cornerRadius: dynamicCornerRadius)
                 .stroke(Color.orange, lineWidth: 2)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
@@ -243,76 +257,98 @@ struct EnhancedDynamicSearchInput: View {
         )
     }
     
-    // MARK: - Expanded Content WITHOUT Search Button
+    // MARK: - MODIFIED: Expanded Content with Row Folding
     @ViewBuilder
-    private var expandedSearchContentWithoutButton: some View {
+    private var expandedSearchContentWithRowFolding: some View {
         VStack(spacing: 16) {
-            // Trip Type Tabs - ALWAYS show at the top
+            // Trip Type Tabs - Row 0
             tripTypeTabs
+                .opacity(rowOpacity(rowIndex: 0, totalRows: 6))
+                .scaleEffect(rowScale(rowIndex: 0, totalRows: 6))
             
             // Search Interface
             if searchViewModel.selectedTab == 2 {
-                updatedMultiCityInterfaceWithoutButton
+                updatedMultiCityInterfaceWithRowFolding
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
-                regularInterfaceWithoutButton
+                regularInterfaceWithRowFolding
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
-        .padding(20) // Consistent with original
+        .padding(20)
     }
     
-    // MARK: - Collapsed Content WITHOUT Search Button (Enhanced with slide animation)
+    // MARK: - MODIFIED: Collapsed Content Always Behind Button (as a single row)
     @ViewBuilder
-    private var collapsedSearchContentWithoutButton: some View {
-        HStack(spacing: 8) {
-            // From
-            Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.primary)
+    private var collapsedSearchContentBehindButton: some View {
+        GeometryReader { geometry in
+            let containerWidth = geometry.size.width
+            let containerHeight = geometry.size.height
             
-            Text("-")
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+            // Calculate positions and sizes based on heightProgress (same as button)
+            let expandedButtonFrame = calculateExpandedButtonFrame(containerWidth: containerWidth, containerHeight: containerHeight)
+            let collapsedButtonFrame = calculateCollapsedButtonFrame(containerWidth: containerWidth, containerHeight: containerHeight)
             
-            // To
-            Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.primary)
+            // Interpolate between expanded and collapsed states (same movement as button)
+            let currentX = expandedButtonFrame.minX + (collapsedButtonFrame.minX - expandedButtonFrame.minX) * (1 - heightProgress)
+            let currentY = expandedButtonFrame.minY + (collapsedButtonFrame.minY - expandedButtonFrame.minY) * (1 - heightProgress)
+            let currentButtonWidth = expandedButtonFrame.width + (collapsedButtonFrame.width - expandedButtonFrame.width) * (1 - heightProgress)
             
-            Circle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 4, height: 4)
+            // Position content to the left of the button's current position
+            let contentWidth: CGFloat = 200
+            let contentX = currentX - contentWidth - 12 // 12px gap from button
+            let contentY = currentY + (expandedButtonFrame.height + (collapsedButtonFrame.height - expandedButtonFrame.height) * (1 - heightProgress)) / 2
             
-            // Date display
-            Text(formatDatesForCollapsed())
-                .font(.system(size: 14))
-                .foregroundColor(.primary)
-                .fontWeight(.medium)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            
-            Spacer()
-            
-            // REMOVED: Search button (now handled by morphingSearchButton)
+            HStack(spacing: 8) {
+                // From
+                Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Text("-")
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                // To
+                Text(searchViewModel.toIataCode.isEmpty ? "TO" : searchViewModel.toIataCode)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 4, height: 4)
+                
+                // Date display
+                Text(formatDatesForCollapsed())
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                
+                Spacer(minLength: 0)
+            }
+            .frame(width: max(0, contentWidth))
+            .position(x: max(contentWidth/2, contentX + contentWidth/2), y: contentY)
+            .opacity(1.0) // Always visible
+            .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: heightProgress)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .clipped() // NEW: Clip content that goes outside bounds for cleaner slide effect
     }
     
-    // MARK: - Regular Interface WITHOUT Search Button
-    private var regularInterfaceWithoutButton: some View {
+    // MARK: - MODIFIED: Regular Interface with Row Folding (Bottom to Top)
+    private var regularInterfaceWithRowFolding: some View {
         VStack(spacing: 5) {
+            // From Location - Row 0 (folds last)
             fromLocationButton
                 .offset(y: fromLocationOffset)
-                .opacity(fromLocationOpacity)
-                .scaleEffect(fromLocationScale)
+                .opacity(fromLocationOpacity * rowOpacity(rowIndex: 0, totalRows: 6))
+                .scaleEffect(fromLocationScale * rowScale(rowIndex: 0, totalRows: 6))
                 .animation(.easeInOut(duration: 0.3), value: fromLocationOffset)
                 .animation(.easeInOut(duration: 0.25), value: fromLocationOpacity)
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: fromLocationScale)
                 
+            // Swap Button and Divider - Row 1
             ZStack {
                 Divider()
                     .padding(.leading, 40)
@@ -321,11 +357,14 @@ struct EnhancedDynamicSearchInput: View {
                 
                 enhancedSwapButton
             }
+            .opacity(rowOpacity(rowIndex: 1, totalRows: 6))
+            .scaleEffect(rowScale(rowIndex: 1, totalRows: 6))
             
+            // To Location - Row 2
             toLocationButton
                 .offset(y: toLocationOffset)
-                .opacity(toLocationOpacity)
-                .scaleEffect(toLocationScale)
+                .opacity(toLocationOpacity * rowOpacity(rowIndex: 2, totalRows: 6))
+                .scaleEffect(toLocationScale * rowScale(rowIndex: 2, totalRows: 6))
                 .animation(.easeInOut(duration: 0.3), value: toLocationOffset)
                 .animation(.easeInOut(duration: 0.25), value: toLocationOpacity)
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: toLocationScale)
@@ -334,29 +373,40 @@ struct EnhancedDynamicSearchInput: View {
                 .padding(.leading, 40)
                 .padding(.trailing, -20)
                 .padding(.vertical, 6)
+                .opacity(rowOpacity(rowIndex: 2, totalRows: 6))
+                .scaleEffect(rowScale(rowIndex: 2, totalRows: 6))
                 
+            // Date Button - Row 3
             dateButton
                 .padding(.vertical, 4)
+                .opacity(rowOpacity(rowIndex: 3, totalRows: 6))
+                .scaleEffect(rowScale(rowIndex: 3, totalRows: 6))
                 
             Divider()
                 .padding(.leading, 40)
                 .padding(.trailing, -20)
                 .padding(.vertical, 6)
+                .opacity(rowOpacity(rowIndex: 3, totalRows: 6))
+                .scaleEffect(rowScale(rowIndex: 3, totalRows: 6))
                 
+            // Passenger Button - Row 4
             passengerButton
                 .padding(.bottom, 4)
+                .opacity(rowOpacity(rowIndex: 4, totalRows: 6))
+                .scaleEffect(rowScale(rowIndex: 4, totalRows: 6))
            
-            // REMOVED: searchButton (now handled by morphingSearchButton)
-            
+            // Direct Flights Toggle - Row 5 (folds first)
             directFlightsToggle
                 .padding(.top, 52 + 16) // Add space where search button would be
+                .opacity(rowOpacity(rowIndex: 5, totalRows: 6))
+                .scaleEffect(rowScale(rowIndex: 5, totalRows: 6))
         }
     }
     
-    // MARK: - Multi-City Interface WITHOUT Search Button
-    private var updatedMultiCityInterfaceWithoutButton: some View {
+    // MARK: - MODIFIED: Multi-City Interface with Row Folding (Bottom to Top)
+    private var updatedMultiCityInterfaceWithRowFolding: some View {
         VStack(spacing: 16) {
-            // Flight segments with enhanced animations
+            // Flight segments with enhanced animations - Row 0 (folds last)
             VStack(spacing: 8) {
                 ForEach(searchViewModel.multiCityTrips.indices, id: \.self) { index in
                     HomeMultiCitySegmentView(
@@ -394,8 +444,11 @@ struct EnhancedDynamicSearchInput: View {
                     ))
                 }
             }
+            .opacity(rowOpacity(rowIndex: 0, totalRows: 3))
+            .scaleEffect(rowScale(rowIndex: 0, totalRows: 3))
             .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.3), value: searchViewModel.multiCityTrips.count)
             
+            // Passenger and Add Flight Section - Row 1
             VStack(spacing: 0) {
                 Divider()
                     .padding(.horizontal, -20)
@@ -458,13 +511,15 @@ struct EnhancedDynamicSearchInput: View {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
+            .opacity(rowOpacity(rowIndex: 1, totalRows: 3))
+            .scaleEffect(rowScale(rowIndex: 1, totalRows: 3))
             .animation(.easeInOut(duration: 0.3), value: searchViewModel.multiCityTrips.count < 5)
 
-            // REMOVED: searchButton (now handled by morphingSearchButton)
-            
-            // Direct flights toggle
+            // Direct flights toggle - Row 2 (folds first)
             directFlightsToggle
                 .padding(.top, 52 + 16) // Add space where search button would be
+                .opacity(rowOpacity(rowIndex: 2, totalRows: 3))
+                .scaleEffect(rowScale(rowIndex: 2, totalRows: 3))
         }
     }
     
