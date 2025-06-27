@@ -118,7 +118,24 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment:.top) {
+                
+                GeometryReader { geometry in
+
+                        VStack(spacing: 0) {
+                            // Base gradient background (always present)
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color("homeGrad"), Color.white]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: geometry.size.height * (isCollapsed ? 0.12 : 0.24))
+                            .edgesIgnoringSafeArea(.top)
+
+                        }
+
+                    
+                }
                 // MARK: - Original Home Content
                 VStack(spacing: 0) {
                     // Header + Search Inputs in a VStack with gradient background
