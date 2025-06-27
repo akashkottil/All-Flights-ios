@@ -66,6 +66,18 @@ struct EnhancedDynamicSearchInput: View {
         heightProgress > 0.1 ? min(1.0, (heightProgress - 0.1) / 0.2) : 0
     }
     
+    // MODIFIED: Collapsed content opacity - 0 when expanded, gradually increases when collapsing
+    private var collapsedContentOpacity: Double {
+        // When heightProgress = 1.0 (fully expanded): opacity = 0
+        // When heightProgress = 0.0 (fully collapsed): opacity = 1
+        // Gradual transition between 0.3 and 0.0 heightProgress
+        if heightProgress <= 0.3 {
+            return 1.0 - (heightProgress / 0.3)
+        } else {
+            return 0.0
+        }
+    }
+    
     // MODIFIED: Collapsed content positioning - always follows button
     private var collapsedContentPosition: CGPoint {
         // Calculate the collapsed button position
@@ -132,8 +144,9 @@ struct EnhancedDynamicSearchInput: View {
                         .scaleEffect(max(0.9, 0.9 + (heightProgress * 0.1)))
                 }
                 
-                // MODIFIED: Collapsed content - ALWAYS present and follows button position
+                // MODIFIED: Collapsed content - ALWAYS present with updated opacity
                 collapsedSearchContentBehindButton
+                    .opacity(collapsedContentOpacity)
                 
                 // Morphing Search Button - ALWAYS VISIBLE
                 morphingSearchButton
@@ -218,7 +231,7 @@ struct EnhancedDynamicSearchInput: View {
                             bl: heightProgress > 0.5 ? currentCornerRadius : 8,
                             br: currentCornerRadius
                         )
-                        .fill(heightProgress > 0.5 ? Color("buttonColor") : Color.orange)
+                        .fill(Color("buttonColor") )
                     )
                     .scaleEffect(searchButtonScale)
             }
@@ -331,7 +344,6 @@ struct EnhancedDynamicSearchInput: View {
             }
             .frame(width: max(0, contentWidth))
             .position(x: max(contentWidth/2, contentX + contentWidth/2), y: contentY)
-            .opacity(1.0) // Always visible
             .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: heightProgress)
         }
     }
