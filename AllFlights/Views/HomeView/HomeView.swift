@@ -212,38 +212,23 @@ struct HomeView: View {
                                 }
                         VStack(spacing: 0) {
                             // Custom navigation bar - Collapsible with overshoot animation
-                            if isCollapsed {
-                                CollapsedSearchCard(
-                                    viewModel: exploreViewModel,
-                                    searchCardNamespace: animation,
-                                    onTap: {
-                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                            isCollapsed = false
-                                        }
-                                    },
-                                    handleBackNavigation: transformBackToHome,
-                                    shouldShowBackButton: true
-                                )
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                            } else {
-                                ExpandedSearchCard(
-                                    viewModel: exploreViewModel,
-                                    selectedTab: $selectedTab,
-                                    isRoundTrip: $isRoundTrip,
-                                    searchCardNamespace: animation,
-                                    handleBackNavigation: transformBackToHome,
-                                    shouldShowBackButton: true,
-                                    onDragCollapse: {
-                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                                            isCollapsed = true
-                                        }
-                                    }
-                                )
-                                .transition(.opacity.combined(with: .scale(scale: 1.05)))
-                                // Enhanced overshoot animation towards the top after search card is settled
-                                .offset(y: searchCardOvershoot ? -15 : 0)
-                                .animation(.spring(response: 0.7, dampingFraction: 0.65), value: searchCardOvershoot)
-                            }
+                            MorphingSearchCard(
+                                       viewModel: exploreViewModel,
+                                       selectedTab: $selectedTab,
+                                       isRoundTrip: $isRoundTrip,
+                                       isCollapsed: $isCollapsed,
+                                       searchCardNamespace: animation,
+                                       handleBackNavigation: transformBackToHome,
+                                       shouldShowBackButton: true,
+                                       onDragCollapse: {
+                                           withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                               isCollapsed = true
+                                           }
+                                       }
+                                   )
+                                   // Enhanced overshoot animation towards the top after search card is settled
+                                   .offset(y: searchCardOvershoot ? -15 : 0)
+                                   .animation(.spring(response: 0.7, dampingFraction: 0.65), value: searchCardOvershoot)
                             
                             // STICKY HEADER
                             stickyHeader

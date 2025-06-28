@@ -461,44 +461,21 @@ struct ExploreScreen: View {
                 }
             }
             VStack(spacing: 0) {
-                // FIXED: Single container with matched geometry effect for seamless transition
-                ZStack {
-                    if isCollapsed {
-                        CollapsedSearchCard(
-                            viewModel: viewModel,
-                            searchCardNamespace: searchCardNamespace,
-                            onTap: {
-                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                    isCollapsed = false
-                                }
-                            },
-                            handleBackNavigation: handleBackNavigation,
-                            shouldShowBackButton: shouldShowBackButton
-                        )
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.95).combined(with: .opacity),
-                            removal: .scale(scale: 1.05).combined(with: .opacity)
-                        ))
-                    } else {
-                        ExpandedSearchCard(
-                            viewModel: viewModel,
-                            selectedTab: $selectedTab,
-                            isRoundTrip: $isRoundTrip,
-                            searchCardNamespace: searchCardNamespace,
-                            handleBackNavigation: handleBackNavigation,
-                            shouldShowBackButton: shouldShowBackButton,
-                            onDragCollapse: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                                    isCollapsed = true
-                                }
-                            }
-                        )
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 1.05).combined(with: .opacity),
-                            removal: .scale(scale: 0.95).combined(with: .opacity)
-                        ))
+                // Single morphing search card with smooth transitions
+                MorphingSearchCard(
+                    viewModel: viewModel,
+                    selectedTab: $selectedTab,
+                    isRoundTrip: $isRoundTrip,
+                    isCollapsed: $isCollapsed,
+                    searchCardNamespace: searchCardNamespace,
+                    handleBackNavigation: handleBackNavigation,
+                    shouldShowBackButton: shouldShowBackButton,
+                    onDragCollapse: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                            isCollapsed = true
+                        }
                     }
-                }
+                )
                 // FIXED: Remove any additional background declarations that might conflict
                 
                 // STICKY HEADER
