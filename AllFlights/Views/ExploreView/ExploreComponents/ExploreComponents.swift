@@ -4531,12 +4531,12 @@ struct ModifiedDetailedFlightListView: View {
     }
 
     var body: some View {
-        // SIMPLIFIED: Just the scrollable content, no header
         ZStack {
             // Background color for the entire content area
             Color("scroll").edgesIgnoringSafeArea(.all)
             
             if case .loading = viewState {
+                // Show loading skeletons
                 VStack {
                     Spacer()
                     ForEach(0..<4, id: \.self) { index in
@@ -4545,15 +4545,14 @@ struct ModifiedDetailedFlightListView: View {
                             isMultiCity: viewModel.multiCityTrips.count >= 2 || (SharedSearchDataStore.shared.isDirectFromHome && SharedSearchDataStore.shared.selectedTab == 2),
                             multiCityLegsCount: viewModel.multiCityTrips.count
                         )
-                           
-                            .opacity(skeletonOpacity)
-                            .offset(y: skeletonOffset)
-                            .animation(
-                                .spring(response: 0.6, dampingFraction: 0.8)
-                                .delay(Double(index) * 0.1),
-                                value: skeletonOpacity
-                            )
-                            .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
+                        .opacity(skeletonOpacity)
+                        .offset(y: skeletonOffset)
+                        .animation(
+                            .spring(response: 0.6, dampingFraction: 0.8)
+                            .delay(Double(index) * 0.1),
+                            value: skeletonOpacity
+                        )
+                        .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
                     }
                     .padding(.top, 14)
                     Spacer()
@@ -4566,31 +4565,45 @@ struct ModifiedDetailedFlightListView: View {
                     }
                 }
             } else if case .error(let message) = viewState {
+                // Show error state
                 VStack {
                     Spacer()
-                    Text("Error: \(message)")
-                        .foregroundColor(.red)
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 50))
+                        .foregroundColor(.orange)
                         .padding()
-                    Button("Retry") {
+                    
+                    Text("Something went wrong")
+                        .font(.headline)
+                        .padding(.bottom, 4)
+                    
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    Button("Try Again") {
                         retrySearch()
                     }
                     .padding()
                     .background(Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(8)
+                    .padding(.top)
+                    
                     Spacer()
                 }
                 .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
-            }else if filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
-                // Trigger parent filter modal
+            } else if case .empty = viewState {
+                // Show empty state - trigger parent modal if available
                 Color.clear
                     .onAppear {
                         if let modalBinding = showFilterModal {
                             modalBinding.wrappedValue = true
                         }
                     }
-//                    .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
-            }else if !filteredResults.isEmpty {
+            } else if !filteredResults.isEmpty {
                 // Show flight list when we have results
                 PaginatedFlightList(
                     viewModel: viewModel,
@@ -4608,21 +4621,14 @@ struct ModifiedDetailedFlightListView: View {
                     hasReceivedEmptyResults = false
                 }
             } else {
-                // Show skeleton loading while processing
+                // Fallback loading state
                 VStack {
                     Spacer()
-                    ForEach(0..<4, id: \.self) { _ in
-                        EnhancedDetailedFlightCardSkeleton(
-                            isRoundTrip: viewModel.isRoundTrip,
-                            isMultiCity: viewModel.multiCityTrips.count >= 2 || (SharedSearchDataStore.shared.isDirectFromHome && SharedSearchDataStore.shared.selectedTab == 2),
-                            multiCityLegsCount: viewModel.multiCityTrips.count
-                        )
-                            .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
-                    }
-                    .padding(.top, 14)
+                    ProgressView("Loading flights...")
+                        .progressViewStyle(CircularProgressViewStyle())
                     Spacer()
                 }
-                .padding(.horizontal, 5)
+                .collapseSearchCardOnDrag(isCollapsed: isCollapsedBinding)
             }
         }
         .fullScreenCover(isPresented: $showingFlightDetails) {
@@ -4638,30 +4644,37 @@ struct ModifiedDetailedFlightListView: View {
         .onAppear {
             print("📱 ModifiedDetailedFlightListView appeared")
             
-            initiateSearch()
+            // Only initiate search if we don't have results already
+            if filteredResults.isEmpty && viewModel.detailedFlightResults.isEmpty {
+                initiateSearch()
+            } else if !viewModel.detailedFlightResults.isEmpty {
+                // We already have results, just update the UI
+                updateFilteredResults(viewModel.detailedFlightResults)
+                viewState = .loaded
+            }
+            
             startRetryTimer()
         }
         .onDisappear {
             cancelRetryTimer()
         }
-        // UPDATED: Better handling of detailedFlightResults changes
         .onReceive(viewModel.$detailedFlightResults) { newResults in
-            print("📱 Received \(newResults.count) results from viewModel")
             handleNewResults(newResults)
         }
         .onReceive(viewModel.$isLoadingDetailedFlights) { isLoading in
-            print("📱 Loading state changed: \(isLoading)")
             handleLoadingStateChange(isLoading)
         }
         .onReceive(viewModel.$selectedFlightId) { newValue in
             showingFlightDetails = newValue != nil
         }
-        // UPDATED: Listen for total count changes to update UI
         .onReceive(viewModel.$totalFlightCount) { newCount in
             print("📱 Total flight count updated: \(newCount)")
-            if newCount > 0 && filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights {
-                // We have a count but no results yet - this might be from a filter update
-                viewState = .loading
+            
+            // Update state based on new count information
+            if newCount > 0 && filteredResults.isEmpty && !viewModel.isLoadingDetailedFlights && viewModel.isDataCached {
+                // We should have results but don't - trigger retry
+                print("📱 Have count but no results - triggering retry")
+                retrySearch()
             }
         }
     }
@@ -4669,39 +4682,77 @@ struct ModifiedDetailedFlightListView: View {
     // MARK: - Event Handlers
     
     private func handleNewResults(_ newResults: [FlightDetailResult]) {
+        print("📱 handleNewResults called with \(newResults.count) results")
+        
         if !newResults.isEmpty {
             hasReceivedEmptyResults = false
             viewModel.debugDuplicateFlightIDs()
             updateFilteredResults(newResults)
             cancelRetryTimer()
             viewState = .loaded
-        } else if !viewModel.isLoadingDetailedFlights && viewModel.isDataCached {
-            hasReceivedEmptyResults = true
-            filteredResults = []
-            viewState = .empty
+            print("📱 Updated to loaded state with \(newResults.count) results")
+        } else {
+            // FIXED: Only show empty state if backend is done processing AND we have no results
+            if viewModel.isDataCached && viewModel.totalFlightCount == 0 {
+                hasReceivedEmptyResults = true
+                filteredResults = []
+                viewState = .empty
+                print("📱 Empty results with cached data - showing empty state")
+            } else if viewModel.isDataCached {
+                // Backend is done but we should have results - something went wrong
+                filteredResults = []
+                viewState = .error("No flights found for your search criteria")
+                print("📱 Cached data but no results - showing error")
+            } else {
+                // Backend still processing, keep loading
+                print("📱 Empty results but backend still processing - continuing to load")
+                viewState = .loading
+            }
         }
     }
     
     private func handleLoadingStateChange(_ isLoading: Bool) {
+        print("📱 handleLoadingStateChange: \(isLoading)")
+        
         if isLoading {
-            viewState = .loading
+            // Only set loading state if we don't already have results
+            if filteredResults.isEmpty {
+                viewState = .loading
+            }
             return
         }
         
-        // Loading finished
+        // Loading finished - determine final state
         if !viewModel.detailedFlightResults.isEmpty {
+            // We have results
             hasReceivedEmptyResults = false
             viewState = .loaded
             updateFilteredResults(viewModel.detailedFlightResults)
             cancelRetryTimer()
+            print("📱 Loading finished with \(viewModel.detailedFlightResults.count) results")
         } else if let error = viewModel.detailedFlightError, !error.isEmpty {
+            // We have an error
             viewState = .error(error)
             filteredResults = []
             startRetryTimer()
-        } else if viewModel.detailedFlightResults.isEmpty && viewModel.isDataCached {
-            hasReceivedEmptyResults = true
-            filteredResults = []
-            viewState = .empty
+            print("📱 Loading finished with error: \(error)")
+        } else if viewModel.isDataCached {
+            // Backend finished processing but no results
+            if viewModel.totalFlightCount == 0 {
+                hasReceivedEmptyResults = true
+                filteredResults = []
+                viewState = .empty
+                print("📱 Backend finished with no results - empty state")
+            } else {
+                // This shouldn't happen - backend says there are results but we don't have them
+                viewState = .error("Unable to load flight results")
+                filteredResults = []
+                print("📱 Inconsistent state - backend has count but no results")
+            }
+        } else {
+            // Backend still processing - keep loading
+            viewState = .loading
+            print("📱 Backend still processing - keeping loading state")
         }
     }
     
@@ -5104,10 +5155,10 @@ struct FlightFilterSheet: View {
         sortOption = .best
         hasSortChanged = false
         
-        // ✅ CRITICAL: Set all stop options to true by default
+        // Set all stop options to true by default (show all flights)
         directFlightsSelected = true
-        oneStopSelected = true        // ✅ CHANGE: Set to true
-        multiStopSelected = true      // ✅ CHANGE: Set to true
+        oneStopSelected = true
+        multiStopSelected = true
         hasStopsChanged = false
         
         // Set full time ranges
@@ -5119,7 +5170,7 @@ struct FlightFilterSheet: View {
         durationRange = [1.75, 8.5]
         hasDurationChanged = false
         
-        // ✅ CRITICAL: Select ALL available airlines by default
+        // Select ALL available airlines by default
         selectedAirlines = Set(availableAirlines.map { $0.code })
         hasAirlinesChanged = false
         
@@ -5127,8 +5178,7 @@ struct FlightFilterSheet: View {
         initializePriceRange()
         hasPriceChanged = false
         
-        print("🔧 Set defaults: Direct=\(directFlightsSelected), OneStop=\(oneStopSelected), MultiStop=\(multiStopSelected)")
-        print("🔧 Selected airlines: \(selectedAirlines.count)/\(availableAirlines.count)")
+        print("🔧 Set defaults: all options enabled for full results")
     }
     
     enum SortOption: String, CaseIterable {
@@ -5456,30 +5506,30 @@ struct FlightFilterSheet: View {
         withAnimation(.easeInOut(duration: 0.8)) {
             isResetting = true
             
-            // Reset all filter values immediately for animation
+            // Reset all filter values
             sortOption = .best
             hasSortChanged = false
             
-            // ✅ CHANGE: Reset all stop options to true (show all flights)
+            // Reset all stop options to true (show all flights)
             directFlightsSelected = true
             oneStopSelected = true
             multiStopSelected = true
             hasStopsChanged = false
             
-            // Reset time ranges (will animate)
+            // Reset time ranges
             departureTimes = [0.0, 24.0]
             arrivalTimes = [0.0, 24.0]
             hasTimesChanged = false
             
-            // Reset duration range (will animate)
+            // Reset duration range
             durationRange = [1.75, 8.5]
             hasDurationChanged = false
             
-            // ✅ CHANGE: Select all available airlines when resetting
+            // Select all available airlines when resetting
             selectedAirlines = Set(availableAirlines.map { $0.code })
             hasAirlinesChanged = false
             
-            // ✅ FIX: Reset price range to full API range immediately
+            // Reset price range to full API range
             priceRange = [getApiMinPrice(), getApiMaxPrice()]
             hasPriceChanged = false
         }
@@ -5489,11 +5539,16 @@ struct FlightFilterSheet: View {
             withAnimation(.easeInOut(duration: 0.2)) {
                 isResetting = false
             }
-            // Trigger preview update after reset is complete
-            triggerPreviewUpdate()
+            
+            // CRITICAL: Apply empty filter (no filters) after reset
+            let emptyFilter = FlightFilterRequest()
+            viewModel.applyPollFilters(filterRequest: emptyFilter)
+            
+            // Dismiss the sheet
+            dismiss()
         }
         
-        print("🔧 Reset to defaults with animation: all stops=true, all airlines selected")
+        print("🔧 Reset to defaults: all filters cleared")
     }
     
     // MARK: - UI Helper Views
@@ -5656,21 +5711,28 @@ struct FlightFilterSheet: View {
     private func createCurrentFilterRequest() -> FlightFilterRequest {
         var filterRequest = FlightFilterRequest()
         
+        print("🔧 Creating filter request with user changes:")
+        
         // Add sort options if changed
         if hasSortChanged {
             switch sortOption {
             case .best:
-                filterRequest.sortBy = nil
+                // No specific sorting for "best"
+                break
             case .cheapest:
                 filterRequest.sortBy = "price"
                 filterRequest.sortOrder = "asc"
+                print("   - Sort by price (cheapest)")
             case .fastest:
                 filterRequest.sortBy = "duration"
                 filterRequest.sortOrder = "asc"
+                print("   - Sort by duration (fastest)")
             case .outboundTakeOff:
                 filterRequest.sortBy = "departure"
+                print("   - Sort by departure time")
             case .outboundLanding:
                 filterRequest.sortBy = "arrival"
+                print("   - Sort by arrival time")
             }
         }
         
@@ -5682,47 +5744,74 @@ struct FlightFilterSheet: View {
                 (multiStopSelected, "multiStop")
             ].filter { $0.0 }.map { $0.1 }
             
+            print("   - Stop filters: \(selectedOptions)")
+            
             if selectedOptions.count == 1 {
                 if directFlightsSelected {
                     filterRequest.stopCountMax = 0
                 } else if oneStopSelected {
                     filterRequest.stopCountMax = 1
                 }
+                // Note: For multiStop only, we don't set stopCountMax (allows 2+)
             } else if selectedOptions.count == 2 {
                 if directFlightsSelected && oneStopSelected {
-                    filterRequest.stopCountMax = 1
+                    filterRequest.stopCountMax = 1  // 0 or 1 stops
                 }
+                // Other combinations don't need specific stopCountMax
             }
+            // If all 3 are selected, no filter needed
         }
         
-        // Add price range if changed
+        // Add price range if changed significantly
         if hasPriceChanged {
-            filterRequest.priceMin = Int(priceRange[0])
-            filterRequest.priceMax = Int(priceRange[1])
+            let apiMinPrice = getApiMinPrice()
+            let apiMaxPrice = getApiMaxPrice()
+            
+            // Only apply if user has significantly narrowed the range
+            if priceRange[0] > apiMinPrice + 50 || priceRange[1] < apiMaxPrice - 50 {
+                filterRequest.priceMin = Int(priceRange[0])
+                filterRequest.priceMax = Int(priceRange[1])
+                print("   - Price range: \(Int(priceRange[0])) - \(Int(priceRange[1]))")
+            }
         }
         
         // Add duration if changed
         if hasDurationChanged {
-            filterRequest.durationMax = Int(durationRange[1] * 60)
+            if abs(durationRange[1] - 8.5) > 0.1 {  // Only if max duration changed
+                filterRequest.durationMax = Int(durationRange[1] * 60)  // Convert to minutes
+                print("   - Max duration: \(Int(durationRange[1] * 60)) minutes")
+            }
         }
         
         // Add time ranges if changed
         if hasTimesChanged {
-            let departureMin = Int(departureTimes[0] * 3600)
+            let departureMin = Int(departureTimes[0] * 3600)  // Convert to seconds
             let departureMax = Int(departureTimes[1] * 3600)
             let arrivalMin = Int(arrivalTimes[0] * 3600)
             let arrivalMax = Int(arrivalTimes[1] * 3600)
             
-            let timeRange = ArrivalDepartureRange(
-                arrival: TimeRange(min: arrivalMin, max: arrivalMax),
-                departure: TimeRange(min: departureMin, max: departureMax)
-            )
-            filterRequest.arrivalDepartureRanges = [timeRange]
+            // Only add if significantly different from defaults
+            if abs(departureTimes[0] - 0.0) > 0.1 || abs(departureTimes[1] - 24.0) > 0.1 ||
+               abs(arrivalTimes[0] - 0.0) > 0.1 || abs(arrivalTimes[1] - 24.0) > 0.1 {
+                
+                let timeRange = ArrivalDepartureRange(
+                    arrival: TimeRange(min: arrivalMin, max: arrivalMax),
+                    departure: TimeRange(min: departureMin, max: departureMax)
+                )
+                filterRequest.arrivalDepartureRanges = [timeRange]
+                print("   - Time ranges applied")
+            }
         }
         
         // Add airline filters if changed
-        if hasAirlinesChanged && !selectedAirlines.isEmpty && selectedAirlines.count < availableAirlines.count {
-            filterRequest.iataCodesInclude = Array(selectedAirlines)
+        if hasAirlinesChanged && !selectedAirlines.isEmpty {
+            let allAirlines = Set(availableAirlines.map { $0.code })
+            
+            // Only apply if user has excluded some airlines
+            if selectedAirlines.count < allAirlines.count {
+                filterRequest.iataCodesInclude = Array(selectedAirlines)
+                print("   - Airlines filter: \(selectedAirlines.count)/\(allAirlines.count) selected")
+            }
         }
         
         return filterRequest
@@ -5804,13 +5893,26 @@ struct FlightFilterSheet: View {
     }
     
     private func applyFilters() {
-        let filterRequest = createCurrentFilterRequest()
+        // CRITICAL: Only create filter request if user has actually made changes
+        let hasUserMadeChanges = hasSortChanged || hasStopsChanged || hasPriceChanged ||
+                                hasTimesChanged || hasDurationChanged || hasAirlinesChanged
         
-        // Save filter state to view model
-        saveFilterStateToViewModel()
-        
-        // Apply the filter through the API - this will update the main results
-        viewModel.applyPollFilters(filterRequest: filterRequest)
+        if hasUserMadeChanges {
+            print("🔧 User has made filter changes - applying filters")
+            let filterRequest = createCurrentFilterRequest()
+            
+            // Save filter state to view model
+            saveFilterStateToViewModel()
+            
+            // Apply the filter through the API
+            viewModel.applyPollFilters(filterRequest: filterRequest)
+        } else {
+            print("🔧 No filter changes detected - applying empty filter")
+            
+            // User hasn't made any changes, apply empty filter to get all results
+            let emptyFilter = FlightFilterRequest()
+            viewModel.applyPollFilters(filterRequest: emptyFilter)
+        }
         
         // Dismiss the sheet
         dismiss()
