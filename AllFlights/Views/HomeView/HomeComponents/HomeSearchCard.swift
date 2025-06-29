@@ -39,7 +39,7 @@ struct EnhancedDynamicSearchInput: View {
     
     // Height calculations - UPDATED to 406px
     private var baseExpandedHeight: CGFloat {
-        searchViewModel.selectedTab == 2 ? 410 : 410 // Increased by 6px from 400 to 406
+        searchViewModel.selectedTab == 2 ? 420 : 420 // Increased by 6px from 400 to 406
     }
     private var multiCityAdditionHeight: CGFloat {
         searchViewModel.selectedTab == 2 ? CGFloat(max(0, searchViewModel.multiCityTrips.count - 2) * 70) : 0
@@ -242,10 +242,10 @@ struct EnhancedDynamicSearchInput: View {
     
     // MARK: - Button Frame Calculations
     private func calculateExpandedButtonFrame(containerWidth: CGFloat, containerHeight: CGFloat) -> CGRect {
-        // Position the expanded button at the bottom of the expanded content - MOVED DOWN 21px
+        // Position the expanded button at the bottom of the expanded content
         let buttonHeight: CGFloat = 52
         let horizontalPadding: CGFloat = 20
-        let bottomPadding: CGFloat = 39 // Changed from 60 to 39 (60 - 21 = 39)
+        let bottomPadding: CGFloat = 60 // Account for direct flights toggle
         
         return CGRect(
             x: horizontalPadding,
@@ -256,11 +256,11 @@ struct EnhancedDynamicSearchInput: View {
     }
     
     private func calculateCollapsedButtonFrame(containerWidth: CGFloat, containerHeight: CGFloat) -> CGRect {
-        // Position for the collapsed "Search" button (right side of collapsed content) - ORIGINAL POSITION
+        // Position for the collapsed "Search" button (right side of collapsed content)
         let buttonWidth: CGFloat = 105
         let buttonHeight: CGFloat = 44
         let rightPadding: CGFloat = 20
-        let verticalCenter = containerHeight / 2 // Back to original position
+        let verticalCenter = containerHeight / 2
         
         return CGRect(
             x: containerWidth - buttonWidth - rightPadding,
@@ -404,13 +404,13 @@ struct EnhancedDynamicSearchInput: View {
                 
             // Passenger Button - Row 4
             passengerButton
-                .padding(.bottom, 4)
+                .padding(.bottom, 25) // MODIFIED: Changed from 4 to 25 (4 + 21 = 25)
                 .opacity(rowOpacity(rowIndex: 4, totalRows: 6))
                 .scaleEffect(rowScale(rowIndex: 4, totalRows: 6))
            
             // Direct Flights Toggle - Row 5 (folds first)
             directFlightsToggle
-                .padding(.top, 52) // Add space where search button would be
+                .padding(.top, 48) // Add space where search button would be
                 .opacity(rowOpacity(rowIndex: 5, totalRows: 6))
                 .scaleEffect(rowScale(rowIndex: 5, totalRows: 6))
         }
@@ -418,7 +418,7 @@ struct EnhancedDynamicSearchInput: View {
     
     // MARK: - MODIFIED: Multi-City Interface with Row Folding (Bottom to Top)
     private var updatedMultiCityInterfaceWithRowFolding: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             // Flight segments with enhanced animations - Row 0 (folds last)
             VStack(spacing: 8) {
                 ForEach(searchViewModel.multiCityTrips.indices, id: \.self) { index in
@@ -530,7 +530,7 @@ struct EnhancedDynamicSearchInput: View {
 
             // Direct flights toggle - Row 2 (folds first)
             directFlightsToggle
-                .padding(.top, 52 + 16) // Add space where search button would be
+                .padding(.top, 40) // Add space where search button would be
                 .opacity(rowOpacity(rowIndex: 2, totalRows: 3))
                 .scaleEffect(rowScale(rowIndex: 2, totalRows: 3))
         }
