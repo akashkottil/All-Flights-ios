@@ -47,7 +47,7 @@ struct EnhancedDynamicSearchInput: View {
     private var expandedHeight: CGFloat {
         baseExpandedHeight + multiCityAdditionHeight
     }
-    private var collapsedHeight: CGFloat { 60 }
+    private var collapsedHeight: CGFloat { 52 }
     private var currentHeight: CGFloat {
         collapsedHeight + (expandedHeight - collapsedHeight) * heightProgress
     }
@@ -76,20 +76,6 @@ struct EnhancedDynamicSearchInput: View {
         } else {
             return 0.0
         }
-    }
-    
-    // MODIFIED: Collapsed content positioning - always follows button
-    private var collapsedContentPosition: CGPoint {
-        // Calculate the collapsed button position
-        let containerWidth = UIScreen.main.bounds.width - 32 // Account for horizontal padding
-        let collapsedButtonFrame = calculateCollapsedButtonFrame(containerWidth: containerWidth, containerHeight: currentHeight)
-        
-        // Position collapsed content to the left of the button
-        let contentWidth: CGFloat = 200 // Approximate width of collapsed content
-        let xPosition = collapsedButtonFrame.minX - contentWidth - 8 // 8px gap from button
-        let yPosition = collapsedButtonFrame.midY
-        
-        return CGPoint(x: xPosition, y: yPosition)
     }
     
     // Row folding animations - each row disappears at different progress points
@@ -259,7 +245,7 @@ struct EnhancedDynamicSearchInput: View {
         // Position for the collapsed "Search" button (right side of collapsed content)
         let buttonWidth: CGFloat = 105
         let buttonHeight: CGFloat = 44
-        let rightPadding: CGFloat = 20
+        let rightPadding: CGFloat = 4 // Reduced from 20 to 4 to match vertical padding
         let verticalCenter = containerHeight / 2
         
         return CGRect(
@@ -292,27 +278,11 @@ struct EnhancedDynamicSearchInput: View {
         .padding(.horizontal,16)
     }
     
-    // MARK: - MODIFIED: Collapsed Content Always Behind Button (as a single row)
+    // MARK: - MODIFIED: Collapsed Content Always Behind Button (pushed to edges)
     @ViewBuilder
     private var collapsedSearchContentBehindButton: some View {
-        GeometryReader { geometry in
-            let containerWidth = geometry.size.width
-            let containerHeight = geometry.size.height
-            
-            // Calculate positions and sizes based on heightProgress (same as button)
-            let expandedButtonFrame = calculateExpandedButtonFrame(containerWidth: containerWidth, containerHeight: containerHeight)
-            let collapsedButtonFrame = calculateCollapsedButtonFrame(containerWidth: containerWidth, containerHeight: containerHeight)
-            
-            // Interpolate between expanded and collapsed states (same movement as button)
-            let currentX = expandedButtonFrame.minX + (collapsedButtonFrame.minX - expandedButtonFrame.minX) * (1 - heightProgress)
-            let currentY = expandedButtonFrame.minY + (collapsedButtonFrame.minY - expandedButtonFrame.minY) * (1 - heightProgress)
-            let currentButtonWidth = expandedButtonFrame.width + (collapsedButtonFrame.width - expandedButtonFrame.width) * (1 - heightProgress)
-            
-            // Position content to the left of the button's current position
-            let contentWidth: CGFloat = 200
-            let contentX = currentX - contentWidth - 12 // 12px gap from button
-            let contentY = currentY + (expandedButtonFrame.height + (collapsedButtonFrame.height - expandedButtonFrame.height) * (1 - heightProgress)) / 2
-            
+        HStack(spacing: 0) {
+            // Left side content - pushed to the left edge
             HStack(spacing: 8) {
                 // From
                 Text(searchViewModel.fromIataCode.isEmpty ? "FROM" : searchViewModel.fromIataCode)
@@ -339,13 +309,19 @@ struct EnhancedDynamicSearchInput: View {
                     .fontWeight(.medium)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                
-                Spacer(minLength: 0)
             }
-            .frame(width: max(0, contentWidth))
-            .position(x: max(contentWidth/2, contentX + contentWidth/2), y: contentY)
-            .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: heightProgress)
+            .padding(.leading, 20) // Push content to left edge
+            
+            Spacer() // This will push the button to the right edge
+            
+            // The button space is handled by the morphingSearchButton view
+            // We just need to account for its space here
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: 125) // Button width + padding
         }
+        .frame(height: currentHeight)
+        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: heightProgress)
     }
     
     // MARK: - MODIFIED: Regular Interface with Row Folding (Bottom to Top)
