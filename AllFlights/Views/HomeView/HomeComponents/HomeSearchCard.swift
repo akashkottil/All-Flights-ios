@@ -416,7 +416,7 @@ struct EnhancedDynamicSearchInput: View {
         }
     }
     
-    // MARK: - MODIFIED: Multi-City Interface with Row Folding (Bottom to Top)
+    // MARK: - MODIFIED: Multi-City Interface with Row Folding (Bottom to Top) - FIXED HEIGHT
     private var updatedMultiCityInterfaceWithRowFolding: some View {
         VStack(spacing: 0) {
             // Flight segments with enhanced animations - Row 0 (folds last)
@@ -461,13 +461,13 @@ struct EnhancedDynamicSearchInput: View {
             .scaleEffect(rowScale(rowIndex: 0, totalRows: 3))
             .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.3), value: searchViewModel.multiCityTrips.count)
             
-            // Passenger and Add Flight Section - Row 1
+            // Passenger and Add Flight Section - Row 1 - FIXED HEIGHT
             VStack(spacing: 0) {
                 Divider()
                     .padding(.horizontal, -20)
                 
                 HStack(spacing: 0) {
-                    // Passenger selection button
+                    // Passenger selection button - REDUCED PADDING
                     Button(action: {
                         showingPassengersSheet = true
                     }) {
@@ -482,21 +482,19 @@ struct EnhancedDynamicSearchInput: View {
 
                             Spacer()
                         }
-                        .padding(.vertical, 16)
                         .padding(.leading, 10)
+                        .padding(.vertical, 8) // REDUCED from default to 8
                     }
-                    .frame(maxHeight: .infinity)
 
                     // Always show vertical divider and add flight button when under limit
                     if searchViewModel.multiCityTrips.count < 4 {
                         Rectangle()
                             .frame(width: 1)
                             .foregroundColor(Color.gray.opacity(0.3))
-                            .frame(maxHeight: .infinity)
 
                         Spacer()
 
-                        // Always show Add Flight button, but disable when needed
+                        // Always show Add Flight button, but disable when needed - REDUCED PADDING
                         Button(action: addTrip) {
                             HStack(spacing: 8) {
                                 Image(systemName: "plus")
@@ -507,18 +505,17 @@ struct EnhancedDynamicSearchInput: View {
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(canAddTrip ? .blue : .gray)
                             }
-                            .padding(.vertical, 16)
                             .padding(.trailing, 12)
+                            .padding(.vertical, 8) // REDUCED from default to 8
                         }
                         .disabled(!canAddTrip)
-                        .frame(maxHeight: .infinity)
                     }
                 }
+                .frame(height: 60) // FIXED HEIGHT instead of flexible
                 .background(Color.white)
-                .frame(minHeight: 64)
                 .animation(.spring(response: 0.5, dampingFraction: 0.7), value: searchViewModel.multiCityTrips.count)
                 
-                if searchViewModel.multiCityTrips.count < 5 {
+                if searchViewModel.multiCityTrips.count < 4 {
                     Divider()
                         .padding(.horizontal, -20)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -528,9 +525,9 @@ struct EnhancedDynamicSearchInput: View {
             .scaleEffect(rowScale(rowIndex: 1, totalRows: 3))
             .animation(.easeInOut(duration: 0.3), value: searchViewModel.multiCityTrips.count < 5)
 
-            // Direct flights toggle - Row 2 (folds first)
+            // Direct flights toggle - Row 2 (folds first) - REDUCED TOP PADDING
             directFlightsToggle
-                .padding(.top, 40) // Add space where search button would be
+                .padding(.top, 100) // REDUCED from 40 to 20
                 .opacity(rowOpacity(rowIndex: 2, totalRows: 3))
                 .scaleEffect(rowScale(rowIndex: 2, totalRows: 3))
         }
