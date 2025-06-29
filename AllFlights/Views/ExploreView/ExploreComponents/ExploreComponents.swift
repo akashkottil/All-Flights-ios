@@ -1509,7 +1509,7 @@ struct TripTypeTabView: View {
     
     // Calculate dimensions based on available tabs
     private var totalWidth: CGFloat {
-        return UIScreen.main.bounds.width * 0.65
+        return UIScreen.main.bounds.width * 0.45
     }
     
     private var tabWidth: CGFloat {
