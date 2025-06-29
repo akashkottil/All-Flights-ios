@@ -39,7 +39,7 @@ struct EnhancedDynamicSearchInput: View {
     
     // Height calculations - UPDATED to 406px
     private var baseExpandedHeight: CGFloat {
-        searchViewModel.selectedTab == 2 ? 420 : 420 // Increased by 6px from 400 to 406
+        searchViewModel.selectedTab == 2 ? 410 : 420 // Increased by 6px from 400 to 406
     }
     private var multiCityAdditionHeight: CGFloat {
         searchViewModel.selectedTab == 2 ? CGFloat(max(0, searchViewModel.multiCityTrips.count - 2) * 70) : 0
