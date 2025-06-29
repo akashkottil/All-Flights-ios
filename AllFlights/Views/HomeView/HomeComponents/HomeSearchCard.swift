@@ -37,9 +37,9 @@ struct EnhancedDynamicSearchInput: View {
         case from, to
     }
     
-    // Height calculations - INCREASED to match original EnhancedSearchInput
+    // Height calculations - UPDATED to 406px
     private var baseExpandedHeight: CGFloat {
-        searchViewModel.selectedTab == 2 ? 480 : 480 // Made both the same height for consistency
+        searchViewModel.selectedTab == 2 ? 410 : 410 // Increased by 6px from 400 to 406
     }
     private var multiCityAdditionHeight: CGFloat {
         searchViewModel.selectedTab == 2 ? CGFloat(max(0, searchViewModel.multiCityTrips.count - 2) * 70) : 0
@@ -56,7 +56,7 @@ struct EnhancedDynamicSearchInput: View {
     private var dynamicCornerRadius: CGFloat {
         // When expanded (heightProgress = 1.0): radius = 16
         // When collapsed (heightProgress = 0.0): radius = 27
-        let expandedRadius: CGFloat = 16
+        let expandedRadius: CGFloat = 24
         let collapsedRadius: CGFloat = 27
         return collapsedRadius + (expandedRadius - collapsedRadius) * heightProgress
     }
@@ -221,7 +221,7 @@ struct EnhancedDynamicSearchInput: View {
                 performSearch()
             }) {
                 Text(heightProgress > 0.5 ? "Search Flights" : "Search")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: currentWidth, height: currentHeight)
                     .background(
@@ -242,10 +242,10 @@ struct EnhancedDynamicSearchInput: View {
     
     // MARK: - Button Frame Calculations
     private func calculateExpandedButtonFrame(containerWidth: CGFloat, containerHeight: CGFloat) -> CGRect {
-        // Position the expanded button at the bottom of the expanded content
+        // Position the expanded button at the bottom of the expanded content - MOVED DOWN 21px
         let buttonHeight: CGFloat = 52
         let horizontalPadding: CGFloat = 20
-        let bottomPadding: CGFloat = 60 // Account for direct flights toggle
+        let bottomPadding: CGFloat = 39 // Changed from 60 to 39 (60 - 21 = 39)
         
         return CGRect(
             x: horizontalPadding,
@@ -256,11 +256,11 @@ struct EnhancedDynamicSearchInput: View {
     }
     
     private func calculateCollapsedButtonFrame(containerWidth: CGFloat, containerHeight: CGFloat) -> CGRect {
-        // Position for the collapsed "Search" button (right side of collapsed content)
+        // Position for the collapsed "Search" button (right side of collapsed content) - ORIGINAL POSITION
         let buttonWidth: CGFloat = 105
         let buttonHeight: CGFloat = 44
         let rightPadding: CGFloat = 20
-        let verticalCenter = containerHeight / 2
+        let verticalCenter = containerHeight / 2 // Back to original position
         
         return CGRect(
             x: containerWidth - buttonWidth - rightPadding,
@@ -273,7 +273,7 @@ struct EnhancedDynamicSearchInput: View {
     // MARK: - MODIFIED: Expanded Content with Row Folding
     @ViewBuilder
     private var expandedSearchContentWithRowFolding: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             // Trip Type Tabs - Row 0
             tripTypeTabs
                 .opacity(rowOpacity(rowIndex: 0, totalRows: 6))
@@ -289,7 +289,7 @@ struct EnhancedDynamicSearchInput: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: searchViewModel.selectedTab)
-        .padding(20)
+        .padding(.horizontal,16)
     }
     
     // MARK: - MODIFIED: Collapsed Content Always Behind Button (as a single row)
@@ -350,7 +350,7 @@ struct EnhancedDynamicSearchInput: View {
     
     // MARK: - MODIFIED: Regular Interface with Row Folding (Bottom to Top)
     private var regularInterfaceWithRowFolding: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 0) {
             // From Location - Row 0 (folds last)
             fromLocationButton
                 .offset(y: fromLocationOffset)
@@ -359,6 +359,7 @@ struct EnhancedDynamicSearchInput: View {
                 .animation(.easeInOut(duration: 0.3), value: fromLocationOffset)
                 .animation(.easeInOut(duration: 0.25), value: fromLocationOpacity)
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: fromLocationScale)
+                .padding(.top,5)
                 
             // Swap Button and Divider - Row 1
             ZStack {
@@ -409,7 +410,7 @@ struct EnhancedDynamicSearchInput: View {
            
             // Direct Flights Toggle - Row 5 (folds first)
             directFlightsToggle
-                .padding(.top, 52 + 16) // Add space where search button would be
+                .padding(.top, 52) // Add space where search button would be
                 .opacity(rowOpacity(rowIndex: 5, totalRows: 6))
                 .scaleEffect(rowScale(rowIndex: 5, totalRows: 6))
         }
@@ -588,10 +589,10 @@ struct EnhancedDynamicSearchInput: View {
                 
                 HStack(spacing: 5) {
                     Text(getFromLocationDisplayText())
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(getFromLocationTextColor())
                     Text(searchViewModel.fromLocation)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .foregroundColor(getFromLocationNameTextColor())
@@ -651,10 +652,10 @@ struct EnhancedDynamicSearchInput: View {
                 
                 HStack(spacing: 5) {
                     Text(getToLocationDisplayText())
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(getToLocationTextColor())
                     Text(searchViewModel.toLocation)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .foregroundColor(getToLocationNameTextColor())
@@ -675,7 +676,7 @@ struct EnhancedDynamicSearchInput: View {
                     .frame(width: 20, height: 20)
                 
                 Text(getDateDisplayText())
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(getDateTextColor())
                 
                 Spacer()
@@ -693,7 +694,7 @@ struct EnhancedDynamicSearchInput: View {
                     .frame(width: 20, height: 20)
                 
                 Text(passengerDisplayText)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.primary)
                 
                 Spacer()
