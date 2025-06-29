@@ -1532,12 +1532,12 @@ struct TripTypeTabView: View {
             // Background capsule
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .frame(height: 44)
+                .frame(height: 40)
                 
             // Sliding white background for selected tab
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - (padding * 2), height: 34)
+                .frame(width: tabWidth - (padding * 2), height: 30)
                 .offset(x: (CGFloat(selectedTab) * tabWidth) + padding)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
             
@@ -1606,7 +1606,6 @@ struct TripTypeTabView: View {
         }
         .frame(width: totalWidth, height: 36)
         .padding(.horizontal, 4)
-        .padding(.bottom, 8)
         .opacity(isLoadingInDetailedView ? 0.6 : 1.0)
         .onReceive(sharedSearchData.$isDirectFromHome) { _ in
             // Don't reset tab when coming from home with multi-city

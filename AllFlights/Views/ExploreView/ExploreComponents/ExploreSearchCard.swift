@@ -27,7 +27,7 @@ struct MorphingSearchCard: View {
                 return baseHeight + extraHeight
             } else {
                 // Regular trip (return/one-way): standard height
-                return 75  // Your perfect value for return/one-way
+                return 60  // Your perfect value for return/one-way
             }
         }()
         
@@ -165,7 +165,8 @@ private var expandedSearchContent: some View {
             Spacer()
         }
         .padding(.horizontal)
-        .padding(.top, 15)
+        .padding(.top, 12)
+        .padding(.bottom, 5)
         
         // Search card with dynamic values
         SearchCard(viewModel: viewModel, isRoundTrip: $isRoundTrip, selectedTab: selectedTab)
