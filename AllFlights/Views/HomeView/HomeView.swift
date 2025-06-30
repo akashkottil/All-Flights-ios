@@ -459,61 +459,59 @@ struct HomeView: View {
     }
 
     
-    // NEW: Function to update search card height based on scroll - IMPROVED LOGIC
+    // NEW: Function to update search card height based on scroll - IMPROVED NATIVE BEHAVIOR
     private func updateSearchCardHeight() {
         // Don't update if showing explore screen or if we're already auto-animating
         guard !isShowingExploreScreen && !isAutoAnimating else { return }
         
-        let scrollThreshold: CGFloat = 100
+        let scrollThreshold: CGFloat = 120 // Increased threshold for more native feel
         let progress = max(0, min(1, (scrollOffset + scrollThreshold) / scrollThreshold))
-        let previousHeight = searchCardHeight
         
-        // Check for 50% threshold crossing
-        if previousHeight > 0.5 && progress <= 0.5 {
-            // Crossed 50% while collapsing - trigger auto-collapse
-            triggerAutoCollapse()
-            return
-        } else if previousHeight < 0.5 && progress >= 0.5 {
-            // Crossed 50% while expanding - trigger auto-expand
-            triggerAutoExpand()
-            return
+        // More native behavior: smooth continuous animation without auto-snap
+        withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.9, blendDuration: 0.1)) {
+            searchCardHeight = progress
         }
         
-        // Normal scroll behavior
-        withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
-            searchCardHeight = progress
+        // Native-like behavior: only auto-collapse/expand at extreme positions
+        if progress <= 0.15 && searchCardHeight > 0.15 {
+            // Very close to fully collapsed - snap to collapsed
+            triggerAutoCollapse()
+        } else if progress >= 0.85 && searchCardHeight < 0.85 {
+            // Very close to fully expanded - snap to expanded
+            triggerAutoExpand()
         }
     }
 
-    // ADD these two new functions to your HomeView:
+    // UPDATED: More native auto-collapse behavior
     private func triggerAutoCollapse() {
         isAutoAnimating = true
         
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+        withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.1)) {
             searchCardHeight = 0.0
         }
         
         // Reset auto-animating flag after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             isAutoAnimating = false
         }
     }
 
+    // UPDATED: More native auto-expand behavior
     private func triggerAutoExpand() {
         isAutoAnimating = true
         
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+        withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.1)) {
             searchCardHeight = 1.0
         }
         
         // Reset auto-animating flag after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             isAutoAnimating = false
         }
     }
