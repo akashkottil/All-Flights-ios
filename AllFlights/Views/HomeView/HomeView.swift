@@ -37,6 +37,9 @@ struct HomeView: View {
     @State private var isCollapsed = false
     @State private var exploreScrollOffset: CGFloat = 0
     
+    // MARK: - State for tracking scroll velocity
+    @State private var scrollEndTimer: Timer?
+    
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
     
@@ -180,6 +183,12 @@ struct HomeView: View {
                                     .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
                                         scrollOffset = value
                                         updateSearchCardHeight()
+                                        
+                                        // Cancel existing timer and start new one
+                                        scrollEndTimer?.invalidate()
+                                        scrollEndTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { _ in
+                                            handleScrollEnd()
+                                        }
                                     }
                             }
                             .frame(height: 0)
@@ -471,13 +480,18 @@ struct HomeView: View {
         withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.9, blendDuration: 0.1)) {
             searchCardHeight = progress
         }
+    }
+
+    // NEW: Function to handle scroll end - decides whether to collapse or expand
+    private func handleScrollEnd() {
+        guard !isShowingExploreScreen && !isAutoAnimating else { return }
         
-        // Native-like behavior: only auto-collapse/expand at extreme positions
-        if progress <= 0.15 && searchCardHeight > 0.15 {
-            // Very close to fully collapsed - snap to collapsed
+        // Determine whether to collapse or expand based on current position
+        if searchCardHeight < 0.5 {
+            // Less than halfway - collapse
             triggerAutoCollapse()
-        } else if progress >= 0.85 && searchCardHeight < 0.85 {
-            // Very close to fully expanded - snap to expanded
+        } else {
+            // More than halfway - expand
             triggerAutoExpand()
         }
     }
@@ -485,9 +499,6 @@ struct HomeView: View {
     // UPDATED: More native auto-collapse behavior
     private func triggerAutoCollapse() {
         isAutoAnimating = true
-        
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
         
         withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.1)) {
             searchCardHeight = 0.0
@@ -502,9 +513,6 @@ struct HomeView: View {
     // UPDATED: More native auto-expand behavior
     private func triggerAutoExpand() {
         isAutoAnimating = true
-        
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
         
         withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.1)) {
             searchCardHeight = 1.0
