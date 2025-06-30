@@ -10,7 +10,6 @@ struct HomeView: View {
     @State private var showingDetailedFlightFilterSheet = false
     @State private var hasAppliedInitialDirectFilter = false
     
-    @State private var navigateToAccount = false
     @Namespace private var animation
     @GestureState private var dragOffset: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
@@ -337,9 +336,6 @@ struct HomeView: View {
                         }
                     }
                 }
-            }
-            .navigationDestination(isPresented: $navigateToAccount) {
-                AccountView()
             }
             .onAppear {
                 // Fetch cheap flights data when home view appears
@@ -728,7 +724,7 @@ struct HomeView: View {
             }
     }
 
-    // MARK: - Header View
+    // MARK: - Header View - UPDATED FOR NATIVE NAVIGATION
     var headerView: some View {
         HStack {
             Image("logoHome")
@@ -744,10 +740,8 @@ struct HomeView: View {
 
             Spacer()
 
-            Button(action: {
-                SharedSearchDataStore.shared.enterAccountNavigation()
-                navigateToAccount = true
-            }) {
+            // UPDATED: Use NavigationLink for native navigation
+            NavigationLink(destination: AccountView()) {
                 Image("homeProfile")
                     .resizable()
                     .frame(width: 36, height: 36)
@@ -890,8 +884,6 @@ struct HomeView: View {
         print("✅ Synced \(exploreViewModel.multiCityTrips.count) multi-city trips back to home")
     }
 }
-
-
 
 // MARK: - Preview
 #Preview {
