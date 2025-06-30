@@ -1729,7 +1729,7 @@ struct MultiCitySearchCard: View {
                             Spacer()
                         }
                         .padding(.vertical, 16)
-                        .padding(.leading, 10)
+                      
                     }
                     .frame(maxHeight: .infinity)
                     
@@ -1743,14 +1743,14 @@ struct MultiCitySearchCard: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus")
                                     .foregroundColor(.blue)
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.system(size: 16, weight: .bold))
                                 
                                 Text("Add flight")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.blue)
                             }
                             .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
+                           
                         }
                     }
                 }
