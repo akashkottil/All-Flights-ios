@@ -4798,11 +4798,6 @@ struct PriceSection: View {
 
 
 
-
-
-
-
-// MARK: - Updated Flight Filter Sheet with Animations
 // MARK: - Updated Flight Filter Sheet with Animations
 struct FlightFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -4895,6 +4890,7 @@ struct FlightFilterSheet: View {
                         Text("Sort")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.primary)
+                            .padding(.top)
                         
                         ForEach(SortOption.allCases, id: \.self) { option in
                             HStack {
@@ -4917,6 +4913,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Stops section
                     VStack(alignment: .leading, spacing: 16) {
@@ -4956,6 +4953,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Price range section with animation
                     VStack(alignment: .leading, spacing: 16) {
@@ -4990,6 +4988,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Times section with animation
                     VStack(alignment: .leading, spacing: 16) {
@@ -4997,7 +4996,7 @@ struct FlightFilterSheet: View {
                             .font(.system(size: 18, weight: .bold))
                         
                         Text("\(viewModel.selectedOriginCode) - \(viewModel.selectedDestinationCode)")
-                            .foregroundColor(.gray)
+                            .foregroundColor(.primary)
                         
                         // Departure time slider
                         VStack(alignment: .leading, spacing: 8) {
@@ -5059,6 +5058,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Duration section with animation
                     VStack(alignment: .leading, spacing: 16) {
@@ -5093,6 +5093,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Airlines section
                     if !availableAirlines.isEmpty {
@@ -5101,6 +5102,7 @@ struct FlightFilterSheet: View {
                 }
                 .padding()
             }
+            .scrollIndicators(.hidden)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -5130,6 +5132,7 @@ struct FlightFilterSheet: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.blue)
                     }
+                    .padding(.top)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -5154,11 +5157,11 @@ struct FlightFilterSheet: View {
                             .fontWeight(.bold)
                     }
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
+                    .frame(width: 332)
                     .padding()
                     .background(Color("buttonColor"))
-                    .cornerRadius(8)
-                    .padding()
+                    .cornerRadius(12)
+                    
                 }
             }
         }
@@ -5705,7 +5708,12 @@ struct AnimatedRangeSliderView: View {
                     LeftCurvedThumb()
                         .fill(Color.white)
                         .frame(width: 20, height: 20)
+                        .overlay(
+                            LeftCurvedThumb()
+                                .stroke(Color.blue, lineWidth: 2) // Blue border line
+                        )
                         .shadow(radius: 2)
+
                 }
                 .offset(x: calculateThumbPosition(for: animatedValues[0], geometry: geometry))
                 .gesture(
@@ -5735,7 +5743,12 @@ struct AnimatedRangeSliderView: View {
                     RightCurvedThumb()
                         .fill(Color.white)
                         .frame(width: 20, height: 20)
+                        .overlay(
+                            RightCurvedThumb()
+                                .stroke(Color.blue, lineWidth: 2) // Blue border line
+                        )
                         .shadow(radius: 2)
+
                 }
                 .offset(x: calculateThumbPosition(for: animatedValues[1], geometry: geometry))
                 .gesture(
