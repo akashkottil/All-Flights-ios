@@ -66,7 +66,7 @@ struct PassengersAndClassSelector: View {
             
             // Bottom Apply button
             VStack {
-                Divider()
+             
                 
                 Button(action: {
                     // Validate that all children have ages selected
@@ -109,7 +109,7 @@ struct PassengersAndClassSelector: View {
                 .padding(.top, 12)
                 .padding(.bottom, 20) // Extra bottom padding for safe area
             }
-            .background(Color(UIColor.systemBackground))
+            .background(Color("passengerandclass"))
         }
         .background(Color(UIColor.systemBackground))
         .overlay(
