@@ -1,28 +1,13 @@
 import SwiftUI
 
-struct Alert : View {
+struct AlertScreen : View {
     var body: some View {
-        NavigationView{
-            ZStack{
-                GradientColor.BlueWhite
-                    .ignoresSafeArea()
-                
-                VStack{
-                    HStack{
-                        Image("FlightAlert")
-                        Spacer()
-                        HStack{
-                            Image("passengeralert")
-                            Text("1")
-                        }
-                    }
-                    Spacer()
-                }
-            }
-        }
+        //        if new your or not created any alerts yet then display FACreateView() otherwise display FAAlertVIew()
+//                FAAlertView()
+                FACreateView()
     }
 }
 
 #Preview {
-    Alert()
+    AlertScreen()
 }
