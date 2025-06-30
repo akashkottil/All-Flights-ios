@@ -1532,12 +1532,12 @@ struct TripTypeTabView: View {
             // Background capsule
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .frame(height: 40)
+                .frame(height: 36)
                 
             // Sliding white background for selected tab
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - (padding * 2), height: 30)
+                .frame(width: tabWidth - (padding * 2), height: 28)
                 .offset(x: (CGFloat(selectedTab) * tabWidth) + padding)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
             
