@@ -143,7 +143,7 @@ struct HomeView: View {
                     // Header + Search Inputs in a VStack with gradient background
                     VStack(spacing: 0) {
                         headerView
-                            .zIndex(1)
+                            .zIndex(2) // Increased z-index for header
 
                         // NEW: Enhanced Dynamic Height Search Input with gradual collapse
                         EnhancedDynamicSearchInput(
@@ -154,16 +154,22 @@ struct HomeView: View {
                             }
                         )
                         .gesture(dragGesture)
+                        .zIndex(1) // Ensure search input is above content
                         
                     }
                     .background(
                         LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
                             .ignoresSafeArea(edges: .top)
                     )
+                    .zIndex(3) // Higher z-index for entire header section
                     
-                    // IMPROVED: ScrollView with better offset tracking
+                    // IMPROVED: ScrollView with better offset tracking and proper spacing
                     ScrollView {
                         VStack(spacing: 16) {
+                            // ADD: Extra spacing at the top to prevent overlap
+                            Spacer()
+                                .frame(height: 20) // Increased spacing to prevent overlap
+                            
                             // Improved GeometryReader for scroll tracking
                             GeometryReader { geo in
                                 Color.clear
@@ -192,9 +198,10 @@ struct HomeView: View {
                             // Add extra padding at the bottom for better scrolling
                             Spacer().frame(height: 20)
                         }
-                        .padding(.top, 16)
+                        .padding(.top, 16) // Additional top padding
                     }
                     .coordinateSpace(name: "scrollView")
+                    .zIndex(0) // Lower z-index for scroll content
                 }
                 .opacity(homeContentOpacity)
                 .offset(y: homeContentOffset)
@@ -877,6 +884,8 @@ struct HomeView: View {
         print("✅ Synced \(exploreViewModel.multiCityTrips.count) multi-city trips back to home")
     }
 }
+
+
 
 // MARK: - Preview
 #Preview {
