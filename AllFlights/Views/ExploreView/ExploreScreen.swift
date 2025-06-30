@@ -376,7 +376,7 @@ struct ExploreScreen: View {
                                 FilterButton(viewModel: viewModel) {
                                     showingDetailedFlightFilterSheet = true
                                 }
-                                .padding(.leading, 20)
+                                .padding(.leading, 18)
                                 
                                 FlightFilterTabView(
                                     selectedFilter: selectedDetailedFlightFilter,
@@ -386,7 +386,7 @@ struct ExploreScreen: View {
                                     }
                                 )
                             }
-                            .padding(.trailing, 16)
+                           
                             .padding(.vertical, 8)
                             
                             // Flight count display

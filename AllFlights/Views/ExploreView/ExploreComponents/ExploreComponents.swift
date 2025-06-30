@@ -4133,7 +4133,7 @@ struct FlightFilterTabView: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(Array(FilterOption.allCases.enumerated()), id: \.element) { index, filter in
                     Button(action: {
                         // Haptic feedback
@@ -4157,7 +4157,7 @@ struct FlightFilterTabView: View {
                             .font(.system(size: 14, weight: selectedFilter == filter ? .semibold : .regular))
                             .foregroundColor(selectedFilter == filter ? .blue : .black)
                             .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 12)
                             .background(Color.white)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
@@ -4168,7 +4168,7 @@ struct FlightFilterTabView: View {
                     }
                 }
             }
-            .padding(.trailing)
+           
         }
     }
 }
