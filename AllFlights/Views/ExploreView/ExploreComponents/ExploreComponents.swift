@@ -1507,9 +1507,10 @@ struct TripTypeTabView: View {
         }
     }
     
-    // Calculate dimensions based on available tabs
+    // FIXED: Calculate dimensions based on available tabs with proper width
     private var totalWidth: CGFloat {
-        return UIScreen.main.bounds.width * 0.45
+        // INCREASED: When multi-city is available, use wider width to accommodate all tabs
+        return availableTabs.count == 3 ? UIScreen.main.bounds.width * 0.65 : UIScreen.main.bounds.width * 0.45
     }
     
     private var tabWidth: CGFloat {
@@ -1529,12 +1530,12 @@ struct TripTypeTabView: View {
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Background capsule
+            // FIXED: Background capsule with dynamic width
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .frame(height: 36)
+                .frame(width: totalWidth, height: 36)
                 
-            // Sliding white background for selected tab
+            // FIXED: Sliding white background for selected tab with dynamic width
             Capsule()
                 .fill(Color.white)
                 .frame(width: tabWidth - (padding * 2), height: 28)
