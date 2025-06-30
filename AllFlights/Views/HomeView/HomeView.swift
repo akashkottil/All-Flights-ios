@@ -166,9 +166,9 @@ struct HomeView: View {
                     // IMPROVED: ScrollView with better offset tracking and proper spacing
                     ScrollView {
                         VStack(spacing: 16) {
-                            // ADD: Extra spacing at the top to prevent overlap
+                            // ADD: Reduced spacing at the top to bring content closer to search input
                             Spacer()
-                                .frame(height: 20) // Increased spacing to prevent overlap
+                                .frame(height: 4) // Reduced from 8 to 4 for even tighter spacing
                             
                             // Improved GeometryReader for scroll tracking
                             GeometryReader { geo in
@@ -198,7 +198,7 @@ struct HomeView: View {
                             // Add extra padding at the bottom for better scrolling
                             Spacer().frame(height: 20)
                         }
-                        .padding(.top, 16) // Additional top padding
+                        .padding(.top, 4) // Reduced from 8 to 4 for even tighter spacing
                     }
                     .coordinateSpace(name: "scrollView")
                     .zIndex(0) // Lower z-index for scroll content
