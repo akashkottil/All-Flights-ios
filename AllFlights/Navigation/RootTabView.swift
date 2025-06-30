@@ -1,6 +1,5 @@
 import SwiftUICore
 import SwiftUI
-
 struct RootTabView: View {
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     @State private var selectedTab = 0
@@ -14,7 +13,7 @@ struct RootTabView: View {
                     case 0:
                         HomeView()
                     case 1:
-                        FlightDetailDesignScreen()
+                        AlertScreen()
                     case 2:
                         ExploreScreen()
                     case 3:
@@ -33,18 +32,14 @@ struct RootTabView: View {
                 }
             }
             
-            // Custom Tab Bar - hide when in explore navigation, search mode, OR account navigation
-            if !sharedSearchData.isDirectFromHome &&
-                           !sharedSearchData.isInExploreNavigation &&
-                           !sharedSearchData.isInAccountNavigation &&
-                           !sharedSearchData.isAnyModalVisible { // ADD: Hide when modal is visible
-                            CustomTabBar(selectedTab: $selectedTab)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
+            // Custom Tab Bar - hide when in explore navigation or search mode
+            if !sharedSearchData.isInSearchMode && !sharedSearchData.isInExploreNavigation {
+                CustomTabBar(selectedTab: $selectedTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInSearchMode)
         .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInExploreNavigation)
-        .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInAccountNavigation) // ADD: Account navigation animation
         .onReceive(sharedSearchData.$shouldNavigateToExplore) { shouldNavigate in
             if shouldNavigate {
                 if !sharedSearchData.isInSearchMode {
@@ -83,10 +78,10 @@ struct CustomTabBar: View {
     @Binding var selectedTab: Int
     
     private let tabItems = [
-        ("Home", "home", 0, "homeblue"),
-        ("Alert", "alert", 1, "alertblue"),
-        ("Explore", "explore", 2, "exploreblue"),
-        ("Track Flight", "flighttracker", 3, "flighttrackerblue")
+        ("Home", "house", 0),
+        ("Alert", "bell.badge.fill", 1),
+        ("Explore", "globe", 2),
+        ("Track Flight", "paperplane.circle.fill", 3)
     ]
     
     var body: some View {
@@ -96,11 +91,10 @@ struct CustomTabBar: View {
                     selectedTab = item.2
                 }) {
                     VStack(spacing: 4) {
-                        Image(selectedTab == item.2 ? "\(item.3)" : "\(item.1)")
+                        Image(systemName: item.1)
                             .font(.system(size: 20))
                         Text(item.0)
                             .font(.caption)
-                            .fontWeight(selectedTab == item.2 ? .bold : .regular)
                     }
                     .foregroundColor(selectedTab == item.2 ? .blue : .gray)
                     .frame(maxWidth: .infinity)
@@ -108,7 +102,7 @@ struct CustomTabBar: View {
             }
         }
         .padding(.vertical, 2)
-        .padding(.top, 16)
+        .padding(.top,10)
         .background(Color(.systemBackground))
         .overlay(
             Rectangle()
