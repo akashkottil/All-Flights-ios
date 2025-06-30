@@ -137,6 +137,7 @@ struct FlightDetailScreen: View {
                         Image("FliterBack")
                     }
                 }
+                
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 2) {
                         if let flightDetail = flightDetail {
@@ -161,6 +162,7 @@ struct FlightDetailScreen: View {
                         Image("FilterShare")
                     }
                 }
+                
             }
             .onAppear {
                 Task {

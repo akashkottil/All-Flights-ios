@@ -1,181 +1,170 @@
-// Views/Flight Alert View/Alert.swift
 import SwiftUI
 
 struct AlertScreen: View {
-    // ADDED: State to track if user has created alerts
-    @State private var hasAlerts = false
-    @State private var isLoading = true
+    // UPDATED: State to track alerts and loading
+    @State private var alerts: [AlertResponse] = []
+    @State private var isLoadingAlerts = false
+    @State private var alertsError: String?
+    
+    // Network manager
+    private let alertNetworkManager = AlertNetworkManager.shared
+    
+    // Computed property to determine which view to show
+    private var hasAlerts: Bool {
+        !alerts.isEmpty
+    }
     
     var body: some View {
         Group {
-            if isLoading {
-                // Show loading state briefly
-                loadingView()
+            if isLoadingAlerts {
+                // Show loading state
+                loadingView
             } else if hasAlerts {
-                // Show alert management view when user has alerts
-                FAAlertView()
+                // Show alerts view with real API data
+                FAAlertView(
+                    alerts: alerts,
+                    onAlertDeleted: { deletedAlert in
+                        // Delete from API and update local state
+                        Task {
+                            await deleteAlert(deletedAlert)
+                        }
+                    },
+                    onNewAlertCreated: { newAlert in
+                        // Add new alert to local state (already created via API)
+                        alerts.append(newAlert)
+                        saveAlertsToCache() // Cache for offline viewing
+                        print("✅ New alert added from FAAlertView: \(newAlert.id)")
+                    }
+                )
             } else {
-                // Show create alert view when no alerts exist
-                FACreateView()
+                // Show create view when no alerts exist
+                FACreateView(
+                    onAlertCreated: { alertResponse in
+                        // Add newly created alert to state
+                        alerts.append(alertResponse)
+                        saveAlertsToCache() // Cache for offline viewing
+                        print("✅ Alert created and state updated - switching to FAAlertView")
+                    }
+                )
             }
         }
         .onAppear {
-            checkForExistingAlerts()
+            // Fetch alerts from API when app opens
+            Task {
+                await fetchAlertsFromAPI()
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AlertCreated"))) { _ in
-            // When an alert is created, switch to alert view
-            withAnimation(.easeInOut(duration: 0.4)) {
-                hasAlerts = true
+        .refreshable {
+            // Pull to refresh functionality
+            Task {
+                await fetchAlertsFromAPI()
+            }
+        }
+        .alert("Error Loading Alerts", isPresented: .constant(alertsError != nil)) {
+            Button("Retry") {
+                Task {
+                    await fetchAlertsFromAPI()
+                }
+            }
+            Button("Cancel") {
+                alertsError = nil
+            }
+        } message: {
+            if let error = alertsError {
+                Text(error)
             }
         }
     }
     
-    private func loadingView() -> some View {
-        VStack(spacing: 16) {
+    // MARK: - Loading View
+    
+    private var loadingView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
             ProgressView()
-                .scaleEffect(1.2)
-            Text("Loading alerts...")
-                .font(.system(size: 16))
+                .scaleEffect(1.5)
+                .progressViewStyle(CircularProgressViewStyle(tint: Color("FABlue")))
+            
+            Text("Loading your alerts...")
+                .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.gray)
+            
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(GradientColor.BlueWhite.ignoresSafeArea())
     }
     
-    private func checkForExistingAlerts() {
-        // Simulate brief loading delay for smooth UX
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Check if user has any saved alerts
-            if let data = UserDefaults.standard.data(forKey: "SavedFlightAlerts"),
-               let savedAlerts = try? JSONDecoder().decode([AlertResponse].self, from: data),
-               !savedAlerts.isEmpty {
-                
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    hasAlerts = true
-                    isLoading = false
-                }
-                print("📱 Found \(savedAlerts.count) existing alerts - showing FAAlertView")
-            } else {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    hasAlerts = false
-                    isLoading = false
-                }
-                print("📱 No existing alerts found - showing FACreateView")
-            }
+    // MARK: - API Methods
+    
+    @MainActor
+    private func fetchAlertsFromAPI() async {
+        isLoadingAlerts = true
+        alertsError = nil
+        
+        do {
+            let fetchedAlerts = try await alertNetworkManager.fetchAlerts()
+            alerts = fetchedAlerts
+            
+            // Cache for offline viewing
+            saveAlertsToCache()
+            
+            print("✅ Successfully fetched \(fetchedAlerts.count) alerts from API")
+            
+        } catch {
+            alertsError = error.localizedDescription
+            print("❌ Failed to fetch alerts: \(error)")
+            
+            // Fallback to cached alerts if API fails
+            loadAlertsFromCache()
+        }
+        
+        isLoadingAlerts = false
+    }
+    
+    @MainActor
+    private func deleteAlert(_ alert: AlertResponse) async {
+        do {
+            // Delete from API
+            try await alertNetworkManager.deleteAlert(alertId: alert.id)
+            
+            // Remove from local state
+            alerts.removeAll { $0.id == alert.id }
+            
+            // Update cache
+            saveAlertsToCache()
+            
+            print("✅ Alert deleted successfully: \(alert.id)")
+            
+        } catch {
+            print("❌ Failed to delete alert: \(error)")
+            
+            // Show error to user
+            alertsError = "Failed to delete alert: \(error.localizedDescription)"
         }
     }
+    
+    // MARK: - Cache Management (Fallback for offline use)
+    
+    private func saveAlertsToCache() {
+        if let data = try? JSONEncoder().encode(alerts) {
+            UserDefaults.standard.set(data, forKey: "CachedAlerts")
+            print("💾 Cached \(alerts.count) alerts locally")
+        }
+    }
+    
+    private func loadAlertsFromCache() {
+        guard let data = UserDefaults.standard.data(forKey: "CachedAlerts"),
+              let cachedAlerts = try? JSONDecoder().decode([AlertResponse].self, from: data) else {
+            print("📱 No cached alerts found")
+            return
+        }
+        
+        alerts = cachedAlerts
+        print("📱 Loaded \(alerts.count) alerts from cache (offline fallback)")
+    }
 }
-
-// MARK: - Enhanced FACreateView
-//struct FACreateView: View {
-//    @State private var showLocationSheet = false
-//    
-//    var body: some View {
-//        ZStack {
-//            GradientColor.BlueWhite
-//                .ignoresSafeArea()
-//            
-//            VStack(spacing: 0) {
-//                // Header
-//                FAheader()
-//                
-//                // Main content
-//                VStack(spacing: 24) {
-//                    Spacer()
-//                    
-//                    // Illustration/Icon
-//                    VStack(spacing: 20) {
-//                        ZStack {
-//                            Circle()
-//                                .fill(Color.white.opacity(0.2))
-//                                .frame(width: 120, height: 120)
-//                            
-//                            Image(systemName: "bell.badge")
-//                                .font(.system(size: 50))
-//                                .foregroundColor(.white)
-//                        }
-//                        
-//                        VStack(spacing: 12) {
-//                            Text("Create Your First Alert")
-//                                .font(.system(size: 28, weight: .bold))
-//                                .foregroundColor(.white)
-//                                .multilineTextAlignment(.center)
-//                            
-//                            Text("Get notified instantly when flight prices drop for your favorite routes")
-//                                .font(.system(size: 16))
-//                                .foregroundColor(.white.opacity(0.8))
-//                                .multilineTextAlignment(.center)
-//                                .padding(.horizontal, 32)
-//                        }
-//                    }
-//                    
-//                    // Features list
-//                    VStack(spacing: 16) {
-//                        featureRow("Real-time price tracking", "chart.line.uptrend.xyaxis")
-//                        featureRow("Instant notifications", "bell.fill")
-//                        featureRow("Multiple routes support", "map.fill")
-//                        featureRow("Best deals discovery", "star.fill")
-//                    }
-//                    .padding(.horizontal, 24)
-//                    
-//                    Spacer()
-//                    
-//                    // Create Alert Button
-//                    Button(action: {
-//                        showLocationSheet = true
-//                    }) {
-//                        HStack {
-//                            Image(systemName: "plus.circle.fill")
-//                                .font(.system(size: 20))
-//                            Text("Create Your First Alert")
-//                                .font(.system(size: 18, weight: .semibold))
-//                        }
-//                        .foregroundColor(.blue)
-//                        .padding(.horizontal, 32)
-//                        .padding(.vertical, 16)
-//                        .background(Color.white)
-//                        .cornerRadius(28)
-//                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
-//                    }
-//                    .padding(.horizontal, 24)
-//                    .padding(.bottom, 32)
-//                }
-//            }
-//        }
-//        .sheet(isPresented: $showLocationSheet) {
-//            FALocationSheet { alertResponse in
-//                // Handle alert creation
-//                handleAlertCreated(alertResponse)
-//            }
-//        }
-//    }
-//    
-//    private func featureRow(_ title: String, _ iconName: String) -> some View {
-//        HStack(spacing: 16) {
-//            Image(systemName: iconName)
-//                .font(.system(size: 18))
-//                .foregroundColor(.white)
-//                .frame(width: 24)
-//            
-//            Text(title)
-//                .font(.system(size: 16))
-//                .foregroundColor(.white)
-//            
-//            Spacer()
-//        }
-//        .padding(.horizontal, 8)
-//    }
-//    
-//    private func handleAlertCreated(_ alert: AlertResponse) {
-//        print("🎉 First alert created! Switching to alert view...")
-//        
-//        // Notify the parent AlertScreen that an alert was created
-//        NotificationCenter.default.post(
-//            name: NSNotification.Name("AlertCreated"),
-//            object: alert
-//        )
-//    }
-//}
 
 #Preview {
     AlertScreen()
