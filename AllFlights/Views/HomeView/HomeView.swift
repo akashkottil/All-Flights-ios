@@ -4,6 +4,8 @@ import CoreLocation
 
 // MARK: - Enhanced HomeView with Gradual Search Card Collapse
 struct HomeView: View {
+    @State private var isAutoAnimating = false
+    
     @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .best
     @State private var showingDetailedFlightFilterSheet = false
     @State private var hasAppliedInitialDirectFilter = false
@@ -452,29 +454,60 @@ struct HomeView: View {
     
     // NEW: Function to update search card height based on scroll - IMPROVED LOGIC
     private func updateSearchCardHeight() {
-        // Don't update if showing explore screen
-        guard !isShowingExploreScreen else { return }
+        // Don't update if showing explore screen or if we're already auto-animating
+        guard !isShowingExploreScreen && !isAutoAnimating else { return }
         
-        let scrollThreshold: CGFloat = 100 // How much scroll triggers full collapse
-        // Calculate progress: 1.0 at top, 0.0 when scrolled down by threshold
+        let scrollThreshold: CGFloat = 100
         let progress = max(0, min(1, (scrollOffset + scrollThreshold) / scrollThreshold))
-        
-        // Add subtle haptic feedback when crossing certain thresholds
         let previousHeight = searchCardHeight
         
+        // Check for 50% threshold crossing
+        if previousHeight > 0.5 && progress <= 0.5 {
+            // Crossed 50% while collapsing - trigger auto-collapse
+            triggerAutoCollapse()
+            return
+        } else if previousHeight < 0.5 && progress >= 0.5 {
+            // Crossed 50% while expanding - trigger auto-expand
+            triggerAutoExpand()
+            return
+        }
+        
+        // Normal scroll behavior
         withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
             searchCardHeight = progress
         }
+    }
+
+    // ADD these two new functions to your HomeView:
+    private func triggerAutoCollapse() {
+        isAutoAnimating = true
         
-        // Haptic feedback at key transition points
-        if previousHeight > 0.5 && progress <= 0.5 {
-            // Collapsed
-            let selectionFeedback = UISelectionFeedbackGenerator()
-            selectionFeedback.selectionChanged()
-        } else if previousHeight <= 0.5 && progress > 0.5 {
-            // Expanded
-            let selectionFeedback = UISelectionFeedbackGenerator()
-            selectionFeedback.selectionChanged()
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+            searchCardHeight = 0.0
+        }
+        
+        // Reset auto-animating flag after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            isAutoAnimating = false
+        }
+    }
+
+    private func triggerAutoExpand() {
+        isAutoAnimating = true
+        
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+            searchCardHeight = 1.0
+        }
+        
+        // Reset auto-animating flag after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            isAutoAnimating = false
         }
     }
     
