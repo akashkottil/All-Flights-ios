@@ -389,10 +389,10 @@ struct AccountView: View {
                         Text("Login")
                             .font(.system(size: 14))
                             .fontWeight(.semibold)
-                            .foregroundColor(Color("login"))
+                            .foregroundColor(.primary)
                             .padding(.vertical, 10)
                             .padding(.horizontal, 20)
-                            .background(Color.blue)
+                            .background(Color("login"))
                             .cornerRadius(10)
                     }
                     

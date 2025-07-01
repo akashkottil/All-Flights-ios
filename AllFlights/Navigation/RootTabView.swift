@@ -34,7 +34,7 @@ struct RootTabView: View {
             }
             
             // Custom Tab Bar - hide when in explore navigation, search mode, or account navigation
-            if !sharedSearchData.isInSearchMode && !sharedSearchData.isInExploreNavigation && !sharedSearchData.isInAccountNavigation {
+            if !sharedSearchData.isDirectFromHome && !sharedSearchData.isInExploreNavigation && !sharedSearchData.isInAccountNavigation {
                 CustomTabBar(selectedTab: $selectedTab)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
