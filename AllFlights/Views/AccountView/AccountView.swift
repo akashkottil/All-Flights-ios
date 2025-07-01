@@ -451,6 +451,7 @@ struct AccountView: View {
             }
             .padding()
         }
+        
         .scrollIndicators(.hidden)
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle("Account")

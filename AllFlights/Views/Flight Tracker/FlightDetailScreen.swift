@@ -192,7 +192,7 @@ struct FlightDetailScreen: View {
                     }
                 }
             }
-        }
+        }.navigationBarBackButtonHidden(true)
     }
     
     // MARK: - ENHANCED Map Setup Methods

@@ -263,36 +263,36 @@ struct MyAlertsView: View {
             .padding(.bottom, 16)
             
             // ADDED: Optional - Show alert creation date and price info
-            if let cheapestFlight = alert.cheapest_flight {
-                Divider()
-                    .padding(.horizontal, 16)
-                
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Current Price")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                        
-                        Text("\(getCurrencySymbol(for: alert.route.currency))\(formatPrice(cheapestFlight.price))")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.green)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Status")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                        
-                        Text(cheapestFlight.price_category.capitalized)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(cheapestFlight.price_category.lowercased() == "cheap" ? .green : .orange)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-            }
+//            if let cheapestFlight = alert.cheapest_flight {
+//                Divider()
+//                    .padding(.horizontal, 16)
+//                
+//                HStack {
+//                    VStack(alignment: .leading, spacing: 4) {
+//                        Text("Current Price")
+//                            .font(.system(size: 12))
+//                            .foregroundColor(.gray)
+//                        
+//                        Text("\(getCurrencySymbol(for: alert.route.currency))\(formatPrice(cheapestFlight.price))")
+//                            .font(.system(size: 16, weight: .bold))
+//                            .foregroundColor(.green)
+//                    }
+//                    
+//                    Spacer()
+//                    
+//                    VStack(alignment: .trailing, spacing: 4) {
+//                        Text("Status")
+//                            .font(.system(size: 12))
+//                            .foregroundColor(.gray)
+//                        
+//                        Text(cheapestFlight.price_category.capitalized)
+//                            .font(.system(size: 14, weight: .medium))
+//                            .foregroundColor(cheapestFlight.price_category.lowercased() == "cheap" ? .green : .orange)
+//                    }
+//                }
+//                .padding(.horizontal, 16)
+//                .padding(.bottom, 12)
+//            }
         }
         .background(
             RoundedRectangle(cornerRadius: 12)
