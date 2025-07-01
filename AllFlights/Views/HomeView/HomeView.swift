@@ -4,11 +4,12 @@ import CoreLocation
 
 // MARK: - Enhanced HomeView with Gradual Search Card Collapse
 struct HomeView: View {
+    @State private var isAutoAnimating = false
+    
     @State private var selectedDetailedFlightFilter: FlightFilterTabView.FilterOption = .best
     @State private var showingDetailedFlightFilterSheet = false
     @State private var hasAppliedInitialDirectFilter = false
     
-    @State private var navigateToAccount = false
     @Namespace private var animation
     @GestureState private var dragOffset: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
@@ -34,6 +35,9 @@ struct HomeView: View {
     // NEW: Collapsible card states for ExploreScreen
     @State private var isCollapsed = false
     @State private var exploreScrollOffset: CGFloat = 0
+    
+    // MARK: - State for tracking scroll velocity
+    @State private var scrollEndTimer: Timer?
     
     // Shared view model for search functionality
     @StateObject private var searchViewModel = SharedFlightSearchViewModel()
@@ -141,7 +145,7 @@ struct HomeView: View {
                     // Header + Search Inputs in a VStack with gradient background
                     VStack(spacing: 0) {
                         headerView
-                            .zIndex(1)
+                            .zIndex(2) // Increased z-index for header
 
                         // NEW: Enhanced Dynamic Height Search Input with gradual collapse
                         EnhancedDynamicSearchInput(
@@ -152,16 +156,22 @@ struct HomeView: View {
                             }
                         )
                         .gesture(dragGesture)
+                        .zIndex(1) // Ensure search input is above content
                         
                     }
                     .background(
                         LinearGradient(colors: [Color("homeGrad"), .white], startPoint: .top, endPoint: .bottom)
                             .ignoresSafeArea(edges: .top)
                     )
+                    .zIndex(3) // Higher z-index for entire header section
                     
-                    // IMPROVED: ScrollView with better offset tracking
+                    // IMPROVED: ScrollView with better offset tracking and proper spacing
                     ScrollView {
                         VStack(spacing: 16) {
+                            // ADD: Reduced spacing at the top to bring content closer to search input
+                            Spacer()
+                                .frame(height: 4) // Reduced from 8 to 4 for even tighter spacing
+                            
                             // Improved GeometryReader for scroll tracking
                             GeometryReader { geo in
                                 Color.clear
@@ -172,6 +182,12 @@ struct HomeView: View {
                                     .onPreferenceChange(ScrollOffsetPreferenceKeyy.self) { value in
                                         scrollOffset = value
                                         updateSearchCardHeight()
+                                        
+                                        // Cancel existing timer and start new one
+                                        scrollEndTimer?.invalidate()
+                                        scrollEndTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { _ in
+                                            handleScrollEnd()
+                                        }
                                     }
                             }
                             .frame(height: 0)
@@ -190,9 +206,10 @@ struct HomeView: View {
                             // Add extra padding at the bottom for better scrolling
                             Spacer().frame(height: 20)
                         }
-                        .padding(.top, 16)
+                        .padding(.top, 4) // Reduced from 8 to 4 for even tighter spacing
                     }
                     .coordinateSpace(name: "scrollView")
+                    .zIndex(0) // Lower z-index for scroll content
                 }
                 .opacity(homeContentOpacity)
                 .offset(y: homeContentOffset)
@@ -319,9 +336,6 @@ struct HomeView: View {
                         }
                     }
                 }
-            }
-            .navigationDestination(isPresented: $navigateToAccount) {
-                AccountView()
             }
             .onAppear {
                 // Fetch cheap flights data when home view appears
@@ -450,31 +464,59 @@ struct HomeView: View {
     }
 
     
-    // NEW: Function to update search card height based on scroll - IMPROVED LOGIC
+    // NEW: Function to update search card height based on scroll - IMPROVED NATIVE BEHAVIOR
     private func updateSearchCardHeight() {
-        // Don't update if showing explore screen
-        guard !isShowingExploreScreen else { return }
+        // Don't update if showing explore screen or if we're already auto-animating
+        guard !isShowingExploreScreen && !isAutoAnimating else { return }
         
-        let scrollThreshold: CGFloat = 100 // How much scroll triggers full collapse
-        // Calculate progress: 1.0 at top, 0.0 when scrolled down by threshold
+        let scrollThreshold: CGFloat = 120 // Increased threshold for more native feel
         let progress = max(0, min(1, (scrollOffset + scrollThreshold) / scrollThreshold))
         
-        // Add subtle haptic feedback when crossing certain thresholds
-        let previousHeight = searchCardHeight
-        
-        withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
+        // More native behavior: smooth continuous animation without auto-snap
+        withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.9, blendDuration: 0.1)) {
             searchCardHeight = progress
         }
+    }
+
+    // NEW: Function to handle scroll end - decides whether to collapse or expand
+    private func handleScrollEnd() {
+        guard !isShowingExploreScreen && !isAutoAnimating else { return }
         
-        // Haptic feedback at key transition points
-        if previousHeight > 0.5 && progress <= 0.5 {
-            // Collapsed
-            let selectionFeedback = UISelectionFeedbackGenerator()
-            selectionFeedback.selectionChanged()
-        } else if previousHeight <= 0.5 && progress > 0.5 {
-            // Expanded
-            let selectionFeedback = UISelectionFeedbackGenerator()
-            selectionFeedback.selectionChanged()
+        // Determine whether to collapse or expand based on current position
+        if searchCardHeight < 0.5 {
+            // Less than halfway - collapse
+            triggerAutoCollapse()
+        } else {
+            // More than halfway - expand
+            triggerAutoExpand()
+        }
+    }
+
+    // UPDATED: More native auto-collapse behavior
+    private func triggerAutoCollapse() {
+        isAutoAnimating = true
+        
+        withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.1)) {
+            searchCardHeight = 0.0
+        }
+        
+        // Reset auto-animating flag after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            isAutoAnimating = false
+        }
+    }
+
+    // UPDATED: More native auto-expand behavior
+    private func triggerAutoExpand() {
+        isAutoAnimating = true
+        
+        withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.1)) {
+            searchCardHeight = 1.0
+        }
+        
+        // Reset auto-animating flag after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            isAutoAnimating = false
         }
     }
     
@@ -682,7 +724,7 @@ struct HomeView: View {
             }
     }
 
-    // MARK: - Header View
+    // MARK: - Header View - UPDATED FOR NATIVE NAVIGATION
     var headerView: some View {
         HStack {
             Image("logoHome")
@@ -698,10 +740,8 @@ struct HomeView: View {
 
             Spacer()
 
-            Button(action: {
-                SharedSearchDataStore.shared.enterAccountNavigation()
-                navigateToAccount = true
-            }) {
+            // UPDATED: Use NavigationLink for native navigation
+            NavigationLink(destination: AccountView()) {
                 Image("homeProfile")
                     .resizable()
                     .frame(width: 36, height: 36)

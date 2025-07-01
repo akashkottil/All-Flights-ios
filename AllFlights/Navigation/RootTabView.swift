@@ -1,5 +1,6 @@
 import SwiftUICore
 import SwiftUI
+
 struct RootTabView: View {
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
     @State private var selectedTab = 0
@@ -32,14 +33,15 @@ struct RootTabView: View {
                 }
             }
             
-            // Custom Tab Bar - hide when in explore navigation or search mode
-            if !sharedSearchData.isInSearchMode && !sharedSearchData.isInExploreNavigation {
+            // Custom Tab Bar - hide when in explore navigation, search mode, or account navigation
+            if !sharedSearchData.isInSearchMode && !sharedSearchData.isInExploreNavigation && !sharedSearchData.isInAccountNavigation {
                 CustomTabBar(selectedTab: $selectedTab)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInSearchMode)
         .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInExploreNavigation)
+        .animation(.easeInOut(duration: 0.5), value: sharedSearchData.isInAccountNavigation)
         .onReceive(sharedSearchData.$shouldNavigateToExplore) { shouldNavigate in
             if shouldNavigate {
                 if !sharedSearchData.isInSearchMode {

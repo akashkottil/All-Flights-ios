@@ -17,24 +17,25 @@ struct MorphingSearchCard: View {
         let tripTabsHeight: CGFloat = 44  // Height of trip type tabs
         let topPadding: CGFloat = 15       // .padding(.top, 15)
         
-        // Calculate search card height based on trip type
+        // Calculate search card height based on CURRENT SELECTED TAB, not just trip count
         let searchCardHeight: CGFloat = {
-            if viewModel.multiCityTrips.count >= 2 {
-                // Multi-city: even more increased base height + additional height per trip
+            // FIXED: Check selectedTab instead of just multiCityTrips.count
+            if selectedTab == 2 && viewModel.multiCityTrips.count >= 2 {
+                // Multi-city: only when tab is 2 AND we have multi-city trips
                 let baseHeight: CGFloat = 170  // Increased from 150 to 170 (+20 more)
                 let additionalTrips = max(0, viewModel.multiCityTrips.count - 2)
                 let extraHeight = CGFloat(additionalTrips) * 75  // Increased from 70 to 75 (+5 more per trip)
                 return baseHeight + extraHeight
             } else {
-                // Regular trip (return/one-way): standard height
+                // Regular trip (return/one-way): standard height for selectedTab 0 or 1
                 return 60  // Your perfect value for return/one-way
             }
         }()
         
-        // Even more padding for multi-city vs regular trips
-        let searchCardVerticalPadding: CGFloat = viewModel.multiCityTrips.count >= 2 ? 20 : 8  // Increased from 16 to 20
-        let bottomPadding: CGFloat = viewModel.multiCityTrips.count >= 2 ? 28 : 16  // Increased from 24 to 28
-        let dividerSpacing: CGFloat = viewModel.multiCityTrips.count >= 2 ? 12 : 4   // Increased from 8 to 12
+        // Padding based on CURRENT SELECTED TAB, not just trip count
+        let searchCardVerticalPadding: CGFloat = (selectedTab == 2 && viewModel.multiCityTrips.count >= 2) ? 20 : 8
+        let bottomPadding: CGFloat = (selectedTab == 2 && viewModel.multiCityTrips.count >= 2) ? 28 : 16
+        let dividerSpacing: CGFloat = (selectedTab == 2 && viewModel.multiCityTrips.count >= 2) ? 12 : 4
         
         // Total calculated height
         let totalHeight = tripTabsHeight + topPadding + searchCardHeight +

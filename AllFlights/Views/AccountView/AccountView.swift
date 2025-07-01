@@ -346,9 +346,8 @@ struct CountryRow: View {
     }
 }
 
-// MARK: - Main AccountView with Navigation State Management
+// MARK: - Updated AccountView with Native Navigation
 struct AccountView: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var showingCurrencySheet = false
     @State private var showingRegionSheet = false
     
@@ -357,9 +356,6 @@ struct AccountView: View {
     
     // ADD: Observe shared search data for navigation state
     @StateObject private var sharedSearchData = SharedSearchDataStore.shared
-    
-    // ADD: State for swipe gesture
-    @State private var dragAmount = CGSize.zero
     
     // Legal items data for reusability
     private let legalItems = [
@@ -371,164 +367,126 @@ struct AccountView: View {
     ]
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack {
-                    // Header
-                    HStack {
-                        Button(action: {
-                            handleDismiss()
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.black)
-                        }
-                        Spacer()
-                        Text("Account")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .padding(.trailing, 30)
-                        Spacer()
+        ScrollView {
+            VStack {
+ 
+                
+                VStack(alignment: .leading, spacing: 15) {
+                    // Login section
+                    VStack(alignment: .leading) {
+                        Text("Ready for Takeoff? ")
+                            .font(.system(size: 22))
+                            .fontWeight(.bold)
+                        Text("Log In Now")
+                            .font(.system(size: 22))
+                            .fontWeight(.bold)
                     }
                     
-                    Divider()
-                    
-                    VStack(alignment: .leading, spacing: 15) {
-                        // Login section
-                        VStack(alignment: .leading) {
-                            Text("Ready for Takeoff? ")
-                                .font(.system(size: 22))
-                                .fontWeight(.bold)
-                            Text("Log In Now")
-                                .font(.system(size: 22))
-                                .fontWeight(.bold)
-                        }
-                        
-                        Text("Access your profile, manage settings, and view personalized features.")
+                    Text("Access your profile, manage settings, and view personalized features.")
+                        .font(.system(size: 14))
+                        .foregroundColor(.black.opacity(0.7))
+                    Button(action: {}) {
+                        Text("Login")
                             .font(.system(size: 14))
-                            .foregroundColor(.black.opacity(0.7))
-                        Button(action: {}) {
-                            Text("Login")
-                                .font(.system(size: 14))
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 20)
-                                .background(Color.blue)
-                                .cornerRadius(10)
-                        }
-                        
-                        // App Settings section
-                        SectionTitle(text: "App Settings")
-                            .padding(.top,20)
-                        
-                        SettingCard(
-                            title: "Region",
-                            // UPDATED: Use CurrencyManager
-                            subtitle: currencyManager.selectedCountry?.name ?? "India",
-                            icon: currencyManager.selectedCountry?.flag.map { Text($0) } ?? Text("🇮🇳"),
-                            action: {
-                                showingRegionSheet = true
-                            }
-                        )
-                        
-                        SettingCard(
-                            title: "Currency",
-                            // UPDATED: Use CurrencyManager
-                            subtitle: currencyManager.selectedCurrency?.name ?? "Indian Rupee",
-                            icon: currencyManager.selectedCurrency?.flag.map { Text($0) } ?? Text("🇮🇳"),
-                            action: {
-                                showingCurrencySheet = true
-                            }
-                        )
-                        
-                        SettingCard(
-                            title: "Display",
-                            subtitle: "Light mode",
-                            action: {}
-                        )
-                        
-                        // Legal and Info section
-                        SectionTitle(text: "Legal and Info")
-                            .padding(.top,30)
-                        
-                        VStack(spacing: 10) {
-                            ForEach(legalItems, id: \.self) { item in
-                                LegalInfoItem(title: item, action: {})
-                                
-                                if item != legalItems.last {
-                                    Divider()
-                                        .foregroundColor(Color("border").opacity(0.2))
-                                }
-                            }
-                        }
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 20)
-                        .background(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color("border").opacity(0.2), lineWidth: 1)
-                        )
-                        .cornerRadius(16)
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color("login"))
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 20)
+                            .background(Color.blue)
+                            .cornerRadius(10)
                     }
-                    .padding(.top, 20)
+                    
+                    // App Settings section
+                    SectionTitle(text: "App Settings")
+                        .padding(.top,20)
+                    
+                    SettingCard(
+                        title: "Region",
+                        subtitle: currencyManager.selectedCountry?.name ?? "India",
+                        icon: currencyManager.selectedCountry?.flag.map { Text($0) } ?? Text("🇮🇳"),
+                        action: {
+                            showingRegionSheet = true
+                        }
+                    )
+                    
+                    SettingCard(
+                        title: "Currency",
+                        subtitle: currencyManager.selectedCurrency?.name ?? "Indian Rupee",
+                        icon: currencyManager.selectedCurrency?.flag.map { Text($0) } ?? Text("🇮🇳"),
+                        action: {
+                            showingCurrencySheet = true
+                        }
+                    )
+                    
+                    SettingCard(
+                        title: "Display",
+                        subtitle: "Light mode",
+                        action: {}
+                    )
+                    
+                    // Legal and Info section
+                    SectionTitle(text: "Legal and Info")
+                        .padding(.top,30)
+                    
+                    VStack(spacing: 10) {
+                        ForEach(legalItems, id: \.self) { item in
+                            LegalInfoItem(title: item, action: {})
+                            
+                            if item != legalItems.last {
+                                Divider()
+                                    .foregroundColor(Color("border").opacity(0.2))
+                            }
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 20)
+                    .background(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color("border").opacity(0.2), lineWidth: 1)
+                    )
+                    .cornerRadius(16)
                 }
-                .padding()
+                .padding(.top, 20)
             }
-            .scrollIndicators(.hidden)
-            .navigationBarBackButtonHidden(true)
-            .sheet(isPresented: $showingCurrencySheet) {
-                CurrencySelectionSheet()
-            }
-            .sheet(isPresented: $showingRegionSheet) {
-                RegionSelectionSheet()
-            }
-            .onAppear {
-                // Set navigation state to hide tab bar
-                sharedSearchData.enterAccountNavigation()
-            }
-            .onDisappear {
-                // Reset navigation state to show tab bar
-                sharedSearchData.exitAccountNavigation()
-            }
-            // ADD: Native-like edge swipe gesture for dismissing
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        // Only respond to swipes starting from the very left edge (like native iOS)
-                        if value.startLocation.x < 20 && value.translation.width > 0 {
-                            dragAmount = value.translation
-                        }
-                    }
-                    .onEnded { value in
-                        // Native-like behavior: shorter distance needed + velocity consideration
-                        let shouldDismiss = value.startLocation.x < 20 &&
-                                          (value.translation.width > 50 ||
-                                           (value.translation.width > 30 && value.predictedEndTranslation.width > 80))
-                        
-                        if shouldDismiss {
-                            // Add haptic feedback like native iOS
-                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                            impactFeedback.impactOccurred()
-                            handleDismiss()
-                        }
-                        
-                        // Smooth spring animation back to original position
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            dragAmount = .zero
-                        }
-                    }
-            )
-            // ADD: More responsive visual feedback like native iOS
-            .offset(x: dragAmount.width > 0 ? min(dragAmount.width * 0.4, 80) : 0)
-            .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.86), value: dragAmount)
+            .padding()
         }
-    }
-    
-    // ADD: Helper function to handle dismiss
-    private func handleDismiss() {
-        sharedSearchData.exitAccountNavigation()
-        dismiss()
+        .scrollIndicators(.hidden)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Account")
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color(.systemBackground), for: .navigationBar)
+        .onAppear {
+            // Customize the back button appearance while keeping native behavior
+            let appearance = UINavigationBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor.systemBackground
+            appearance.setBackIndicatorImage(
+                UIImage(systemName: "chevron.left")?
+                    .withConfiguration(UIImage.SymbolConfiguration(pointSize: 18, weight: .medium))
+                    .withTintColor(.black, renderingMode: .alwaysOriginal),
+                transitionMaskImage: UIImage(systemName: "chevron.left")?
+                    .withConfiguration(UIImage.SymbolConfiguration(pointSize: 18, weight: .medium))
+            )
+            appearance.backButtonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.clear]
+            
+            UINavigationBar.appearance().standardAppearance = appearance
+            UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        }
+        .sheet(isPresented: $showingCurrencySheet) {
+            CurrencySelectionSheet()
+        }
+        .sheet(isPresented: $showingRegionSheet) {
+            RegionSelectionSheet()
+        }
+        .onAppear {
+            // Set navigation state to hide tab bar
+            sharedSearchData.enterAccountNavigation()
+        }
+        .onDisappear {
+            // Reset navigation state to show tab bar
+            sharedSearchData.exitAccountNavigation()
+        }
     }
 }
 

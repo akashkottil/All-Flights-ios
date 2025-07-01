@@ -393,6 +393,7 @@ struct CalendarView: View {
                                .padding()
                            }
                        }
+            .padding(.vertical)
                        .padding(.horizontal)
             
             // In multi-city mode, show a simpler header
@@ -840,7 +841,7 @@ struct CalendarView: View {
                     .font(.system(size: 16))
                     .fontWeight(isSelected ? .bold : .regular)
                     .foregroundColor(
-                        isPastDate ? Color.gray.opacity(0.5) :
+                        isPastDate ? Color.black.opacity(0.4) :
                             (isSelected ? Color(hex: "#0044AB") : .black)
                     )
                     .frame(width: 36, height: 36)

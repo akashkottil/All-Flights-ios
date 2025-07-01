@@ -1507,9 +1507,10 @@ struct TripTypeTabView: View {
         }
     }
     
-    // Calculate dimensions based on available tabs
+    // FIXED: Calculate dimensions based on available tabs with proper width
     private var totalWidth: CGFloat {
-        return UIScreen.main.bounds.width * 0.45
+        // INCREASED: When multi-city is available, use wider width to accommodate all tabs
+        return availableTabs.count == 3 ? UIScreen.main.bounds.width * 0.65 : UIScreen.main.bounds.width * 0.45
     }
     
     private var tabWidth: CGFloat {
@@ -1529,15 +1530,15 @@ struct TripTypeTabView: View {
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Background capsule
+            // FIXED: Background capsule with dynamic width
             Capsule()
                 .fill(Color(UIColor.systemGray6))
-                .frame(height: 40)
+                .frame(width: totalWidth, height: 36)
                 
-            // Sliding white background for selected tab
+            // FIXED: Sliding white background for selected tab with dynamic width
             Capsule()
                 .fill(Color.white)
-                .frame(width: tabWidth - (padding * 2), height: 30)
+                .frame(width: tabWidth - (padding * 2), height: 28)
                 .offset(x: (CGFloat(selectedTab) * tabWidth) + padding)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedTab)
             
@@ -1728,7 +1729,7 @@ struct MultiCitySearchCard: View {
                             Spacer()
                         }
                         .padding(.vertical, 16)
-                        .padding(.leading, 10)
+                      
                     }
                     .frame(maxHeight: .infinity)
                     
@@ -1742,14 +1743,14 @@ struct MultiCitySearchCard: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus")
                                     .foregroundColor(.blue)
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.system(size: 16, weight: .bold))
                                 
                                 Text("Add flight")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.blue)
                             }
                             .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
+                           
                         }
                     }
                 }
@@ -3529,17 +3530,17 @@ struct FlightDetailCard: View {
                     HStack(spacing: 4) {
                         Text(flightDuration)
                             .font(.system(size: 14))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                     }
                     Text("|").opacity(0.5)
                     
                     HStack(spacing: 4) {
                         Image(systemName: "carseat.right.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                         Text(flightClass)
                             .font(.system(size: 14))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                     }
                 }
             }
@@ -4133,7 +4134,7 @@ struct FlightFilterTabView: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(Array(FilterOption.allCases.enumerated()), id: \.element) { index, filter in
                     Button(action: {
                         // Haptic feedback
@@ -4157,7 +4158,7 @@ struct FlightFilterTabView: View {
                             .font(.system(size: 14, weight: selectedFilter == filter ? .semibold : .regular))
                             .foregroundColor(selectedFilter == filter ? .blue : .black)
                             .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 12)
                             .background(Color.white)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
@@ -4168,7 +4169,7 @@ struct FlightFilterTabView: View {
                     }
                 }
             }
-            .padding(.trailing)
+           
         }
     }
 }
@@ -4798,11 +4799,6 @@ struct PriceSection: View {
 
 
 
-
-
-
-
-// MARK: - Updated Flight Filter Sheet with Animations
 // MARK: - Updated Flight Filter Sheet with Animations
 struct FlightFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -4895,6 +4891,7 @@ struct FlightFilterSheet: View {
                         Text("Sort")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.primary)
+                            .padding(.top)
                         
                         ForEach(SortOption.allCases, id: \.self) { option in
                             HStack {
@@ -4917,6 +4914,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Stops section
                     VStack(alignment: .leading, spacing: 16) {
@@ -4956,6 +4954,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Price range section with animation
                     VStack(alignment: .leading, spacing: 16) {
@@ -4990,6 +4989,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Times section with animation
                     VStack(alignment: .leading, spacing: 16) {
@@ -4997,7 +4997,7 @@ struct FlightFilterSheet: View {
                             .font(.system(size: 18, weight: .bold))
                         
                         Text("\(viewModel.selectedOriginCode) - \(viewModel.selectedDestinationCode)")
-                            .foregroundColor(.gray)
+                            .foregroundColor(.primary)
                         
                         // Departure time slider
                         VStack(alignment: .leading, spacing: 8) {
@@ -5059,6 +5059,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Duration section with animation
                     VStack(alignment: .leading, spacing: 16) {
@@ -5093,6 +5094,7 @@ struct FlightFilterSheet: View {
                     }
                     
                     Divider()
+                        .padding(.vertical)
                     
                     // Airlines section
                     if !availableAirlines.isEmpty {
@@ -5101,6 +5103,7 @@ struct FlightFilterSheet: View {
                 }
                 .padding()
             }
+            .scrollIndicators(.hidden)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -5130,6 +5133,7 @@ struct FlightFilterSheet: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.blue)
                     }
+                    .padding(.top)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -5154,11 +5158,11 @@ struct FlightFilterSheet: View {
                             .fontWeight(.bold)
                     }
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
+                    .frame(width: 332)
                     .padding()
                     .background(Color("buttonColor"))
-                    .cornerRadius(8)
-                    .padding()
+                    .cornerRadius(12)
+                    
                 }
             }
         }
@@ -5705,7 +5709,12 @@ struct AnimatedRangeSliderView: View {
                     LeftCurvedThumb()
                         .fill(Color.white)
                         .frame(width: 20, height: 20)
+                        .overlay(
+                            LeftCurvedThumb()
+                                .stroke(Color.blue, lineWidth: 2) // Blue border line
+                        )
                         .shadow(radius: 2)
+
                 }
                 .offset(x: calculateThumbPosition(for: animatedValues[0], geometry: geometry))
                 .gesture(
@@ -5735,7 +5744,12 @@ struct AnimatedRangeSliderView: View {
                     RightCurvedThumb()
                         .fill(Color.white)
                         .frame(width: 20, height: 20)
+                        .overlay(
+                            RightCurvedThumb()
+                                .stroke(Color.blue, lineWidth: 2) // Blue border line
+                        )
                         .shadow(radius: 2)
+
                 }
                 .offset(x: calculateThumbPosition(for: animatedValues[1], geometry: geometry))
                 .gesture(
@@ -6013,12 +6027,12 @@ struct GoodToKnowSection: View {
                 if isRoundTrip {
                     HStack {
                         Image(systemName: "info.circle.fill")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                             .font(.system(size: 16))
                         
                         Text("You are departing from \(originCode)\n but returning to \(destinationCode)")
                             .font(.system(size: 14))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                         
                         Spacer()
                     }
@@ -6031,17 +6045,17 @@ struct GoodToKnowSection: View {
                 }) {
                     HStack {
                         Image(systemName: "suitcase.fill")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                             .font(.system(size: 16))
                         
                         Text("Self Transfer")
                             .font(.system(size: 16))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                         
                         Spacer()
                         
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color("flightdetailview"))
                             .font(.system(size: 14))
                     }
                     .padding(.horizontal)
@@ -6254,7 +6268,7 @@ struct DealsSection: View {
                 HStack {
                     Text("Cheap Deal for you")
                         .font(.system(size: 16,))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color("flightdetailview"))
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -6292,7 +6306,7 @@ struct DealsSection: View {
                 .padding(.bottom, 16)
             }
         }
-        .background(Color(.systemBackground))
+
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
         .padding(.horizontal)
@@ -6374,7 +6388,7 @@ struct ProviderSelectionSheet: View {
                 HStack {
                     Text("\(sortedProviders.count) providers - Price in USD")
                         .font(.system(size: 14))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color("flightdetailview"))
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -6452,7 +6466,7 @@ struct ProviderSelectionSheet: View {
                         }
                         .padding(.horizontal)
                         .padding(.bottom, 16)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
                 
@@ -6694,32 +6708,7 @@ struct WebView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - Updated Price Section (Replace existing PriceSection)
-struct EnhancedPriceSection: View {
-    let selectedFlight: FlightDetailResult
-    let viewModel: ExploreViewModel
-    
-    private var cheapestProvider: FlightProvider? {
-        return selectedFlight.providers.min(by: { $0.price < $1.price })
-    }
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            // Good to Know Section
-            GoodToKnowSection(
-                originCode: viewModel.selectedOriginCode,
-                destinationCode: viewModel.selectedDestinationCode,
-                isRoundTrip: viewModel.isRoundTrip
-            )
-            
-            // Deals Section
-            DealsSection(
-                providers: selectedFlight.providers,
-                cheapestProvider: cheapestProvider
-            )
-        }
-    }
-}
+
 
 
 struct FlightDetailsView: View {
@@ -6742,55 +6731,78 @@ struct FlightDetailsView: View {
             UINavigationBar.appearance().scrollEdgeAppearance = appearance
         }
     
+    private var cheapestProvider: FlightProvider? {
+        return selectedFlight.providers.min(by: { $0.price < $1.price })
+    }
+    
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Flight details content
-                    if viewModel.multiCityTrips.count >= 2 {
-                        // Multi-city flight details display
-                        ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
-                            let leg = selectedFlight.legs[legIndex]
-                            
-
-                            
-                            if leg.stopCount == 0 && !leg.segments.isEmpty {
-                                let segment = leg.segments.first!
-                                displayDirectFlight(leg: leg, segment: segment)
-                            } else if leg.stopCount > 0 && leg.segments.count > 1 {
-                                displayConnectingFlight(leg: leg)
-                            }
-                            
-
-                        }
-                    } else {
-                        // Regular flights display
-                        if let outboundLeg = selectedFlight.legs.first {
-                            if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
-                                let segment = outboundLeg.segments.first!
-                                displayDirectFlight(leg: outboundLeg, segment: segment)
-                            } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
-                                displayConnectingFlight(leg: outboundLeg)
-                            }
-                            
-                            if selectedFlight.legs.count > 1,
-                               let returnLeg = selectedFlight.legs.last,
-                               returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+            VStack(spacing: 0) {
+                // Scrollable content
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Flight details content
+                        if viewModel.multiCityTrips.count >= 2 {
+                            // Multi-city flight details display
+                            ForEach(0..<selectedFlight.legs.count, id: \.self) { legIndex in
+                                let leg = selectedFlight.legs[legIndex]
                                 
-                                if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
-                                    let segment = returnLeg.segments.first!
-                                    displayDirectFlight(leg: returnLeg, segment: segment)
-                                } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
-                                    displayConnectingFlight(leg: returnLeg)
+
+                                
+                                if leg.stopCount == 0 && !leg.segments.isEmpty {
+                                    let segment = leg.segments.first!
+                                    displayDirectFlight(leg: leg, segment: segment)
+                                } else if leg.stopCount > 0 && leg.segments.count > 1 {
+                                    displayConnectingFlight(leg: leg)
+                                }
+                                
+
+                            }
+                        } else {
+                            // Regular flights display
+                            if let outboundLeg = selectedFlight.legs.first {
+                                if outboundLeg.stopCount == 0 && !outboundLeg.segments.isEmpty {
+                                    let segment = outboundLeg.segments.first!
+                                    displayDirectFlight(leg: outboundLeg, segment: segment)
+                                } else if outboundLeg.stopCount > 0 && outboundLeg.segments.count > 1 {
+                                    displayConnectingFlight(leg: outboundLeg)
+                                }
+                                
+                                if selectedFlight.legs.count > 1,
+                                   let returnLeg = selectedFlight.legs.last,
+                                   returnLeg.origin != outboundLeg.origin || returnLeg.destination != outboundLeg.destination {
+                                    
+                                    if returnLeg.stopCount == 0 && !returnLeg.segments.isEmpty {
+                                        let segment = returnLeg.segments.first!
+                                        displayDirectFlight(leg: returnLeg, segment: segment)
+                                    } else if returnLeg.stopCount > 0 && returnLeg.segments.count > 1 {
+                                        displayConnectingFlight(leg: returnLeg)
+                                    }
                                 }
                             }
                         }
-                    }
-                    
-                    // Enhanced Price section with deals
-                    EnhancedPriceSection(selectedFlight: selectedFlight, viewModel: viewModel)
+                        
+                        // Good to Know Section (scrollable)
+                        GoodToKnowSection(
+                            originCode: viewModel.selectedOriginCode,
+                            destinationCode: viewModel.selectedDestinationCode,
+                            isRoundTrip: viewModel.isRoundTrip
+                        )
+                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                         .padding(.top)
+                        .padding(.bottom, 20)
+                    }
                 }
+                
+                // Sticky Deals Section at bottom
+                DealsSection(
+                    providers: selectedFlight.providers,
+                    cheapestProvider: cheapestProvider
+                )
+                .background(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: -4)
+                .edgesIgnoringSafeArea(.horizontal)
+                .edgesIgnoringSafeArea(.bottom)
             }
             .navigationBarTitle("Flight Details", displayMode: .inline)
             .navigationBarItems(
@@ -6799,7 +6811,7 @@ struct FlightDetailsView: View {
                     viewModel.selectedFlightId = nil
                     presentationMode.wrappedValue.dismiss()
                 }) {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.down")
                         .foregroundColor(.white)
                 },
                 trailing: Button(action: {
@@ -6841,6 +6853,7 @@ struct FlightDetailsView: View {
             arrivalTerminal: "2",
             arrivalNextDay: segment.arrivalDayDifference > 0
         )
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .padding(.horizontal)
         .padding(.bottom, 16)
     }
@@ -6855,6 +6868,7 @@ struct FlightDetailsView: View {
             flightClass: leg.segments.first?.cabinClass ?? "Economy",
             connectionSegments: connectionSegments
         )
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .padding(.horizontal)
         .padding(.bottom, 16)
     }
