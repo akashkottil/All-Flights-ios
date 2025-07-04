@@ -528,6 +528,133 @@ class AlertNetworkManager {
         throw AlertNetworkError.serverError("Unable to delete alert. This might be a permission issue or the alert may belong to a different user.")
     }
     
+
+    // MARK: - Edit Alert Method
+
+    func editAlert(
+        alertId: String,
+        origin: String,
+        destination: String,
+        originName: String,
+        destinationName: String,
+        currency: String = "INR"
+    ) async throws -> AlertResponse {
+        
+        // Step 1: Check if the new route combination already exists
+        do {
+            let existingAlerts = try await fetchAlerts()
+            
+            // Check if any other alert (not the one being edited) has the same route
+            let conflictingAlert = existingAlerts.first { alert in
+                alert.id != alertId && // Not the same alert being edited
+                alert.route.origin == origin &&
+                alert.route.destination == destination &&
+                alert.route.currency == currency
+            }
+            
+            if let conflictingAlert = conflictingAlert {
+                // Instead of failing, we can delete the conflicting alert first
+                print("⚠️ Found conflicting alert: \(conflictingAlert.id)")
+                print("🗑️ Deleting conflicting alert before update...")
+                
+                try await deleteAlertSmart(alertId: conflictingAlert.id)
+                print("✅ Conflicting alert deleted successfully")
+            }
+            
+        } catch {
+            print("⚠️ Could not check for existing alerts: \(error)")
+            // Continue with the update attempt anyway
+        }
+        
+        // Step 2: Proceed with the original edit logic
+        guard let url = URL(string: "\(baseURL)/api/alerts/\(alertId)/") else {
+            print("❌ Invalid URL: \(baseURL)/api/alerts/\(alertId)/")
+            throw AlertNetworkError.invalidURL
+        }
+        
+        let alertRequest = AlertRequest(
+            user: AlertUser(
+                id: userId,
+                push_token: pushToken
+            ),
+            route: AlertRoute(
+                origin: origin,
+                destination: destination,
+                currency: currency,
+                origin_name: originName,
+                destination_name: destinationName
+            )
+        )
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.addValue("application/json", forHTTPHeaderField: "accept")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
+        
+        do {
+            let encoder = JSONEncoder()
+            let jsonData = try encoder.encode(alertRequest)
+            request.httpBody = jsonData
+            
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                print("📝 Edit request body: \(jsonString)")
+            }
+        } catch {
+            print("❌ Error encoding edit alert request: \(error)")
+            throw AlertNetworkError.decodingError(error)
+        }
+        
+        do {
+            print("🚀 Making edit alert API call...")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ Invalid HTTP response")
+                throw AlertNetworkError.invalidResponse
+            }
+            
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📡 Edit Response (\(httpResponse.statusCode)): \(responseString)")
+            }
+            
+            guard 200...299 ~= httpResponse.statusCode else {
+                let errorMessage = "Edit Alert API failed with status \(httpResponse.statusCode)"
+                print("❌ \(errorMessage)")
+                
+                if let responseString = String(data: data, encoding: .utf8) {
+                    throw AlertNetworkError.serverError("API Error (\(httpResponse.statusCode)): \(responseString)")
+                } else {
+                    throw AlertNetworkError.serverError("API Error: Status code \(httpResponse.statusCode)")
+                }
+            }
+            
+            // Parse successful response
+            do {
+                let decoder = JSONDecoder()
+                let alertResponse = try decoder.decode(AlertResponse.self, from: data)
+                print("✅ Alert edited successfully:")
+                print("   Alert ID: \(alertResponse.id)")
+                print("   Route: \(alertResponse.route.origin_name) → \(alertResponse.route.destination_name)")
+                if let cheapestFlight = alertResponse.cheapest_flight {
+                    print("   Price: \(cheapestFlight.price) \(alertResponse.route.currency)")
+                }
+                return alertResponse
+            } catch {
+                print("❌ Edit alert response decoding error: \(error)")
+                throw AlertNetworkError.decodingError(error)
+            }
+            
+        } catch {
+            if error is AlertNetworkError {
+                throw error
+            } else {
+                print("❌ Network error: \(error)")
+                throw AlertNetworkError.serverError("Network error: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     // Helper method for testing the API connection
     func testAPIConnection() async {
         print("🧪 Testing Alert API connection...")

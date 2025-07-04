@@ -42,4 +42,19 @@ struct GradientColor {
         startPoint: .top,
         endPoint: .bottom
     )
+    
+    static let DeleteRed = LinearGradient(
+        gradient: Gradient(colors: [
+            Color(hex: "#CC142B"),
+            Color(hex: "#DF001C")
+        ]),
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+    
+    static let transparentWhite = LinearGradient(
+            gradient: Gradient(colors: [Color.blue.opacity(0.2), Color.white, Color.white]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
 }
