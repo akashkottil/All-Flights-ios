@@ -101,15 +101,9 @@ struct FALocationSheet: View {
                             manuallyOriginClear()
                         }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
+                                .foregroundColor(.gray.opacity(0.8))
                         }
                         .padding(.trailing)
-                    }
-                    
-                    if isSearchingOrigin {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .padding(.trailing)
                     }
                 }
                 .background(
@@ -140,23 +134,19 @@ struct FALocationSheet: View {
                             manuallyDestinationClear()
                         }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
+                                .foregroundColor(.gray.opacity(0.8))
                         }
                         .padding(.trailing)
                     }
                     
-                    if isSearchingDestination {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .padding(.trailing)
-                    }
+                   
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 20)
                         .stroke(destinationText.isEmpty ? Color.gray.opacity(0.8) : Color.orange, lineWidth: 1)
                 )
                 .padding(.horizontal)
-                .padding(.top)
+                .padding(.top,10)
             }
             
             // Use current location button design
@@ -446,11 +436,12 @@ struct FALocationSheet: View {
                 HStack(spacing: 15) {
                     // Airport code badge
                     Text(iataCode)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .padding(8)
-                        .frame(width: 44, height: 44)
-                        .background(Color.blue.opacity(0.1))
+                        .frame(width: 44, height: 40)
+                        .background(Color.faIataBg)
                         .cornerRadius(8)
+                        
                     
                     VStack(alignment: .leading, spacing: 4) {
                         // Main location name

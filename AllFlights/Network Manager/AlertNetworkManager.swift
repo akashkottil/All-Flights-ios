@@ -12,9 +12,79 @@ class AlertNetworkManager {
     
     private init() {}
     
-    // MARK: - Fetch Existing Alerts (Multiple Strategies)
+    // MARK: - NEW: Primary fetch method using specific user endpoint
+    
+    func fetchUserAlerts() async throws -> [AlertResponse] {
+        print("🔍 Fetching alerts for user: \(userId)")
+        
+        guard let url = URL(string: "\(baseURL)/api/alerts/user/\(userId)/") else {
+            throw AlertNetworkError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "accept")
+        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
+        
+        print("🌐 GET URL: \(url)")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AlertNetworkError.invalidResponse
+            }
+            
+            print("📡 Response Status: \(httpResponse.statusCode)")
+            
+            // Log raw response for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📄 Raw Response: \(responseString)")
+            }
+            
+            guard 200...299 ~= httpResponse.statusCode else {
+                if httpResponse.statusCode == 404 {
+                    // User has no alerts - return empty array
+                    print("✅ No alerts found for user (404) - returning empty array")
+                    return []
+                }
+                throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
+            }
+            
+            // Parse the response
+            let alerts = try parseAlertsResponse(data: data)
+            print("✅ Successfully fetched \(alerts.count) alerts for user")
+            return alerts
+            
+        } catch {
+            if let alertError = error as? AlertNetworkError {
+                throw alertError
+            } else {
+                print("❌ Network error: \(error)")
+                throw AlertNetworkError.serverError("Network error: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // MARK: - Keep existing fetchAlerts as fallback
     
     func fetchAlerts() async throws -> [AlertResponse] {
+        print("🔍 Using fallback fetch method...")
+        
+        // First try the specific user endpoint
+        do {
+            return try await fetchUserAlerts()
+        } catch {
+            print("⚠️ User-specific endpoint failed, trying fallback strategies: \(error)")
+        }
+        
+        // If that fails, use the existing multi-strategy approach
+        return try await fetchAlertsWithMultipleStrategies()
+    }
+    
+    // MARK: - Existing multi-strategy fetch (kept as fallback)
+    
+    private func fetchAlertsWithMultipleStrategies() async throws -> [AlertResponse] {
         print("🔍 Trying multiple strategies to fetch alerts...")
         
         // Strategy 1: Try with user query parameter
@@ -31,7 +101,6 @@ class AlertNetworkManager {
         let endpointVariations = [
             "/api/alerts/list/",
             "/api/user/alerts/",
-            "/api/alerts/user/\(userId)/",
             "/api/v1/alerts/",
             "/api/alerts/get/"
         ]
@@ -61,107 +130,10 @@ class AlertNetworkManager {
         return []
     }
     
-    // MARK: - Strategy 1: Fetch with User Filter
-    
-    private func fetchAlertsWithUserFilter() async throws -> [AlertResponse] {
-        guard let url = URL(string: "\(baseURL)/api/alerts/?user_id=\(userId)") else {
-            throw AlertNetworkError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("application/json", forHTTPHeaderField: "accept")
-        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
-        
-        print("🔍 Strategy 1: Fetching alerts with user filter: \(url)")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AlertNetworkError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            print("❌ User filter strategy failed with status: \(httpResponse.statusCode)")
-            throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
-        }
-        
-        return try parseAlertsResponse(data: data)
-    }
-    
-    // MARK: - Strategy 2: Try Different Endpoints
-    
-    private func fetchAlertsFromEndpoint(_ endpoint: String) async throws -> [AlertResponse] {
-        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
-            throw AlertNetworkError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("application/json", forHTTPHeaderField: "accept")
-        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
-        
-        print("🔍 Trying endpoint: \(url)")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AlertNetworkError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
-        }
-        
-        return try parseAlertsResponse(data: data)
-    }
-    
-    // MARK: - Strategy 3: POST Request to Query Alerts
-    
-    private func fetchAlertsWithPOST() async throws -> [AlertResponse] {
-        guard let url = URL(string: "\(baseURL)/api/alerts/") else {
-            throw AlertNetworkError.invalidURL
-        }
-        
-        // Create a query request body
-        let queryRequest = [
-            "action": "list",
-            "user_id": userId
-        ]
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "accept")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
-        
-        let jsonData = try JSONSerialization.data(withJSONObject: queryRequest)
-        request.httpBody = jsonData
-        
-        print("🔍 Strategy 3: POST query to /api/alerts/")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AlertNetworkError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
-        }
-        
-        return try parseAlertsResponse(data: data)
-    }
-    
     // MARK: - Helper: Parse Alerts Response
     
     private func parseAlertsResponse(data: Data) throws -> [AlertResponse] {
         let decoder = JSONDecoder()
-        
-        // Debug: Print raw response
-        if let responseString = String(data: data, encoding: .utf8) {
-            print("📄 Raw API Response: \(responseString)")
-        }
         
         // Try different response formats
         if let alertsArray = try? decoder.decode([AlertResponse].self, from: data) {
@@ -176,6 +148,87 @@ class AlertNetworkManager {
             print("✅ Parsed as single alert")
             return [singleAlert]
         }
+    }
+    
+    // MARK: - Keep all existing methods (create, delete, edit, etc.)
+    // [Rest of the existing methods remain exactly the same...]
+    
+    private func fetchAlertsWithUserFilter() async throws -> [AlertResponse] {
+        guard let url = URL(string: "\(baseURL)/api/alerts/?user_id=\(userId)") else {
+            throw AlertNetworkError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "accept")
+        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AlertNetworkError.invalidResponse
+        }
+        
+        guard 200...299 ~= httpResponse.statusCode else {
+            throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
+        }
+        
+        return try parseAlertsResponse(data: data)
+    }
+    
+    private func fetchAlertsFromEndpoint(_ endpoint: String) async throws -> [AlertResponse] {
+        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
+            throw AlertNetworkError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "accept")
+        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AlertNetworkError.invalidResponse
+        }
+        
+        guard 200...299 ~= httpResponse.statusCode else {
+            throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
+        }
+        
+        return try parseAlertsResponse(data: data)
+    }
+    
+    private func fetchAlertsWithPOST() async throws -> [AlertResponse] {
+        guard let url = URL(string: "\(baseURL)/api/alerts/") else {
+            throw AlertNetworkError.invalidURL
+        }
+        
+        let queryRequest = [
+            "action": "list",
+            "user_id": userId
+        ]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "accept")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
+        
+        let jsonData = try JSONSerialization.data(withJSONObject: queryRequest)
+        request.httpBody = jsonData
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AlertNetworkError.invalidResponse
+        }
+        
+        guard 200...299 ~= httpResponse.statusCode else {
+            throw AlertNetworkError.serverError("Status: \(httpResponse.statusCode)")
+        }
+        
+        return try parseAlertsResponse(data: data)
     }
     
     // MARK: - Create Alert (Existing Method)
@@ -477,7 +530,7 @@ class AlertNetworkManager {
         
         // First, let's verify the alert exists by fetching current alerts
         do {
-            let currentAlerts = try await fetchAlerts()
+            let currentAlerts = try await fetchUserAlerts()
             let alertExists = currentAlerts.contains { $0.id == alertId }
             
             if !alertExists {
@@ -542,7 +595,7 @@ class AlertNetworkManager {
         
         // Step 1: Check if the new route combination already exists
         do {
-            let existingAlerts = try await fetchAlerts()
+            let existingAlerts = try await fetchUserAlerts()
             
             // Check if any other alert (not the one being edited) has the same route
             let conflictingAlert = existingAlerts.first { alert in
@@ -659,7 +712,7 @@ class AlertNetworkManager {
     func testAPIConnection() async {
         print("🧪 Testing Alert API connection...")
         do {
-            let alerts = try await fetchAlerts()
+            let alerts = try await fetchUserAlerts()
             print("✅ API test successful: Found \(alerts.count) alerts")
         } catch {
             print("❌ API test failed: \(error)")
@@ -667,8 +720,7 @@ class AlertNetworkManager {
     }
 }
 
-// MARK: - Supporting Models
-
+// MARK: - Supporting Models (keep existing)
 struct AlertsWrapper: Codable {
     let results: [AlertResponse]
     let count: Int?
