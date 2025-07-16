@@ -57,4 +57,22 @@ struct GradientColor {
             startPoint: .top,
             endPoint: .bottom
         )
+    
+ 
+    
+    static let FTHGradient = LinearGradient(
+        gradient: Gradient(colors: [
+                    Color(hex: "#02060C"),
+                    Color(hex: "#0C243E").opacity(0.7),
+                    Color(hex: "#0C243E").opacity(0.1),
+                    Color(hex: "#0C243E").opacity(0.1),
+                    Color(hex: "#0C243E").opacity(0.1),
+                    Color(hex: "#0C243E").opacity(0.1),
+                    Color(hex: "#0C243E").opacity(0)
+                ]),
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    
+    
 }

@@ -44,58 +44,83 @@ struct FlightDetailDesignScreen: View {
         airportCode: "LHR",
         type: .arrival
     )
-
+    
+    // Bottom sheet state
+    @State private var showingBottomSheet = true
+    @State private var bottomSheetDetent: PresentationDetent = .medium
+    
     var body: some View {
         NavigationView {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Stretchy Map Header
-                    Map(coordinateRegion: $mapRegion, annotationItems: [
-                        departureAnnotation,
-                        arrivalAnnotation
-                    ].compactMap { $0 }) { annotation in
-                        MapAnnotation(coordinate: annotation.coordinate) {
-                            VStack(spacing: 4) {
-                                ZStack {
-                                    Circle()
-                                        .fill(annotation.type == .departure ? Color.green : Color.red)
-                                        .frame(width: 12, height: 12)
-                                    
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: 2)
-                                        .frame(width: 12, height: 12)
-                                }
+            ZStack {
+                // Full screen map
+                Map(coordinateRegion: $mapRegion, annotationItems: [
+                    departureAnnotation,
+                    arrivalAnnotation
+                ].compactMap { $0 }) { annotation in
+                    MapAnnotation(coordinate: annotation.coordinate) {
+                        VStack(spacing: 4) {
+                            ZStack {
+                                Circle()
+                                    .fill(annotation.type == .departure ? Color.green : Color.red)
+                                    .frame(width: 12, height: 12)
                                 
-                                Text(annotation.airportCode)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(annotation.type == .departure ? Color.green : Color.red)
-                                    )
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 2)
+                                    .frame(width: 12, height: 12)
                             }
+                            
+                            Text(annotation.airportCode)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(annotation.type == .departure ? Color.green : Color.red)
+                                )
                         }
                     }
-                    .overlay(
-                        // Flight path polyline
-                        FlightPathView(coordinates: flightRoute)
-                            .allowsHitTesting(false)
-                    )
-                    .frame(height: 350)
-                    .clipped()
-                    .stretchy()
-                    
-                    // Flight Detail Content
-                    flightDetailContent()
-                        .background(Color(UIColor.systemBackground))
                 }
+                .overlay(
+                    GradientColor.FTHGradient
+                        .blendMode(.overlay)
+                )
+                .overlay(
+                    // Flight path polyline
+                    FlightPathView(coordinates: flightRoute)
+                        .allowsHitTesting(false)
+                )
+                .ignoresSafeArea()
+                
+                // Bottom sheet trigger button
+                //                VStack {
+                //                    Spacer()
+                //                    HStack {
+                //                        Spacer()
+                //                        Button(action: {
+                //                            showingBottomSheet = true
+                //                        }) {
+                //                            VStack(spacing: 4) {
+                //                                Image(systemName: "airplane")
+                //                                    .font(.system(size: 20, weight: .medium))
+                //                                    .foregroundColor(.white)
+                //                                Text("Flight Details")
+                //                                    .font(.system(size: 12, weight: .medium))
+                //                                    .foregroundColor(.white)
+                //                            }
+                //                            .padding(.horizontal, 16)
+                //                            .padding(.vertical, 12)
+                //                            .background(Color.blue)
+                //                            .cornerRadius(25)
+                //                            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                //                        }
+                //                        Spacer()
+                //                    }
+                //                    .padding(.bottom, 100)
+                //                }
             }
-            .ignoresSafeArea(edges: .top)
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "0C243E"), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -115,6 +140,7 @@ struct FlightDetailDesignScreen: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.gray)
                     }
+                    .foregroundColor(.white)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
@@ -124,6 +150,25 @@ struct FlightDetailDesignScreen: View {
                     }
                 }
             }
+            
+        }
+        .sheet(isPresented: $showingBottomSheet) {
+            bottomSheetContent()
+                .presentationDetents([.medium, .fraction(0.95)])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.regularMaterial)
+                .interactiveDismissDisabled(true)
+            
+        }
+    }
+    
+    // Bottom sheet content
+    private func bottomSheetContent() -> some View {
+        NavigationView {
+            ScrollView {
+                flightDetailContent()
+            }
+            
         }
     }
     
@@ -147,17 +192,17 @@ struct FlightDetailDesignScreen: View {
                     Text("On Time")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.rainForest)
+                        .foregroundColor(.green)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.rainForest, lineWidth: 1)
+                                .stroke(Color.green, lineWidth: 1)
                         )
                 }
                 
                 Image("DottedLine")
-   
+                
                 // Flight Route Timeline
                 HStack(alignment: .top, spacing: 16) {
                     // Timeline
@@ -185,7 +230,7 @@ struct FlightDetailDesignScreen: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("JFK")
                                         .font(.system(size: 34, weight: .bold))
-                                       
+                                    
                                     Text("John F. Kennedy International Airport")
                                         .font(.system(size: 12, weight: .semibold))
                                         .foregroundColor(.gray)
@@ -199,10 +244,10 @@ struct FlightDetailDesignScreen: View {
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text("14:30")
                                         .font(.system(size: 20, weight: .bold))
-                                        .foregroundColor(.rainForest)
+                                        .foregroundColor(.green)
                                     Text("On time")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(.rainForest)
+                                        .foregroundColor(.green)
                                     Text("18 Jun")
                                         .font(.caption)
                                         .foregroundColor(.gray)
@@ -240,10 +285,10 @@ struct FlightDetailDesignScreen: View {
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text("02:15")
                                         .font(.system(size: 20, weight: .bold))
-                                        .foregroundColor(.rainForest)
+                                        .foregroundColor(.green)
                                     Text("On time")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(.rainForest)
+                                        .foregroundColor(.green)
                                     Text("19 Jun")
                                         .font(.caption)
                                         .foregroundColor(.gray)
@@ -283,10 +328,6 @@ struct FlightDetailDesignScreen: View {
                         isDeparture: false
                     )
                 }
-                
-//                AirlinesInfo()
-                
-//                AboutDestination()
                 
                 // Notification & Delete section
                 VStack(alignment: .leading, spacing: 12) {
@@ -338,7 +379,7 @@ struct FlightDetailDesignScreen: View {
         .padding(.horizontal)
         .padding(.bottom, 32)
     }
-
+    
     private func flightStatusCard(title: String, gateTime: String, estimatedGateTime: String?, gateStatus: String, runwayTime: String, runwayStatus: String, isDeparture: Bool) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header with plane icon and city
@@ -475,7 +516,7 @@ struct FlightDetailAnnotation: Identifiable {
     let type: FlightDetailAirportType
 }
 
-struct eFlightPathView: View {
+struct FlightPathView: View {
     let coordinates: [CLLocationCoordinate2D]
     
     var body: some View {
@@ -493,145 +534,6 @@ struct eFlightPathView: View {
                 style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 5])
             )
         }
-    }
-}
-
-// MARK: - Supporting Views
-
-struct eAirlinesInfo: View {
-    var body: some View {
-        VStack(alignment:.leading, spacing: 12){
-            Text("Airline Information")
-                .font(.system(size: 18, weight: .semibold))
-                .padding(.top, 15)
-            HStack{
-                Image("FlightTrackLogo")
-                    .frame(width: 34, height: 34)
-                Text("British Airways")
-                    .font(.system(size: 16, weight: .semibold))
-                Spacer()
-            }
-            HStack{
-                VStack {
-                    Text("ATC Callsign")
-                    Text("BAW")
-                        .fontWeight(.bold)
-                }
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                VStack {
-                    Text("Fleet Size")
-                    Text("285")
-                        .fontWeight(.bold)
-                }
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                VStack {
-                    Text("Fleet Age")
-                    Text("12.5y")
-                        .fontWeight(.bold)
-                }
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            Text("Flight performance")
-                .font(.system(size: 16, weight: .semibold))
-            HStack{
-                Text("On-time")
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-                Text("90%")
-                    .font(.system(size: 12, weight: .bold))
-            }
-            CustomProgressBar(progress: 0.9)
-                .padding(.vertical, 4)
-            
-            Text("Based on data for the past 10 days")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.gray)
-        }
-    }
-}
-
-struct eAboutDestination: View {
-    var body: some View {
-        VStack(alignment: .leading){
-            Text("About your destination")
-                .font(.system(size: 18, weight: .semibold))
-            HStack{
-                VStack(alignment: .leading){
-                    Text("15°C")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Weather in London")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                Spacer()
-                Image("Cloud")
-            }
-            .padding()
-            .background(.blue)
-            .cornerRadius(20)
-            
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Distance")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.black.opacity(0.7))
-                    Text("5,585 km")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.black)
-                    Text("Great circle distance")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.black.opacity(0.7))
-                }
-                Spacer()
-            }
-            .padding()
-            .background(Color.white)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.black.opacity(0.3), lineWidth: 1.4)
-            )
-            .cornerRadius(20)
-        }
-    }
-}
-
-struct eCustomProgressBar: View {
-    let progress: Double
-    let height: CGFloat = 8
-    let cornerRadius: CGFloat = 4
-    
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: cornerRadius*2)
-                    .fill(Color(red: 0.827, green: 0.827, blue: 0.827, opacity: 0.4))
-                    .frame(height: height*2)
-                
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Color(red: 0.0, green: 0.424, blue: 0.890))
-                    .frame(width: geometry.size.width * CGFloat(progress), height: height)
-                    .padding(.horizontal,5)
-            }
-        }
-        .frame(height: height)
     }
 }
 

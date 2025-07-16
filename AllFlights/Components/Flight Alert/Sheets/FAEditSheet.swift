@@ -444,7 +444,7 @@ struct FAEditSheet: View {
             VStack(spacing: 0) {
                 HStack(spacing: 15) {
                     Text(iataCode)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .padding(8)
                         .frame(width: 44, height: 44)
                         .background(Color.blue.opacity(0.1))
