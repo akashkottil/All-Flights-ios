@@ -1810,104 +1810,25 @@ struct MapShimmerView: View {
     
     var body: some View {
         ZStack {
-            // Base background - more map-like
-            LinearGradient(
-                colors: [Color.blue.opacity(0.1), Color.green.opacity(0.05)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Map image that fills the entire screen (stretched or cropped)
+            Image("mapImg") // Replace with your actual map image or map view.
+                .resizable()
+                .scaledToFill() // Ensures the image stretches or crops to fill the screen
+                .edgesIgnoringSafeArea(.all) // No space around the image, it will fill the screen
+                .blur(radius: 2) // Apply blur to the image
             
-            // Route visualization shimmer
-            VStack(spacing: 30) {
-                Spacer()
-                
-                HStack {
-                    // Departure point shimmer
-                    VStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.green.opacity(0.6))
-                            .frame(width: 12, height: 12)
-                            .modifier(ShimmerModifier())
-                        
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 40, height: 16)
-                            .modifier(ShimmerModifier())
-                    }
-                    
-                    Spacer()
-                    
-                    // Route line shimmer - curved path
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: 20))
-                        path.addQuadCurve(
-                            to: CGPoint(x: 100, y: 20),
-                            control: CGPoint(x: 50, y: -10)
-                        )
-                    }
-                    .stroke(
-                        Color.blue.opacity(0.4),
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 3])
-                    )
-                    .frame(height: 40)
-                    .modifier(ShimmerModifier())
-                    
-                    Spacer()
-                    
-                    // Arrival point shimmer
-                    VStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.red.opacity(0.6))
-                            .frame(width: 12, height: 12)
-                            .modifier(ShimmerModifier())
-                        
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 40, height: 16)
-                            .modifier(ShimmerModifier())
-                    }
-                }
-                .padding(.horizontal, 40)
-                
-                // Loading text with better animation
-                VStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "airplane")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 16))
-                        
-                        Text("Loading Flight Route")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.primary)
-                    }
-                    
-                    // Custom loading dots
-                    HStack(spacing: 4) {
-                        ForEach(0..<3) { index in
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 6, height: 6)
-                                .scaleEffect(shimmerOffset == CGFloat(index) ? 1.2 : 0.8)
-                                .animation(
-                                    .easeInOut(duration: 0.6)
-                                    .repeatForever()
-                                    .delay(Double(index) * 0.2),
-                                    value: shimmerOffset
-                                )
-                        }
-                    }
-                }
-                
-                Spacer()
-            }
-        }
-        .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                shimmerOffset = 200
-            }
+            // Gradient overlay that goes from top to bottom
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black.opacity(0.6), Color.clear]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .edgesIgnoringSafeArea(.all) // Ensure the gradient covers the whole image
         }
     }
 }
+
+
 
 // MARK: - Shimmer Modifier for Map Loading
 struct ShimmerModifier: ViewModifier {
