@@ -34,6 +34,7 @@ struct FlightTrackerScreen: View {
     @State private var flightDetailNumber: String = ""
     @State private var flightDetailDate: String = ""
     
+    
     // ADDED: Recently viewed flights for tracked tab
     @State private var recentlyViewedFlights: [TrackedFlightData] = [] {
         didSet {
@@ -83,6 +84,19 @@ struct FlightTrackerScreen: View {
     // Network manager
     private let networkManager = FlightTrackNetworkManager.shared
     
+    @State private var currentPlaceholder: String = "flight number"
+    @State private var placeholderIndex: Int = 0
+    @State private var placeholderOpacity: Double = 1.0
+
+    let placeholderSuggestions = ["flights", "airlines", "airports"]
+
+
+    @State private var timer: Timer? = nil
+    
+    @State private var nextPlaceholder: String = ""
+    @State private var animatePlaceholder = false
+
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -122,9 +136,15 @@ struct FlightTrackerScreen: View {
                         loadLastSearchedAirport()
                     }
                     
+                    // START ANIMATION TIMER IF NOT ALREADY RUNNING
+                    if timer == nil {
+                        startPlaceholderTimer()
+                    }
+
                     // Setup performance monitoring
-                    PerformanceMonitor.shared // Initialize monitoring
+                    PerformanceMonitor.shared
                 }
+
                 .onReceive(NotificationCenter.default.publisher(for: .memoryPressure)) { _ in
                     handleMemoryPressure()
                 }
@@ -568,11 +588,13 @@ struct FlightTrackerScreen: View {
                         .font(selectedTab == 0 ? Font.system(size: 13, weight: .bold) : Font.system(size: 13, weight: .regular))
                         .foregroundColor(selectedTab == 0 ? Color(hex: "006CE3") : .black)
                         .padding(.vertical, 12)
-                        .padding(.horizontal, 24)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 16)
                         .background(
                             selectedTab == 0 ? Color.white : Color.clear
                         )
                         .cornerRadius(20)
+                        .padding(.horizontal, 4)
                         .scaleEffect(selectedTab == 0 ? 1.05 : 1.0) // ADDED: Subtle scale effect
                         .animation(.easeInOut(duration: 0.2), value: selectedTab)
                 }
@@ -590,18 +612,22 @@ struct FlightTrackerScreen: View {
                         .font(selectedTab == 1 ? Font.system(size: 13, weight: .bold) : Font.system(size: 13, weight: .regular))
                         .foregroundColor(selectedTab == 1 ? Color(hex: "006CE3") : .black)
                         .padding(.vertical, 12)
-                        .padding(.horizontal, 24)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 16)
                         .background(
                             selectedTab == 1 ? Color.white : Color.clear
                         )
                         .cornerRadius(20)
+                        .padding(.horizontal, 4)
                         .scaleEffect(selectedTab == 1 ? 1.05 : 1.0) // ADDED: Subtle scale effect
                         .animation(.easeInOut(duration: 0.2), value: selectedTab)
                 }
             }
-            .padding(4)
+            .padding(.vertical,6)
+            .padding(.horizontal, 4)
+            .frame(width: 250)
             .background(Color(hex: "EFF1F4"))
-            .cornerRadius(24)
+            .cornerRadius(25)
             
             Spacer()
         }
@@ -620,9 +646,9 @@ struct FlightTrackerScreen: View {
                     flightListHeader
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(0..<6, id: \.self) { index in
+                            ForEach(0..<10, id: \.self) { index in
                                 FlightRowShimmer()
-                                if index < 5 {
+                                if index < 9 {
                                     Divider()
                                 }
                             }
@@ -755,12 +781,25 @@ struct FlightTrackerScreen: View {
                     // Show the current search text
                     Text(searchText)
                         .foregroundColor(.black)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 16, weight: .regular))
                 } else {
-                    // Show placeholder text
-                    Text("Try flight number \"6E 6083\"")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 14, weight: .semibold))
+                    HStack(spacing: 4) {
+                        Text("Try Searching")
+
+                        ZStack {
+                            Text("'\(currentPlaceholder)'")
+                                .id(currentPlaceholder) // Ensure transition triggers
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                                    removal: .move(edge: .top).combined(with: .opacity)
+                                ))
+                                .animation(.easeInOut(duration: 0.5), value: currentPlaceholder)
+                        }
+                    }
+                    .foregroundColor(.gray)
+                    .font(.system(size: 16, weight: .regular))
+
+
                 }
 
                 Spacer()
@@ -1115,7 +1154,7 @@ struct FlightTrackerScreen: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(flight.flightNumber)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.black)
                     
                     MarqueeText(text: flight.airline, font: .system(size: 14))
@@ -1601,6 +1640,20 @@ struct FlightTrackerScreen: View {
         
         return timeString
     }
+    
+    func startPlaceholderTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            let nextIndex = (placeholderIndex + 1) % placeholderSuggestions.count
+            placeholderIndex = nextIndex
+
+            withAnimation {
+                currentPlaceholder = placeholderSuggestions[nextIndex]
+            }
+        }
+    }
+
+
+
     
     private func handleMemoryPressure() {
         // Clear caches on memory pressure
