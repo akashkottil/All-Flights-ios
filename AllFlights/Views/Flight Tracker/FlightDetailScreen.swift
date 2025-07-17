@@ -298,6 +298,7 @@ extension View {
     }
 }
 
+
 // MARK: - Enhanced Color Extensions
 extension Color {
     static let flightPathTraveled = Color.purple

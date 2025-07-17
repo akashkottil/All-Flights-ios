@@ -9,6 +9,9 @@ struct PassengersAndClassSelector: View {
     @Binding var selectedClass: String
     @Binding var childrenAges: [Int?]
     
+    // ADDED: Optional callback for when changes are applied (for other screens compatibility)
+    var onApply: (() -> Void)?
+    
     // Local state for UI control
     @State private var showInfoDetails = false
     
@@ -66,8 +69,6 @@ struct PassengersAndClassSelector: View {
             
             // Bottom Apply button
             VStack {
-             
-                
                 Button(action: {
                     // Validate that all children have ages selected
                     let hasUnselectedAges = childrenCount > 0 && childrenAges.contains(where: { $0 == nil })
@@ -85,6 +86,9 @@ struct PassengersAndClassSelector: View {
                             }
                         }
                     } else {
+                        // ADDED: Call the optional callback
+                        onApply?()
+                        
                         // Apply changes and dismiss
                         dismiss()
                     }
@@ -286,10 +290,10 @@ struct PassengersAndClassSelector: View {
                             .fill(Color.gray.opacity(0.1))
                             .frame(width: 36, height: 36)
                         Image(systemName: "chevron.down")
-                                                    .foregroundColor(.primary)
-                                                    .font(.system(size: 12, weight: .medium))
-                                                    .rotationEffect(.degrees(showInfoDetails ? 180 : 0))
-                                                    .animation(.easeInOut(duration: 0.3), value: showInfoDetails)
+                            .foregroundColor(.primary)
+                            .font(.system(size: 12, weight: .medium))
+                            .rotationEffect(.degrees(showInfoDetails ? 180 : 0))
+                            .animation(.easeInOut(duration: 0.3), value: showInfoDetails)
                     }
                 }
                 
@@ -360,7 +364,6 @@ struct ClassButton: View {
         }
     }
 }
-
 
 struct FigmaCounterRow: View {
     let title: String
@@ -496,5 +499,37 @@ struct FigmaChildAgeRow: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.gray.opacity(0.2), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Convenience Initializers
+extension PassengersAndClassSelector {
+    // ADDED: Convenience initializer for FAheader usage (no callback needed)
+    init(
+        adultsCount: Binding<Int>,
+        childrenCount: Binding<Int>,
+        selectedClass: Binding<String>,
+        childrenAges: Binding<[Int?]>
+    ) {
+        self._adultsCount = adultsCount
+        self._childrenCount = childrenCount
+        self._selectedClass = selectedClass
+        self._childrenAges = childrenAges
+        self.onApply = nil
+    }
+    
+    // ADDED: Convenience initializer for other screens that need callback
+    init(
+        adultsCount: Binding<Int>,
+        childrenCount: Binding<Int>,
+        selectedClass: Binding<String>,
+        childrenAges: Binding<[Int?]>,
+        onApply: @escaping () -> Void
+    ) {
+        self._adultsCount = adultsCount
+        self._childrenCount = childrenCount
+        self._selectedClass = selectedClass
+        self._childrenAges = childrenAges
+        self.onApply = onApply
     }
 }

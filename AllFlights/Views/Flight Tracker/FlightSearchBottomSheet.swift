@@ -807,7 +807,7 @@ struct trackLocationSheet: View {
                 fallbackImage: "FlightTrackLogo",
                 size: 50
             )
-            .background(Color.green.opacity(0.1))
+            .background(Color.white)
             .cornerRadius(8)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -822,8 +822,8 @@ struct trackLocationSheet: View {
             
             Spacer()
             
-            Image(systemName: "airplane")
-                .foregroundColor(.gray)
+//            Image(systemName: "airplane")
+//                .foregroundColor(.gray)
         }
         .padding(.horizontal)
         .padding(.vertical, 12)
@@ -834,10 +834,10 @@ struct trackLocationSheet: View {
     private func airportRowView(_ airport: FlightTrackAirport) -> some View {
         HStack(spacing: 12) {
             Text(airport.iataCode)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 14, weight: .semibold))
                 .padding(8)
                 .frame(width: 50, height: 50)
-                .background(Color.blue.opacity(0.1))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(8)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -852,12 +852,12 @@ struct trackLocationSheet: View {
             
             Spacer()
             
-            Image(systemName: "location")
-                .foregroundColor(.gray)
+//            Image(systemName: "location")
+//                .foregroundColor(.gray)
         }
-        .padding(.horizontal)
+//        .padding(.horizontal)
         .padding(.vertical, 12)
-        .background(Color.gray.opacity(0.05))
+//        .background(Color.gray.opacity(0.05))
         .cornerRadius(12)
     }
     
@@ -954,9 +954,9 @@ struct trackLocationSheet: View {
                 }
                 
                 VStack(spacing: 8) {
-                    popularAirlineRow("vistaraLogo", "Vistara", "India")
-                    popularAirlineRow("spicejetLogo", "Spice Jet", "India")
-                    popularAirlineRow("indigoLogo", "Indigo", "India")
+//                    popularAirlineRow("vistara", "Vistara", "India")
+                    popularAirlineRow("SG", "Spice Jet", "India")
+                    popularAirlineRow("6E", "Indigo", "India")
                 }
             }
             
@@ -1074,7 +1074,7 @@ struct OptimizedAirlineRowView: View {
                     fallbackImage: "FlightTrackLogo",
                     size: 40
                 )
-                .background(Color.green.opacity(0.1))
+                .background(Color.white)
                 .cornerRadius(8)
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -1091,12 +1091,12 @@ struct OptimizedAirlineRowView: View {
                 
                 Spacer()
                 
-                Image(systemName: "airplane")
-                    .foregroundColor(.gray)
+//                Image(systemName: "airplane")
+//                    .foregroundColor(.gray)
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
-            .background(Color.gray.opacity(0.05))
+//            .background(Color.gray.opacity(0.05))
             .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1111,10 +1111,10 @@ struct OptimizedAirportRowView: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 Text(airport.iataCode)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 14, weight: .semibold))
                     .padding(8)
                     .frame(width: 50, height: 50)
-                    .background(Color.blue.opacity(0.1))
+                    .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -1131,12 +1131,12 @@ struct OptimizedAirportRowView: View {
                 
                 Spacer()
                 
-                Image(systemName: "location")
-                    .foregroundColor(.gray)
+//                Image(systemName: "location")
+//                    .foregroundColor(.gray)
             }
-            .padding(.horizontal)
+//            .padding(.horizontal)
             .padding(.vertical, 12)
-            .background(Color.gray.opacity(0.05))
+//            .background(Color.gray.opacity(0.05))
             .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())

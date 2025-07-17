@@ -95,6 +95,9 @@ struct FlightTrackerScreen: View {
     
     @State private var nextPlaceholder: String = ""
     @State private var animatePlaceholder = false
+    
+    @State private var resetMarquee = false
+
 
     
     var body: some View {
@@ -582,6 +585,7 @@ struct FlightTrackerScreen: View {
                         selectedTab = 0
                         currentSheetSource = .trackedTab
                         clearCurrentSessionData()
+                        resetMarquee = true
                     }
                 }) {
                     Text("Tracked")
@@ -606,6 +610,7 @@ struct FlightTrackerScreen: View {
                         currentSheetSource = .scheduledDeparture
                         clearCurrentSessionData()
                         loadLastSearchedAirport()
+                        resetMarquee = true
                     }
                 }) {
                     Text("Scheduled")
@@ -644,16 +649,21 @@ struct FlightTrackerScreen: View {
             } else if isLoadingSchedules {
                 VStack(spacing: 0) {
                     flightListHeader
+                    // Shimmer Loading with staggered animation
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(0..<10, id: \.self) { index in
+                            ForEach(0..<12, id: \.self) { index in // Changed from 6 to 12
                                 FlightRowShimmer()
-                                if index < 9 {
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                    .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.1), value: isLoadingSchedules)
+
+                                if index < 11 { // Change this from 5 to 11 for the correct divider placement
                                     Divider()
                                 }
                             }
                         }
                     }
+
                     .scrollIndicators(.hidden)
                     .padding(.horizontal, 20)
                 }
@@ -995,17 +1005,18 @@ struct FlightTrackerScreen: View {
             // Shimmer Loading with staggered animation
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(0..<6, id: \.self) { index in
+                    ForEach(0..<12, id: \.self) { index in // Changed from 6 to 12
                         FlightRowShimmer()
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.1), value: isLoadingSchedules)
-                        
-                        if index < 5 {
+
+                        if index < 11 { // Change this from 5 to 11 for the correct divider placement
                             Divider()
                         }
                     }
                 }
             }
+
             .scrollIndicators(.hidden)
             .padding(.horizontal, 20)
         }
@@ -1027,8 +1038,9 @@ struct FlightTrackerScreen: View {
                                 addRecentlyViewedFlight(flight)
                             }
                         )) {
-                            // FIXED: Remove the extra schedule parameter
                             flightRowContent(scheduleResults[index])
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                                .animation(.easeInOut(duration: 0.4).delay(Double(index) * 0.05), value: scheduleResults)
                         }
                         .buttonStyle(PlainButtonStyle())
                         
@@ -1058,8 +1070,9 @@ struct FlightTrackerScreen: View {
                                 addRecentlyViewedFlight(flight)
                             }
                         )) {
-                            // FIXED: Remove the extra schedule parameter
                             flightRowContent(displayingRecentResults[index])
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                                .animation(.easeInOut(duration: 0.4).delay(Double(index) * 0.05), value: displayingRecentResults)
                         }
                         .buttonStyle(PlainButtonStyle())
                         
@@ -1161,7 +1174,7 @@ struct FlightTrackerScreen: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.gray)
                         .frame(height: 20) // Optional height
-
+                        .id("\(resetMarquee ? "reset" : "")-\(flight.flightNumber)")
                 }
                 .frame(width: 70)
             }
@@ -1703,7 +1716,7 @@ struct TrackedFlightData: Codable, Identifiable {
     let date: String
 }
 
-struct FlightInfo {
+struct FlightInfo: Equatable {
     let flightNumber: String
     let airline: String
     let airlineIataCode: String? // ADD THIS FIELD
