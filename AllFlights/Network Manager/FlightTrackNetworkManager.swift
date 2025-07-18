@@ -12,6 +12,10 @@ class FlightTrackNetworkManager {
     
     private init() {}
     
+// MARK: Mock data
+       var useMockData: Bool = true
+// MARK: mock ends
+    
     func searchAirports(query: String) async throws -> FlightTrackAirportResponse {
         let cacheKey = "airports_\(query.lowercased())"
         
@@ -188,7 +192,25 @@ class FlightTrackNetworkManager {
         }
     }
     
+//    MARK: Mock data
+    private func loadMockFlightDetail() throws -> FlightDetailResponse {
+        guard let url = Bundle.main.url(forResource: "Flight-in-air", withExtension: "json") else {
+            throw FlightTrackNetworkError.badRequest("Missing mock file: Flight-in-air.json")
+        }
+
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        return try decoder.decode(FlightDetailResponse.self, from: data)
+    }
+//    MARK: mock ends
+    
     func fetchFlightDetail(flightNumber: String, date: String) async throws -> FlightDetailResponse {
+//        MARK: mock data
+        if useMockData {
+                print("🧪 Using mock JSON for flight detail")
+                return try loadMockFlightDetail()
+            }
+// mock ends
         // Parse flight number to separate airline code and flight number
         let (airlineId, cleanFlightNumber) = parseFlightNumber(flightNumber)
         

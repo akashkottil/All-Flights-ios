@@ -63,8 +63,8 @@ struct FlightMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
         
-        // Set initial region
-        let region = calculateOptimalRegion()
+        // Set initial region with bottom sheet consideration
+        let region = calculateOptimalRegionWithBottomSheet()
         map.setRegion(region, animated: false)
 
         return map
@@ -81,6 +81,12 @@ struct FlightMapView: UIViewRepresentable {
         // Add flight path overlays if available
         if showFlightPath && !arcPathPoints.isEmpty {
             addFlightPathOverlays(to: uiView)
+            
+            // Animate to show full path with bottom sheet consideration
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                let region = calculateOptimalRegionWithBottomSheet()
+                uiView.setRegion(region, animated: true)
+            }
         }
     }
 
@@ -88,21 +94,36 @@ struct FlightMapView: UIViewRepresentable {
         Coordinator()
     }
     
-    private func calculateOptimalRegion() -> MKCoordinateRegion {
-        let centerLat = (departure.latitude + arrival.latitude) / 2
-        let centerLng = (departure.longitude + arrival.longitude) / 2
+    // COMPLETELY REWRITTEN: Force coordinates into top 50% of screen
+    private func calculateOptimalRegionWithBottomSheet() -> MKCoordinateRegion {
+        let flightCenterLat = (departure.latitude + arrival.latitude) / 2
+        let flightCenterLng = (departure.longitude + arrival.longitude) / 2
         
-        let latDelta = abs(departure.latitude - arrival.latitude) * 1.8
-        let lngDelta = abs(departure.longitude - arrival.longitude) * 1.8
+        let latDelta = abs(departure.latitude - arrival.latitude)
+        let lngDelta = abs(departure.longitude - arrival.longitude)
+        
+        // Calculate how much map area we need to show
+        let requiredLatSpan = max(latDelta * 1.4, 2.0) // Just enough to show the flight path
+        let requiredLngSpan = max(lngDelta * 1.4, 2.0)
+        
+        // FORCE the map center to be MUCH lower than the flight coordinates
+        // This pushes the flight path to the top of the visible area
+        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8) // Move map center way down
+        let mapCenterLng = flightCenterLng
+        
+        // Use a larger span to ensure everything is visible
+        let totalLatSpan = requiredLatSpan * 2.5 // Much larger span
+        let totalLngSpan = requiredLngSpan * 1.8
         
         return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLng),
+            center: CLLocationCoordinate2D(latitude: mapCenterLat, longitude: mapCenterLng),
             span: MKCoordinateSpan(
-                latitudeDelta: max(latDelta, 2.0),
-                longitudeDelta: max(lngDelta, 2.0)
+                latitudeDelta: totalLatSpan,
+                longitudeDelta: totalLngSpan
             )
         )
     }
+
     
     private func addAirportAnnotations(to mapView: MKMapView) {
         let departureAnnotation = MKPointAnnotation()
@@ -413,11 +434,18 @@ struct FlightDetailScreen: View {
                 }
             }
             .onAppear {
+//                MARK: mock data
+                FlightTrackNetworkManager.shared.useMockData = true
+// MARK: mock ends
                 Task {
                     await fetchFlightDetails()
                 }
             }
             .onDisappear {
+//                MARK: mock data
+                FlightTrackNetworkManager.shared.useMockData = false
+// MARK: mock ends
+                
                 // Add flight to recently viewed when user leaves this screen
                 if let flightDetail = flightDetail, let onFlightViewed = onFlightViewed {
                     addToRecentlyViewed(flightDetail)
@@ -443,7 +471,7 @@ struct FlightDetailScreen: View {
                 bottomSheetContent()
                     .presentationDetents([.medium, .fraction(0.95)])
                     .presentationDragIndicator(.visible)
-                    .presentationBackground(.regularMaterial)
+                    .presentationBackground(Color.white)
                     .interactiveDismissDisabled(true)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
             }
@@ -470,8 +498,8 @@ struct FlightDetailScreen: View {
         .background(Color.clear)
     }
     
-    // MARK: - ENHANCED Map Setup Methods
     
+    // UPDATED: setupMapData with forced top positioning
     private func setupMapData(for flight: FlightDetail) {
         let departureCoordinate = CLLocationCoordinate2D(
             latitude: flight.departure.airport.location.lat,
@@ -498,7 +526,7 @@ struct FlightDetailScreen: View {
             type: .arrival
         )
         
-        // UPDATED: Set map annotations immediately
+        // Set map annotations
         mapAnnotations = [
             FlightAnnotation(
                 id: "departure",
@@ -517,48 +545,106 @@ struct FlightDetailScreen: View {
         // Create flight route
         flightRoute = [departureCoordinate, arrivalCoordinate]
         
-        // Calculate region to fit both points
-        let centerLat = (departureCoordinate.latitude + arrivalCoordinate.latitude) / 2
-        let centerLng = (departureCoordinate.longitude + arrivalCoordinate.longitude) / 2
+        // FORCE coordinates to appear in top 50% by positioning map center much lower
+        let flightCenterLat = (departureCoordinate.latitude + arrivalCoordinate.latitude) / 2
+        let flightCenterLng = (departureCoordinate.longitude + arrivalCoordinate.longitude) / 2
         
-        let latDelta = abs(departureCoordinate.latitude - arrivalCoordinate.latitude) * 1.5
-        let lngDelta = abs(departureCoordinate.longitude - arrivalCoordinate.longitude) * 1.5
+        let latDelta = abs(departureCoordinate.latitude - arrivalCoordinate.latitude)
+        let lngDelta = abs(departureCoordinate.longitude - arrivalCoordinate.longitude)
+        
+        // Calculate required spans
+        let requiredLatSpan = max(latDelta * 1.4, 2.0)
+        let requiredLngSpan = max(lngDelta * 1.4, 2.0)
+        
+        // Position map center WAY BELOW the flight coordinates
+        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8)
         
         let region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLng),
+            center: CLLocationCoordinate2D(latitude: mapCenterLat, longitude: flightCenterLng),
             span: MKCoordinateSpan(
-                latitudeDelta: max(latDelta, 1.0),
-                longitudeDelta: max(lngDelta, 1.0)
+                latitudeDelta: requiredLatSpan * 2.5,
+                longitudeDelta: requiredLngSpan * 1.8
             )
         )
         
         mapRegion = region
         
-        // ENHANCED: Calculate flight path and position
+        // Calculate flight path and position
         calculateFlightProgress(for: flight)
         generateSmartArcPath(from: departureCoordinate, to: arrivalCoordinate)
         
-        print("✅ Map data setup complete - Annotations: \(mapAnnotations.count)")
+        print("✅ Map data setup complete - Flight coordinates forced to top 50%")
     }
+
     
-    // MARK: - Enhanced Flight Path Animation
-    
+    // UPDATED: Animation with forced positioning
     private func animateFlightPath() {
-        withAnimation(.easeInOut(duration: 1.5)) {
+        // First, ensure coordinates are in top 50% by positioning map center lower
+        let initialRegion = calculateOptimalRegionForBottomSheet()
+        
+        // Start with a zoomed out version
+        withAnimation(.easeInOut(duration: 0.8)) {
+            mapRegion = MKCoordinateRegion(
+                center: initialRegion.center,
+                span: MKCoordinateSpan(
+                    latitudeDelta: initialRegion.span.latitudeDelta * 1.3,
+                    longitudeDelta: initialRegion.span.longitudeDelta * 1.3
+                )
+            )
+        }
+        
+        // Show the flight path
+        withAnimation(.easeInOut(duration: 1.2).delay(0.3)) {
             showFlightPath = true
         }
         
         // Animate the path drawing
-        withAnimation(.easeInOut(duration: 2.0).delay(0.5)) {
+        withAnimation(.easeInOut(duration: 2.0).delay(0.8)) {
             pathAnimationProgress = 1.0
         }
         
+        // Zoom to final position with coordinates in top 50%
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeInOut(duration: 1.0)) {
+                mapRegion = calculateOptimalRegionForBottomSheet()
+            }
+        }
+        
         // Animate flight icon after path appears
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { // Increased delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 isAnimating = true
             }
         }
+    }
+
+    // UPDATED: Bottom sheet aware region calculation with forced positioning
+    private func calculateOptimalRegionForBottomSheet() -> MKCoordinateRegion {
+        guard let departure = departureAnnotation?.coordinate,
+              let arrival = arrivalAnnotation?.coordinate else {
+            return mapRegion
+        }
+        
+        let flightCenterLat = (departure.latitude + arrival.latitude) / 2
+        let flightCenterLng = (departure.longitude + arrival.longitude) / 2
+        
+        let latDelta = abs(departure.latitude - arrival.latitude)
+        let lngDelta = abs(departure.longitude - arrival.longitude)
+        
+        // Calculate spans needed to show flight path
+        let requiredLatSpan = max(latDelta * 1.4, 2.0)
+        let requiredLngSpan = max(lngDelta * 1.4, 2.0)
+        
+        // FORCE map center to be much lower than flight coordinates
+        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8)
+        
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: mapCenterLat, longitude: flightCenterLng),
+            span: MKCoordinateSpan(
+                latitudeDelta: requiredLatSpan * 2.5,
+                longitudeDelta: requiredLngSpan * 1.8
+            )
+        )
     }
     
     // MARK: - Enhanced Arc Path Generation with Horizontal Curves
@@ -1854,5 +1940,6 @@ struct ShimmerModifier: ViewModifier {
 }
 
 #Preview {
-    FlightDetailScreen(flightNumber: "6E 703", date: "20250618")
+    FlightTrackNetworkManager.shared.useMockData = true
+    return FlightDetailScreen(flightNumber: "6E703", date: "20250618")
 }
