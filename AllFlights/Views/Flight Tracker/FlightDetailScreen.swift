@@ -647,8 +647,7 @@ struct FlightDetailScreen: View {
         )
     }
     
-    // MARK: - Enhanced Arc Path Generation with Horizontal Curves
-    
+    // MARK: - Enhanced Arc Path Generation with Smart Direction Based on Geography
     private func generateSmartArcPath(from departure: CLLocationCoordinate2D, to arrival: CLLocationCoordinate2D) {
         let numberOfPoints = 100
         var points: [CLLocationCoordinate2D] = []
@@ -658,9 +657,9 @@ struct FlightDetailScreen: View {
         let lngDifference = arrival.longitude - departure.longitude
         let distance = sqrt(pow(latDifference, 2) + pow(lngDifference, 2))
         
-        // Determine curve direction based on flight direction
+        // Determine curve direction based on intelligent flight routing
         let curveMagnitude = calculateCurveMagnitude(for: distance)
-        let curveDirection = determineCurveDirection(departure: departure, arrival: arrival)
+        let curveDirection = determineIntelligentCurveDirection(departure: departure, arrival: arrival)
         
         // Calculate midpoint
         let midLat = (departure.latitude + arrival.latitude) / 2
@@ -706,22 +705,40 @@ struct FlightDetailScreen: View {
         // Calculate flight icon position based on progress
         updateFlightIconPosition()
         
-        print("✈️ Generated smart arc path with \(points.count) points, progress: \(flightPathProgress)")
+        print("✈️ Generated smart arc path with \(points.count) points, curve direction: \(curveDirection > 0 ? "RIGHT (arrival is LEFT of departure)" : "LEFT (arrival is RIGHT of departure)"), progress: \(flightPathProgress)")
     }
 
     private func calculateCurveMagnitude(for distance: Double) -> Double {
-        // Dynamic curve magnitude based on distance
+        // Dynamic curve magnitude based on distance with more realistic scaling
         switch distance {
-        case 0..<5:
-            return distance * 0.08  // Very small curve for short flights
-        case 5..<15:
-            return distance * 0.15  // Small curve for medium-short flights
-        case 15..<30:
-            return distance * 0.22  // Medium curve for medium flights
-        case 30..<50:
-            return distance * 0.28  // Large curve for long flights
+        case 0..<3:
+            return distance * 0.05  // Very minimal curve for very short flights
+        case 3..<8:
+            return distance * 0.12  // Small curve for short flights
+        case 8..<20:
+            return distance * 0.18  // Medium curve for medium flights
+        case 20..<40:
+            return distance * 0.25  // Larger curve for long flights
+        case 40..<80:
+            return distance * 0.30  // Large curve for very long flights
         default:
-            return distance * 0.35  // Very large curve for transcontinental flights
+            return distance * 0.35  // Maximum curve for transcontinental flights
+        }
+    }
+    
+    private func determineIntelligentCurveDirection(departure: CLLocationCoordinate2D, arrival: CLLocationCoordinate2D) -> Double {
+        let lngDiff = arrival.longitude - departure.longitude
+        
+        // Simple logic based on relative position:
+        // If arrival is to the RIGHT of departure (positive longitude difference) -> curve LEFT (negative)
+        // If arrival is to the LEFT of departure (negative longitude difference) -> curve RIGHT (positive)
+        
+        if lngDiff > 0 {
+            // Arrival is to the RIGHT -> curve LEFT
+            return -1.0
+        } else {
+            // Arrival is to the LEFT -> curve RIGHT
+            return 1.0
         }
     }
 
@@ -754,6 +771,7 @@ struct FlightDetailScreen: View {
         }
     }
 
+    // MARK: - Enhanced Flight Icon Position Update
     private func updateFlightIconPosition() {
         guard !arcPathPoints.isEmpty else {
             flightIconPosition = nil
@@ -762,6 +780,22 @@ struct FlightDetailScreen: View {
         
         let index = min(Int(flightPathProgress * Double(arcPathPoints.count - 1)), arcPathPoints.count - 1)
         flightIconPosition = arcPathPoints[max(0, index)]
+        
+        // Debug: Print current flight position and direction
+        if index > 0 && index < arcPathPoints.count - 1 {
+            let prevPoint = arcPathPoints[index - 1]
+            let nextPoint = arcPathPoints[index + 1]
+            let direction = calculateFlightDirection(from: prevPoint, to: nextPoint)
+            print("✈️ Flight at position \(index)/\(arcPathPoints.count), heading: \(direction)°")
+        }
+    }
+    
+    private func calculateFlightDirection(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
+        let deltaLng = to.longitude - from.longitude
+        let deltaLat = to.latitude - from.latitude
+        let angleRadians = atan2(deltaLng, deltaLat)
+        let angleDegrees = angleRadians * 180 / .pi
+        return angleDegrees
     }
     
     // MARK: - Flight Progress Calculation
