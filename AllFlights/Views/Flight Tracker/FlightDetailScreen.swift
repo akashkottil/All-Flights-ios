@@ -56,6 +56,8 @@ struct FlightMapView: UIViewRepresentable {
     let flightProgress: Double
     let pathAnimationProgress: Double
     let showFlightPath: Bool
+    
+    
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -395,6 +397,18 @@ extension Color {
     static let flightIconGlow = Color.blue.opacity(0.4)
 }
 
+// Add this new struct for share functionality
+struct FlightShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiView: UIActivityViewController, context: Context) {}
+}
+
 struct FlightDetailScreen: View {
     @Environment(\.presentationMode) var presentationMode
     
@@ -428,6 +442,10 @@ struct FlightDetailScreen: View {
     @State private var isAnimating = false
     @State private var pathAnimationProgress: Double = 1.0
     @State private var showFlightPath = false
+    
+    // ADD: Share functionality state
+    @State private var showShareSheet = false
+    @State private var shareItems: [Any] = []
     
     private let networkManager = FlightTrackNetworkManager.shared
 
@@ -494,12 +512,12 @@ struct FlightDetailScreen: View {
                     .foregroundColor(.white)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        // Share action
-                    }) {
-                        Image("FilterShare")
-                    }
-                }
+                                    Button(action: {
+                                        shareFlightDetails()
+                                    }) {
+                                        Image("FilterShare")
+                                    }
+                                }
             }
             .onAppear {
 //                MARK: mock data
@@ -542,10 +560,52 @@ struct FlightDetailScreen: View {
                     .presentationBackground(Color.white)
                     .interactiveDismissDisabled(true)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                    .sheet(isPresented: $showShareSheet) {
+                                ShareSheet(items: shareItems)
+                                    .presentationDetents([.medium])
+                                    .presentationDragIndicator(.visible)
+                            }
             }
+            
         }.navigationBarBackButtonHidden(true)
     }
     
+    // ADD: Share functionality
+    private func shareFlightDetails() {
+        guard let flight = flightDetail else {
+            // Fallback share content if flight details aren't loaded yet
+            shareItems = [
+                "Flight \(flightNumber) - \(formatDateForDisplay(date))",
+                "Track this flight with FlightTrack app!"
+            ]
+            showShareSheet = true
+            return
+        }
+        
+        // Create comprehensive share content
+        let flightInfo = """
+        ✈️ Flight \(flight.flightIata) - \(flight.airline.name)
+        
+        📅 \(formatDateForDisplay(date))
+        
+        🛫 Departure: \(flight.departure.airport.city ?? flight.departure.airport.name) (\(flight.departure.airport.iataCode))
+        ⏰ \(formatTime(flight.departure.scheduled.local))
+        
+        🛬 Arrival: \(flight.arrival.airport.city ?? flight.arrival.airport.name) (\(flight.arrival.airport.iataCode))
+        ⏰ \(formatTime(flight.arrival.scheduled.local))
+        
+        ⏱️ Duration: \(calculateDuration(departure: flight.departure.scheduled.local, arrival: flight.arrival.scheduled.local))
+        📏 Distance: \(String(format: "%.0f", flight.greatCircleDistance.km)) km
+        
+        📊 Status: \(flight.status ?? "Unknown")
+        
+        Track flights with AllFlights app! 🚀
+        """
+        
+        shareItems = [flightInfo]
+        showShareSheet = true
+    }
+        
     
     // Bottom sheet content
     private func bottomSheetContent() -> some View {
@@ -1030,6 +1090,8 @@ struct FlightDetailScreen: View {
                         )
                 }
                 
+                
+                
                 Image("DottedLine")
    
                 // Flight Route Timeline with updated design
@@ -1103,11 +1165,24 @@ struct FlightDetailScreen: View {
                         
                         // Duration (centered between departure and arrival)
                         HStack {
-                            Spacer()
                             Text(calculateDuration(departure: flight.departure.scheduled.local, arrival: flight.arrival.scheduled.local))
                                 .font(.caption)
                                 .foregroundColor(.gray)
-                                .padding(.vertical, 8)
+                                .padding(.vertical, 1)
+                                .padding(.horizontal,3)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white)
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color.black.opacity(0.6), lineWidth: 0.5)
+                                        )
+                                )
+                                VStack
+                            {
+                                Divider()
+                            }
+                            
                             Spacer()
                         }
                         
@@ -1162,6 +1237,15 @@ struct FlightDetailScreen: View {
                 }
                 .padding()
                 
+                HStack{
+                    Image("FTRefreshed")
+                    Text("Updated just Now")
+                        .foregroundColor(.red)
+                        .font(.system(size: 14))
+                        .fontWeight(.medium)
+                    Spacer()
+                }
+                .padding(.horizontal,20)
                 Divider()
                     .padding(.bottom,20)
                 
@@ -1239,8 +1323,8 @@ struct FlightDetailScreen: View {
             }
             .padding()
             .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.05), radius: 4)
+            .cornerRadius(20)
+            
         }
     }
 
@@ -1848,155 +1932,6 @@ struct sFlightPathView: View {
                 style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 5])
             )
         }
-    }
-}
-
-// MARK: - Supporting Views (keeping original design)
-
-struct AirlinesInfo: View {
-    let airline: FlightDetailAirline
-    
-    var body: some View {
-        VStack(alignment:.leading, spacing: 12){
-            Text("Airline Information")
-                .font(.system(size: 18, weight: .semibold))
-                .padding(.top, 15)
-            HStack{
-                AirlineLogoView(
-                    iataCode: airline.iataCode,
-                    fallbackImage: "FlightTrackLogo",
-                    size: 34
-                )
-                Text(airline.name)
-                    .font(.system(size: 16, weight: .semibold))
-                Spacer()
-            }
-            HStack{
-                VStack {
-                    Text("ATC Callsign")
-                    Text(airline.callsign ?? "N/A")
-                        .fontWeight(.bold)
-                }
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                VStack {
-                    Text("Fleet Size")
-                    Text("\(airline.totalAircrafts ?? 0)")
-                        .fontWeight(.bold)
-                }
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                VStack {
-                    Text("Fleet Age")
-                    Text("\(String(format: "%.1f", airline.averageFleetAge ?? 0.0))y")
-                        .fontWeight(.bold)
-                }
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            Text("Flight performance")
-                .font(.system(size: 16, weight: .semibold))
-            HStack{
-                Text("On-time")
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-                Text("90%") // You might want to calculate this from real data
-                    .font(.system(size: 12, weight: .bold))
-            }
-            // Custom Progress Bar
-            CustomProgressBar(progress: 0.9) // 90%
-                .padding(.vertical, 4)
-            
-            Text("Based on data for the past 10 days")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.gray)
-        }
-    }
-}
-
-struct AboutDestination: View {
-    let flight: FlightDetail
-    
-    var body: some View {
-        VStack(alignment: .leading){
-            Text("About your destination")
-                .font(.system(size: 18, weight: .semibold))
-            HStack{
-                VStack(alignment: .leading){
-                    Text("29°C") // You might want to integrate weather API
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Weather in \(flight.arrival.airport.city ?? flight.arrival.airport.name)")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                Spacer()
-                Image("Cloud")
-            }
-            .padding()
-            .background(.blue)
-            .cornerRadius(20)
-            
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Distance")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.black.opacity(0.7))
-                    Text("\(String(format: "%.0f", flight.greatCircleDistance.km)) km")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.black)
-                    Text("Great circle distance")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.black.opacity(0.7))
-                }
-                Spacer()
-            }
-            .padding()
-            .background(Color.white)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.black.opacity(0.3), lineWidth: 1.4)
-            )
-            .cornerRadius(20)
-        }
-    }
-}
-
-struct CustomProgressBar: View {
-    let progress: Double // Value between 0.0 and 1.0
-    let height: CGFloat = 8
-    let cornerRadius: CGFloat = 4
-    
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                // Background (wrapped box)
-                RoundedRectangle(cornerRadius: cornerRadius*2)
-                    .fill(Color(red: 0.827, green: 0.827, blue: 0.827, opacity: 0.4)) // #D3D3D366
-                    .frame(height: height*2)
-                
-                // Progress fill
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Color(red: 0.0, green: 0.424, blue: 0.890)) // #006CE3
-                    .frame(width: geometry.size.width * CGFloat(progress), height: height)
-                    .padding(.horizontal,5)
-            }
-        }
-        .frame(height: height)
     }
 }
 
