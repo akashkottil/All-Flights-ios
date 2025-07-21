@@ -66,6 +66,9 @@ struct FlightMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
         
+        // Optimize for smooth animation
+        optimizeMapPerformance(map)
+        
         let region = calculateOptimalRegionWithBottomSheet()
         map.setRegion(region, animated: false)
         
@@ -74,23 +77,38 @@ struct FlightMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        print("🔄 Updating FlightMapView - showFlightPath: \(showFlightPath), arcPathPoints: \(arcPathPoints.count), flightProgress: \(flightProgress), pathAnimationProgress: \(pathAnimationProgress)")
+        // Reduce unnecessary updates by checking for meaningful changes
+        let progressDiff = abs(context.coordinator.lastFlightProgress - flightProgress)
+        let pathProgressDiff = abs(context.coordinator.lastPathProgress - pathAnimationProgress)
         
-        // Clear existing overlays and annotations
+        let shouldUpdate = progressDiff > 0.001 || // Only update if progress changed significantly
+                          pathProgressDiff > 0.001 ||
+                          context.coordinator.lastShowPath != showFlightPath
+        
+        guard shouldUpdate else { return }
+        
+        // Update coordinator state
+        context.coordinator.lastFlightProgress = flightProgress
+        context.coordinator.lastPathProgress = pathAnimationProgress
+        context.coordinator.lastShowPath = showFlightPath
+        
+        // Clear and rebuild overlays efficiently
         uiView.removeOverlays(uiView.overlays)
-        uiView.removeAnnotations(uiView.annotations)
+        let existingFlightIcons = uiView.annotations.filter { $0 is FlightMapIconAnnotation }
+        uiView.removeAnnotations(existingFlightIcons)
         
-        // Add airport annotations
-        addAirportAnnotations(to: uiView)
+        // Add airport annotations only once
+        if uiView.annotations.filter({ $0.title == "Departure" || $0.title == "Arrival" }).isEmpty {
+            addAirportAnnotations(to: uiView)
+        }
         
         // Add flight path overlays if available
         if showFlightPath && !arcPathPoints.isEmpty {
             addFlightPathOverlays(to: uiView)
             
-            // Animate to show full path
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let region = calculateOptimalRegionWithBottomSheet()
-                uiView.setRegion(region, animated: true)
+            // Animate region only once
+            if !context.coordinator.hasAnimatedToRegion {
+                context.coordinator.hasAnimatedToRegion = true
             }
         }
     }
@@ -136,6 +154,15 @@ struct FlightMapView: UIViewRepresentable {
         mapView.addAnnotations([departureAnnotation, arrivalAnnotation])
         print("✈️ Added airport annotations")
     }
+    private func optimizeMapPerformance(_ mapView: MKMapView) {
+        // Reduce map rendering during animation
+        mapView.isUserInteractionEnabled = false
+        
+        // Re-enable after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            mapView.isUserInteractionEnabled = true
+        }
+    }
     
     private func addFlightPathOverlays(to mapView: MKMapView) {
         guard arcPathPoints.count > 1 else {
@@ -146,43 +173,29 @@ struct FlightMapView: UIViewRepresentable {
         let totalPoints = arcPathPoints.count
         let traveledCount = Int(Double(totalPoints) * flightProgress * pathAnimationProgress)
         
-        print("🛫 Adding overlays - totalPoints: \(totalPoints), flightProgress: \(flightProgress), pathAnimationProgress: \(pathAnimationProgress), traveledCount: \(traveledCount)")
+        // Always show the complete route outline (faint)
+        if pathAnimationProgress > 0.1 {
+            let completeRoutePolyline = MKPolyline(coordinates: arcPathPoints, count: arcPathPoints.count)
+            completeRoutePolyline.title = "complete_route"
+            mapView.addOverlay(completeRoutePolyline)
+        }
         
-        // Add traveled path
-        if traveledCount >= 1 {
+        // Add progressively drawn traveled path
+        if traveledCount >= 2 { // Ensure at least 2 points for a line
             let traveledPoints = Array(arcPathPoints.prefix(traveledCount))
             let traveledPolyline = MKPolyline(coordinates: traveledPoints, count: traveledPoints.count)
             traveledPolyline.title = "traveled"
             mapView.addOverlay(traveledPolyline)
-            print("✅ Added traveled path with \(traveledPoints.count) points")
         }
         
-        // Add remaining path
-        if traveledCount < totalPoints - 1 && pathAnimationProgress > 0.3 {
-            let remainingPoints = Array(arcPathPoints.suffix(from: max(0, traveledCount)))
-            let remainingPolyline = MKPolyline(coordinates: remainingPoints, count: remainingPoints.count)
-            remainingPolyline.title = "remaining"
-            mapView.addOverlay(remainingPolyline)
-            print("✅ Added remaining path with \(remainingPoints.count) points")
-        }
-        
-        // SIMPLIFIED FLIGHT ICON LOGIC - Always show if we have points and some progress
-        if !arcPathPoints.isEmpty && flightProgress > 0 && pathAnimationProgress > 0.1 {
-            // Remove old flight icons
-            let oldFlightIcons = mapView.annotations.filter { $0 is FlightMapIconAnnotation }
-            mapView.removeAnnotations(oldFlightIcons)
-            
-            // Calculate icon position
+        // Add flight icon at current position
+        if !arcPathPoints.isEmpty && flightProgress > 0.001 && pathAnimationProgress > 0.1 {
             let iconIndex = min(max(Int(Double(totalPoints - 1) * flightProgress), 0), totalPoints - 1)
             let flightIconAnnotation = FlightMapIconAnnotation()
             flightIconAnnotation.coordinate = arcPathPoints[iconIndex]
             flightIconAnnotation.rotation = calculateFlightRotation(at: iconIndex)
             
             mapView.addAnnotation(flightIconAnnotation)
-            print("✈️ Added flight icon at index \(iconIndex)/\(totalPoints) with rotation \(flightIconAnnotation.rotation)°")
-            print("✈️ Flight icon coordinate: lat=\(flightIconAnnotation.coordinate.latitude), lng=\(flightIconAnnotation.coordinate.longitude)")
-        } else {
-            print("⚠️ Flight icon NOT added - arcPathPoints: \(arcPathPoints.count), flightProgress: \(flightProgress), pathAnimationProgress: \(pathAnimationProgress)")
         }
     }
     
@@ -222,17 +235,32 @@ struct FlightMapView: UIViewRepresentable {
     }
 
     class Coordinator: NSObject, MKMapViewDelegate {
+        var lastFlightProgress: Double = -1
+            var lastPathProgress: Double = -1
+            var lastShowPath: Bool = false
+            var hasAnimatedToRegion: Bool = false
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
                 
-                if polyline.title == "traveled" {
+                if polyline.title == "complete_route" {
+                    // Faint complete route outline
+                    renderer.strokeColor = UIColor.systemGray.withAlphaComponent(0.3)
+                    renderer.lineWidth = 2
+                    renderer.lineCap = .round
+                    renderer.lineDashPattern = [2, 4] // Subtle dashed line
+                    print("🎨 Rendering complete route outline")
+                } else if polyline.title == "traveled" {
+                    // Progressive traveled path with gradient effect
                     renderer.strokeColor = UIColor.systemPurple
                     renderer.lineWidth = 4
-                    print("🎨 Rendering traveled path")
+                    renderer.lineCap = .round
+                    print("🎨 Rendering progressive traveled path")
                 } else if polyline.title == "remaining" {
                     renderer.strokeColor = UIColor.systemBlue.withAlphaComponent(0.5)
                     renderer.lineWidth = 3
+                    renderer.lineCap = .round
+                    renderer.lineDashPattern = [5, 3]
                     print("🎨 Rendering remaining path")
                 }
                 
@@ -299,7 +327,6 @@ struct FlightMapView: UIViewRepresentable {
             return nil
         }
         
-        // SIMPLIFIED: Create flight icon directly using UIKit
         private func createFlightIcon(rotation: Double) -> UIImage {
             let size = CGSize(width: 40, height: 40)
             let renderer = UIGraphicsImageRenderer(size: size)
@@ -307,51 +334,52 @@ struct FlightMapView: UIViewRepresentable {
             return renderer.image { context in
                 let cgContext = context.cgContext
                 
-//                // Draw background circle
-//                cgContext.setFillColor(UIColor.blue.withAlphaComponent(0.3).cgColor)
-//                cgContext.fillEllipse(in: CGRect(x: 5, y: 5, width: 30, height: 30))
+                // Add smooth shadow for better visibility
+                cgContext.setShadow(offset: CGSize(width: 1, height: 1), blur: 2, color: UIColor.black.withAlphaComponent(0.3).cgColor)
                 
                 // Try to load and draw the custom image
                 if let flightImage = UIImage(named: "FlyingFlight") {
                     print("✅ Found FlyingFlight image")
                     
-                    // Apply rotation
+                    // Apply rotation with smooth interpolation
                     cgContext.saveGState()
                     cgContext.translateBy(x: size.width/2, y: size.height/2)
-                    cgContext.rotate(by: rotation * .pi / 180)
-                    cgContext.translateBy(x: -10, y: -10) // Center the 20x20 image
                     
-                    // Draw the flight image
+                    // Smooth rotation interpolation
+                    let smoothRotation = rotation * .pi / 180
+                    cgContext.rotate(by: smoothRotation)
+                    cgContext.translateBy(x: -10, y: -10)
+                    
+                    // Draw with anti-aliasing for smoother appearance
+                    cgContext.setAllowsAntialiasing(true)
+                    cgContext.interpolationQuality = .high
+                    
                     flightImage.draw(in: CGRect(x: 0, y: 0, width: 20, height: 20))
                     cgContext.restoreGState()
                 } else {
                     print("❌ FlyingFlight image not found, using fallback")
                     
-                    // Fallback: Draw a simple airplane shape
+                    // Smooth fallback airplane shape
                     cgContext.setFillColor(UIColor.white.cgColor)
+                    cgContext.setAllowsAntialiasing(true)
                     cgContext.saveGState()
                     cgContext.translateBy(x: size.width/2, y: size.height/2)
                     cgContext.rotate(by: rotation * .pi / 180)
                     
-                    // Draw airplane shape
+                    // Draw smoother airplane shape
                     let airplanePath = UIBezierPath()
                     airplanePath.move(to: CGPoint(x: 0, y: -8))
-                    airplanePath.addLine(to: CGPoint(x: -6, y: 2))
+                    airplanePath.addCurve(to: CGPoint(x: -6, y: 2), controlPoint1: CGPoint(x: -3, y: -5), controlPoint2: CGPoint(x: -5, y: -1))
                     airplanePath.addLine(to: CGPoint(x: -2, y: 2))
                     airplanePath.addLine(to: CGPoint(x: -1, y: 6))
                     airplanePath.addLine(to: CGPoint(x: 1, y: 6))
                     airplanePath.addLine(to: CGPoint(x: 2, y: 2))
-                    airplanePath.addLine(to: CGPoint(x: 6, y: 2))
+                    airplanePath.addCurve(to: CGPoint(x: 6, y: 2), controlPoint1: CGPoint(x: 5, y: -1), controlPoint2: CGPoint(x: 3, y: -5))
                     airplanePath.close()
                     
                     airplanePath.fill()
                     cgContext.restoreGState()
                 }
-                
-                // Add a small border
-//                cgContext.setStrokeColor(UIColor.white.cgColor)
-//                cgContext.setLineWidth(1)
-//                cgContext.strokeEllipse(in: CGRect(x: 5, y: 5, width: 30, height: 30))
             }
         }
         
@@ -443,6 +471,12 @@ struct FlightDetailScreen: View {
     @State private var pathAnimationProgress: Double = 1.0
     @State private var showFlightPath = false
     
+    // ADD THESE NEW ANIMATION STATES:
+    @State private var animatedFlightProgress: Double = 0.0
+    @State private var animatedPathProgress: Double = 0.0
+    @State private var isInitialAnimationComplete = false
+    @State private var animatedPathDrawingProgress: Double = 0.0
+    
     // ADD: Share functionality state
     @State private var showShareSheet = false
     @State private var shareItems: [Any] = []
@@ -465,8 +499,8 @@ struct FlightDetailScreen: View {
                         departure: departure,
                         arrival: arrival,
                         arcPathPoints: arcPathPoints,
-                        flightProgress: flightPathProgress,
-                        pathAnimationProgress: pathAnimationProgress,
+                        flightProgress: animatedFlightProgress, // Changed from flightPathProgress
+                        pathAnimationProgress: animatedPathProgress, // Changed from pathAnimationProgress
                         showFlightPath: showFlightPath
                     )
                     .ignoresSafeArea()
@@ -540,14 +574,14 @@ struct FlightDetailScreen: View {
             .onChange(of: flightDetail?.flightIata) { _ in
                 if let flight = flightDetail {
                     setupMapData(for: flight)
-                    // Auto-load map after setup with animation
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        withAnimation(.easeInOut(duration: 0.8)) {
+                    // Immediate map loading with faster animation
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        withAnimation(.easeInOut(duration: 0.6)) {
                             showMap = true
                         }
                         
-                        // Animate flight path after map appears
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        // Start animation much sooner
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                             animateFlightPath()
                         }
                     }
@@ -704,54 +738,105 @@ struct FlightDetailScreen: View {
         print("✅ Map data setup complete - Flight coordinates forced to top 50%")
     }
 
-    
-    // Also update the animateFlightPath function to remove the test values:
+    private func startSmoothFlightAnimation() {
+        print("🎬 Starting smooth coordinated flight and path animation")
+        
+        // Much faster animation
+        let animationDuration: Double = 6.0 // Reduced from 6.0
+        let frameRate: Double = 30.0
+        let totalFrames = Int(animationDuration * frameRate)
+        let targetProgress = flightPathProgress
+        
+        var currentFrame = 0
+        
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0/frameRate, repeats: true) { timer in
+            currentFrame += 1
+            let progress = Double(currentFrame) / Double(totalFrames)
+            
+            if progress >= 1.0 {
+                // Ensure final values are set exactly
+                animatedFlightProgress = targetProgress
+                animatedPathDrawingProgress = targetProgress
+                timer.invalidate()
+                isInitialAnimationComplete = true
+                print("✅ Smooth coordinated animation completed at progress: \(targetProgress)")
+            } else {
+                // Use smooth easing
+                let easedProgress = easeInOut(progress)
+                let currentProgressValue = easedProgress * targetProgress
+                
+                // Update both simultaneously for perfect coordination
+                DispatchQueue.main.async {
+                    self.animatedFlightProgress = currentProgressValue
+                    self.animatedPathDrawingProgress = currentProgressValue
+                }
+                
+                // Debug every 60 frames (every second)
+                if currentFrame % 60 == 0 {
+                    print("🎬 Animation progress: \(Int(progress * 100))% - flight=\(String(format: "%.3f", currentProgressValue))")
+                }
+            }
+        }
+    }
+
+    // Improved easing function for smoother animation
+    private func easeInOut(_ t: Double) -> Double {
+        if t < 0.5 {
+            return 2 * t * t
+        } else {
+            return -1 + (4 - 2 * t) * t
+        }
+    }
     private func animateFlightPath() {
         print("🎬 Starting flight path animation")
         
-        // Remove the hard-coded test values and use calculated ones
+        // Reset animation states
+        animatedFlightProgress = 0.0
+        animatedPathProgress = 1.0
+        animatedPathDrawingProgress = 0.0
+        isInitialAnimationComplete = false
+        
         let initialRegion = calculateOptimalRegionForBottomSheet()
         
-        // Start with a zoomed out version
+        // Start with a zoomed out version (much faster)
         withAnimation(.easeInOut(duration: 0.8)) {
             mapRegion = MKCoordinateRegion(
                 center: initialRegion.center,
                 span: MKCoordinateSpan(
-                    latitudeDelta: initialRegion.span.latitudeDelta * 1.3,
-                    longitudeDelta: initialRegion.span.longitudeDelta * 1.3
+                    latitudeDelta: initialRegion.span.latitudeDelta * 1.2,
+                    longitudeDelta: initialRegion.span.longitudeDelta * 1.2
                 )
             )
         }
         
-        // Show the flight path
+        // Show the flight path container immediately
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.easeInOut(duration: 1.2)) {
+            withAnimation(.easeInOut(duration: 0.8)) {
                 showFlightPath = true
+                animatedPathProgress = 1.0 // Show route outline immediately
             }
         }
         
-        // Animate the path drawing
+        // Zoom to final position quickly
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            withAnimation(.easeInOut(duration: 2.0)) {
-                pathAnimationProgress = 1.0
-            }
-        }
-        
-        // Zoom to final position
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation(.easeInOut(duration: 1.0)) {
                 mapRegion = calculateOptimalRegionForBottomSheet()
             }
         }
         
-        // Animate flight icon
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        // Start coordinated flight and path animation immediately after zoom
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            startSmoothFlightAnimation()
+        }
+        
+        // Animate flight icon pulsing immediately
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
                 isAnimating = true
             }
         }
         
-        print("🎬 Flight path animation sequence started")
+        print("🎬 Fast coordinated animation sequence started - will animate from 0 to \(flightPathProgress)")
     }
 
     // UPDATED: Bottom sheet aware region calculation with forced positioning
