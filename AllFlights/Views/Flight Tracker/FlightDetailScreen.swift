@@ -9,7 +9,7 @@ class FlightMapIconAnnotation: NSObject, MKAnnotation {
     var rotation: Double = 0
 }
 
-// Custom SwiftUI view for the flight icon (renamed to avoid conflicts)
+// Updated MapFlightIconView to use your custom FlyingFlight image
 struct MapFlightIconView: View {
     let rotation: Double
     @State private var isAnimating = false
@@ -34,10 +34,10 @@ struct MapFlightIconView: View {
                 .scaleEffect(isAnimating ? 1.2 : 0.8)
                 .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isAnimating)
             
-            // Flight icon
-            Image(systemName: "airplane")
+            // Flight icon - CHANGED: Use your custom FlyingFlight image
+            Image("FlyingFlight") // Using your custom asset instead of SF Symbol
                 .resizable()
-                .frame(width: 16, height: 16)
+                .frame(width: 20, height: 20) // Slightly larger for better visibility
                 .foregroundColor(.white)
                 .rotationEffect(.degrees(rotation))
                 .shadow(color: .blue.opacity(0.5), radius: 2, x: 0, y: 0)
@@ -48,6 +48,7 @@ struct MapFlightIconView: View {
     }
 }
 
+// Fixed FlightMapView with simplified flight icon logic
 struct FlightMapView: UIViewRepresentable {
     let departure: CLLocationCoordinate2D
     let arrival: CLLocationCoordinate2D
@@ -63,15 +64,17 @@ struct FlightMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
         
-        // Set initial region with bottom sheet consideration
         let region = calculateOptimalRegionWithBottomSheet()
         map.setRegion(region, animated: false)
-
+        
+        print("🗺️ Created MKMapView with region: \(region)")
         return map
     }
 
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        // Clear existing overlays
+        print("🔄 Updating FlightMapView - showFlightPath: \(showFlightPath), arcPathPoints: \(arcPathPoints.count), flightProgress: \(flightProgress), pathAnimationProgress: \(pathAnimationProgress)")
+        
+        // Clear existing overlays and annotations
         uiView.removeOverlays(uiView.overlays)
         uiView.removeAnnotations(uiView.annotations)
         
@@ -82,7 +85,7 @@ struct FlightMapView: UIViewRepresentable {
         if showFlightPath && !arcPathPoints.isEmpty {
             addFlightPathOverlays(to: uiView)
             
-            // Animate to show full path with bottom sheet consideration
+            // Animate to show full path
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 let region = calculateOptimalRegionWithBottomSheet()
                 uiView.setRegion(region, animated: true)
@@ -94,7 +97,6 @@ struct FlightMapView: UIViewRepresentable {
         Coordinator()
     }
     
-    // COMPLETELY REWRITTEN: Force coordinates into top 50% of screen
     private func calculateOptimalRegionWithBottomSheet() -> MKCoordinateRegion {
         let flightCenterLat = (departure.latitude + arrival.latitude) / 2
         let flightCenterLng = (departure.longitude + arrival.longitude) / 2
@@ -102,17 +104,13 @@ struct FlightMapView: UIViewRepresentable {
         let latDelta = abs(departure.latitude - arrival.latitude)
         let lngDelta = abs(departure.longitude - arrival.longitude)
         
-        // Calculate how much map area we need to show
-        let requiredLatSpan = max(latDelta * 1.4, 2.0) // Just enough to show the flight path
+        let requiredLatSpan = max(latDelta * 1.4, 2.0)
         let requiredLngSpan = max(lngDelta * 1.4, 2.0)
         
-        // FORCE the map center to be MUCH lower than the flight coordinates
-        // This pushes the flight path to the top of the visible area
-        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8) // Move map center way down
+        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8)
         let mapCenterLng = flightCenterLng
         
-        // Use a larger span to ensure everything is visible
-        let totalLatSpan = requiredLatSpan * 2.5 // Much larger span
+        let totalLatSpan = requiredLatSpan * 2.5
         let totalLngSpan = requiredLngSpan * 1.8
         
         return MKCoordinateRegion(
@@ -123,7 +121,6 @@ struct FlightMapView: UIViewRepresentable {
             )
         )
     }
-
     
     private func addAirportAnnotations(to mapView: MKMapView) {
         let departureAnnotation = MKPointAnnotation()
@@ -135,70 +132,91 @@ struct FlightMapView: UIViewRepresentable {
         arrivalAnnotation.title = "Arrival"
         
         mapView.addAnnotations([departureAnnotation, arrivalAnnotation])
+        print("✈️ Added airport annotations")
     }
     
     private func addFlightPathOverlays(to mapView: MKMapView) {
-        guard arcPathPoints.count > 1 else { return }
+        guard arcPathPoints.count > 1 else {
+            print("❌ No arc path points available")
+            return
+        }
         
-        // --- shared counters -------------------------------------------------
-        let totalPoints   = arcPathPoints.count
+        let totalPoints = arcPathPoints.count
         let traveledCount = Int(Double(totalPoints) * flightProgress * pathAnimationProgress)
         
-        // --- traveled path (solid purple) ------------------------------------
-        if traveledCount >= 1 {   // include first point
+        print("🛫 Adding overlays - totalPoints: \(totalPoints), flightProgress: \(flightProgress), pathAnimationProgress: \(pathAnimationProgress), traveledCount: \(traveledCount)")
+        
+        // Add traveled path
+        if traveledCount >= 1 {
             let traveledPoints = Array(arcPathPoints.prefix(traveledCount))
-            let traveledPolyline = MKPolyline(coordinates: traveledPoints,
-                                              count: traveledPoints.count)
+            let traveledPolyline = MKPolyline(coordinates: traveledPoints, count: traveledPoints.count)
             traveledPolyline.title = "traveled"
             mapView.addOverlay(traveledPolyline)
+            print("✅ Added traveled path with \(traveledPoints.count) points")
         }
         
-        // --- remaining path (solid light‑blue) -------------------------------
+        // Add remaining path
         if traveledCount < totalPoints - 1 && pathAnimationProgress > 0.3 {
             let remainingPoints = Array(arcPathPoints.suffix(from: max(0, traveledCount)))
-            let remainingPolyline = MKPolyline(coordinates: remainingPoints,
-                                               count: remainingPoints.count)
+            let remainingPolyline = MKPolyline(coordinates: remainingPoints, count: remainingPoints.count)
             remainingPolyline.title = "remaining"
             mapView.addOverlay(remainingPolyline)
+            print("✅ Added remaining path with \(remainingPoints.count) points")
         }
         
-        // --- flight icon at boundary -----------------------------------------
-        if traveledCount > 0 && traveledCount < totalPoints {
-            // remove the old icon (if any)
-            mapView.removeAnnotations(
-                mapView.annotations.filter { $0 is FlightMapIconAnnotation }
-            )
+        // SIMPLIFIED FLIGHT ICON LOGIC - Always show if we have points and some progress
+        if !arcPathPoints.isEmpty && flightProgress > 0 && pathAnimationProgress > 0.1 {
+            // Remove old flight icons
+            let oldFlightIcons = mapView.annotations.filter { $0 is FlightMapIconAnnotation }
+            mapView.removeAnnotations(oldFlightIcons)
             
-            let iconIndex = min(traveledCount, totalPoints - 1)
+            // Calculate icon position
+            let iconIndex = min(max(Int(Double(totalPoints - 1) * flightProgress), 0), totalPoints - 1)
             let flightIconAnnotation = FlightMapIconAnnotation()
             flightIconAnnotation.coordinate = arcPathPoints[iconIndex]
             flightIconAnnotation.rotation = calculateFlightRotation(at: iconIndex)
+            
             mapView.addAnnotation(flightIconAnnotation)
+            print("✈️ Added flight icon at index \(iconIndex)/\(totalPoints) with rotation \(flightIconAnnotation.rotation)°")
+            print("✈️ Flight icon coordinate: lat=\(flightIconAnnotation.coordinate.latitude), lng=\(flightIconAnnotation.coordinate.longitude)")
+        } else {
+            print("⚠️ Flight icon NOT added - arcPathPoints: \(arcPathPoints.count), flightProgress: \(flightProgress), pathAnimationProgress: \(pathAnimationProgress)")
         }
     }
-
     
     private func calculateFlightRotation(at index: Int) -> Double {
-        guard index > 0 && index < arcPathPoints.count - 1 else {
-            // Fallback for edge cases
-            if index == 0 && arcPathPoints.count > 1 {
-                let current = arcPathPoints[0]
-                let next = arcPathPoints[1]
-                let deltaLng = next.longitude - current.longitude
-                let deltaLat = next.latitude - current.latitude
-                return atan2(deltaLng, deltaLat) * 180 / .pi
-            }
+        guard index >= 0 && index < arcPathPoints.count else {
+            print("⚠️ Invalid rotation index: \(index)")
             return 0
         }
         
-        let beforePoint = arcPathPoints[index - 1]
-        let afterPoint = arcPathPoints[min(index + 1, arcPathPoints.count - 1)]
+        // Simple rotation calculation
+        if index == 0 && arcPathPoints.count > 1 {
+            let current = arcPathPoints[0]
+            let next = arcPathPoints[1]
+            let angle = atan2(next.longitude - current.longitude, next.latitude - current.latitude) * 180 / .pi
+            print("🧭 First point rotation: \(angle)°")
+            return angle
+        }
         
-        let deltaLng = afterPoint.longitude - beforePoint.longitude
-        let deltaLat = afterPoint.latitude - beforePoint.latitude
+        if index == arcPathPoints.count - 1 && index > 0 {
+            let previous = arcPathPoints[index - 1]
+            let current = arcPathPoints[index]
+            let angle = atan2(current.longitude - previous.longitude, current.latitude - previous.latitude) * 180 / .pi
+            print("🧭 Last point rotation: \(angle)°")
+            return angle
+        }
         
-        let angleRadians = atan2(deltaLng, deltaLat)
-        return angleRadians * 180 / .pi
+        if index > 0 && index < arcPathPoints.count - 1 {
+            let beforePoint = arcPathPoints[index - 1]
+            let afterPoint = arcPathPoints[index + 1]
+            let angle = atan2(afterPoint.longitude - beforePoint.longitude, afterPoint.latitude - beforePoint.latitude) * 180 / .pi
+            print("🧭 Mid point rotation: \(angle)°")
+            return angle
+        }
+        
+        print("🧭 Default rotation: 0°")
+        return 0
     }
 
     class Coordinator: NSObject, MKMapViewDelegate {
@@ -206,19 +224,14 @@ struct FlightMapView: UIViewRepresentable {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
                 
-                // Different styles for traveled vs remaining path
                 if polyline.title == "traveled" {
-                    // Solid, vibrant line for traveled path
                     renderer.strokeColor = UIColor.systemPurple
                     renderer.lineWidth = 4
-                    renderer.lineCap = .round
-                    renderer.lineJoin = .round
+                    print("🎨 Rendering traveled path")
                 } else if polyline.title == "remaining" {
-                    // Light, blurred/dashed line for remaining path
                     renderer.strokeColor = UIColor.systemBlue.withAlphaComponent(0.5)
                     renderer.lineWidth = 3
-                    renderer.lineCap = .round
-                    renderer.lineJoin = .round
+                    print("🎨 Rendering remaining path")
                 }
                 
                 return renderer
@@ -227,7 +240,12 @@ struct FlightMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            print("🏷️ Creating annotation view for: \(type(of: annotation))")
+            
+            // Handle flight icon annotation
             if let flightAnnotation = annotation as? FlightMapIconAnnotation {
+                print("✈️ Creating flight icon annotation view")
+                
                 let identifier = "FlightIcon"
                 var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
                 
@@ -236,27 +254,17 @@ struct FlightMapView: UIViewRepresentable {
                     annotationView?.canShowCallout = false
                 }
                 
-                // Create flight icon image with rotation
-                let flightIconView = UIHostingController(rootView:
-                    MapFlightIconView(rotation: flightAnnotation.rotation)
-                )
-                flightIconView.view.backgroundColor = UIColor.clear
-                flightIconView.view.frame = CGRect(x: 0, y: 0, width: 30, height: 30)
-                
-                // Convert SwiftUI view to UIImage
-                let renderer = UIGraphicsImageRenderer(bounds: flightIconView.view.bounds)
-                let image = renderer.image { context in
-                    flightIconView.view.layer.render(in: context.cgContext)
-                }
-                
-                annotationView?.image = image
+                // SIMPLIFIED: Create icon directly instead of using SwiftUI conversion
+                let iconImage = createFlightIcon(rotation: flightAnnotation.rotation)
+                annotationView?.image = iconImage
                 annotationView?.centerOffset = CGPoint(x: 0, y: 0)
-                annotationView?.annotation = annotation // Add this line
+                annotationView?.annotation = annotation
                 
+                print("✅ Flight icon annotation view created successfully")
                 return annotationView
             }
             
-            // Default airport annotations
+            // Handle airport annotations
             if annotation.title == "Departure" {
                 let identifier = "Departure"
                 var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
@@ -265,9 +273,10 @@ struct FlightMapView: UIViewRepresentable {
                     annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 }
                 
-                annotationView?.image = createAirportIcon(color: .systemGreen, size: 16)
+                annotationView?.image = createAirportIcon(color: UIColor.black.withAlphaComponent(0.7), size: 12)
                 annotationView?.centerOffset = CGPoint(x: 0, y: 0)
                 
+                print("✅ Departure annotation created")
                 return annotationView
             } else if annotation.title == "Arrival" {
                 let identifier = "Arrival"
@@ -277,13 +286,71 @@ struct FlightMapView: UIViewRepresentable {
                     annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 }
                 
-                annotationView?.image = createAirportIcon(color: .systemRed, size: 16)
+                annotationView?.image = createAirportIcon(color: UIColor.black.withAlphaComponent(0.7), size: 12)
                 annotationView?.centerOffset = CGPoint(x: 0, y: 0)
                 
+                print("✅ Arrival annotation created")
                 return annotationView
             }
             
+            print("⚠️ No annotation view created for: \(annotation)")
             return nil
+        }
+        
+        // SIMPLIFIED: Create flight icon directly using UIKit
+        private func createFlightIcon(rotation: Double) -> UIImage {
+            let size = CGSize(width: 40, height: 40)
+            let renderer = UIGraphicsImageRenderer(size: size)
+            
+            return renderer.image { context in
+                let cgContext = context.cgContext
+                
+//                // Draw background circle
+//                cgContext.setFillColor(UIColor.blue.withAlphaComponent(0.3).cgColor)
+//                cgContext.fillEllipse(in: CGRect(x: 5, y: 5, width: 30, height: 30))
+                
+                // Try to load and draw the custom image
+                if let flightImage = UIImage(named: "FlyingFlight") {
+                    print("✅ Found FlyingFlight image")
+                    
+                    // Apply rotation
+                    cgContext.saveGState()
+                    cgContext.translateBy(x: size.width/2, y: size.height/2)
+                    cgContext.rotate(by: rotation * .pi / 180)
+                    cgContext.translateBy(x: -10, y: -10) // Center the 20x20 image
+                    
+                    // Draw the flight image
+                    flightImage.draw(in: CGRect(x: 0, y: 0, width: 20, height: 20))
+                    cgContext.restoreGState()
+                } else {
+                    print("❌ FlyingFlight image not found, using fallback")
+                    
+                    // Fallback: Draw a simple airplane shape
+                    cgContext.setFillColor(UIColor.white.cgColor)
+                    cgContext.saveGState()
+                    cgContext.translateBy(x: size.width/2, y: size.height/2)
+                    cgContext.rotate(by: rotation * .pi / 180)
+                    
+                    // Draw airplane shape
+                    let airplanePath = UIBezierPath()
+                    airplanePath.move(to: CGPoint(x: 0, y: -8))
+                    airplanePath.addLine(to: CGPoint(x: -6, y: 2))
+                    airplanePath.addLine(to: CGPoint(x: -2, y: 2))
+                    airplanePath.addLine(to: CGPoint(x: -1, y: 6))
+                    airplanePath.addLine(to: CGPoint(x: 1, y: 6))
+                    airplanePath.addLine(to: CGPoint(x: 2, y: 2))
+                    airplanePath.addLine(to: CGPoint(x: 6, y: 2))
+                    airplanePath.close()
+                    
+                    airplanePath.fill()
+                    cgContext.restoreGState()
+                }
+                
+                // Add a small border
+//                cgContext.setStrokeColor(UIColor.white.cgColor)
+//                cgContext.setLineWidth(1)
+//                cgContext.strokeEllipse(in: CGRect(x: 5, y: 5, width: 30, height: 30))
+            }
         }
         
         private func createAirportIcon(color: UIColor, size: CGFloat) -> UIImage {
@@ -300,6 +367,7 @@ struct FlightMapView: UIViewRepresentable {
         }
     }
 }
+
 // MARK: - Stretchy Header Extension
 extension View {
     func estretchy() -> some View {
@@ -354,11 +422,11 @@ struct FlightDetailScreen: View {
     @State private var showMap = false
     
     // ENHANCED: Flight path and animation
-    @State private var flightPathProgress: Double = 0.0
+    @State private var flightPathProgress: Double = 0.1
     @State private var flightIconPosition: CLLocationCoordinate2D?
     @State private var arcPathPoints: [CLLocationCoordinate2D] = []
     @State private var isAnimating = false
-    @State private var pathAnimationProgress: Double = 0.0
+    @State private var pathAnimationProgress: Double = 1.0
     @State private var showFlightPath = false
     
     private let networkManager = FlightTrackNetworkManager.shared
@@ -577,9 +645,11 @@ struct FlightDetailScreen: View {
     }
 
     
-    // UPDATED: Animation with forced positioning
+    // Also update the animateFlightPath function to remove the test values:
     private func animateFlightPath() {
-        // First, ensure coordinates are in top 50% by positioning map center lower
+        print("🎬 Starting flight path animation")
+        
+        // Remove the hard-coded test values and use calculated ones
         let initialRegion = calculateOptimalRegionForBottomSheet()
         
         // Start with a zoomed out version
@@ -594,28 +664,34 @@ struct FlightDetailScreen: View {
         }
         
         // Show the flight path
-        withAnimation(.easeInOut(duration: 1.2).delay(0.3)) {
-            showFlightPath = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeInOut(duration: 1.2)) {
+                showFlightPath = true
+            }
         }
         
         // Animate the path drawing
-        withAnimation(.easeInOut(duration: 2.0).delay(0.8)) {
-            pathAnimationProgress = 1.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeInOut(duration: 2.0)) {
+                pathAnimationProgress = 1.0
+            }
         }
         
-        // Zoom to final position with coordinates in top 50%
+        // Zoom to final position
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation(.easeInOut(duration: 1.0)) {
                 mapRegion = calculateOptimalRegionForBottomSheet()
             }
         }
         
-        // Animate flight icon after path appears
+        // Animate flight icon
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 isAnimating = true
             }
         }
+        
+        print("🎬 Flight path animation sequence started")
     }
 
     // UPDATED: Bottom sheet aware region calculation with forced positioning

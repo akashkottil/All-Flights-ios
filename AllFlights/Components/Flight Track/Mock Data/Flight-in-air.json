@@ -1,11 +1,11 @@
 {
   "result": {
     "great_circle_distance": {
-      "meter": 8200000,
-      "km": 8200.0,
-      "mile": 5095.5,
-      "nm": 4430.7,
-      "feet": 26902887
+      "meter": 2780000,
+      "km": 2780.0,
+      "mile": 1727.5,
+      "nm": 1499.6,
+      "feet": 9120708
     },
     "departure": {
       "airport": {
@@ -29,92 +29,96 @@
         }
       },
       "scheduled": {
-        "utc": "2025-06-18T05:00:00Z",
-        "local": "2025-06-18T10:30:00+05:30"
+        "utc": "2025-07-18T06:15:00Z",
+        "local": "2025-07-18T11:45:00+05:30"
       },
       "estimated": {
-        "utc": "2025-06-18T05:20:00Z",
-        "local": "2025-06-18T10:50:00+05:30"
+        "utc": "2025-07-18T06:30:00Z",
+        "local": "2025-07-18T12:00:00+05:30"
       },
-      "taxiing": null,
       "actual": {
-        "utc": "2025-06-18T05:25:00Z",
-        "local": "2025-06-18T10:55:00+05:30"
+        "utc": "2025-07-18T06:45:00Z",
+        "local": "2025-07-18T12:15:00+05:30"
       },
-      "terminal": "1",
-      "gate": "A3",
-      "baggage_belt": "4"
+      "terminal": "3",
+      "gate": "B2",
+      "baggage_belt": "5"
     },
     "arrival": {
       "airport": {
-        "iata_code": "LHR",
-        "icao_code": "EGLL",
-        "name": "London Heathrow Airport",
-        "country": "United Kingdom",
-        "country_code": "GB",
+        "iata_code": "DXB",
+        "icao_code": "OMDB",
+        "name": "Dubai International Airport",
+        "country": "United Arab Emirates",
+        "country_code": "AE",
         "is_international": true,
         "is_major": true,
-        "city": "London",
+        "city": "Dubai",
         "location": {
-          "lat": 51.4700,
-          "lng": -0.4543
+          "lat": 25.2532,
+          "lng": 55.3657
         },
         "timezone": {
-          "timezone": "Europe/London",
-          "country_code": "GB",
-          "gmt": 1.0,
-          "dst": 1
+          "timezone": "Asia/Dubai",
+          "country_code": "AE",
+          "gmt": 4.0,
+          "dst": 0
         }
       },
       "scheduled": {
-        "utc": "2025-06-18T12:30:00Z",
-        "local": "2025-06-18T13:30:00+01:00"
+        "utc": "2025-07-18T10:00:00Z",
+        "local": "2025-07-18T14:00:00+04:00"
       },
       "estimated": {
-        "utc": "2025-06-18T12:50:00Z",
-        "local": "2025-06-18T13:50:00+01:00"
+        "utc": "2025-07-18T10:10:00Z",
+        "local": "2025-07-18T14:10:00+04:00"
       },
-      "taxiing": null,
       "actual": null,
-      "terminal": "5",
-      "gate": "A21",
-      "baggage_belt": "12"
+      "terminal": "1",
+      "gate": "C12",
+      "baggage_belt": "6"
     },
-    "last_updated": "2025-06-18T07:00:00Z",
-    "flight_iata": "6E703",
-    "call_sign": "IGO703",
+    "last_updated": "2025-07-18T07:49:04Z",
+    "flight_iata": "EK531",
+    "call_sign": "UAE531",
     "status": "enroute",
     "codeshare_status": null,
     "is_cargo": false,
     "aircraft": {
-      "hex": "ABC123",
-      "reg_number": "VT-IGK",
-      "country": "India",
-      "built": 2019,
-      "engine": "CFM56",
+      "hex": "ABC456",
+      "reg_number": "A6-EQN",
+      "country": "United Arab Emirates",
+      "built": 2021,
+      "engine": "GE90",
       "engine_count": 2,
-      "model": "A320neo",
-      "manufacturer": "Airbus",
-      "msn": "12345",
-      "type": "Narrow-body",
+      "model": "Boeing 777-300ER",
+      "manufacturer": "Boeing",
+      "msn": "65432",
+      "type": "Wide-body",
       "category": "Passenger",
-      "line": "A320",
-      "image_url": "https://example.com/aircraft.jpg"
+      "line": "777"
     },
     "airline": {
-      "name": "IndiGo",
-      "iata_code": "6E",
-      "icao_code": "IGO",
+      "name": "Emirates",
+      "iata_code": "EK",
+      "icao_code": "UAE",
       "is_international": true,
-      "website": "https://www.goindigo.in",
-      "country": "India",
-      "callsign": "IFLY",
+      "website": "https://www.emirates.com",
+      "country": "United Arab Emirates",
+      "callsign": "EMIRATES",
       "is_passenger": true,
       "is_cargo": false,
-      "total_aircrafts": 320,
-      "average_fleet_age": 3.2,
+      "total_aircrafts": 250,
+      "average_fleet_age": 6.1,
       "accidents_last_5y": 0,
       "crashes_last_5y": 0
+    },
+    "current_position": {
+      "lat": 16.5,
+      "lng": 74.0,
+      "altitude": 35000,
+      "speed": 450,
+      "bearing": 45
     }
   }
 }
