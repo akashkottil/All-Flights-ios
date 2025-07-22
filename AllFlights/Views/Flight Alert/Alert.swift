@@ -131,7 +131,18 @@ struct AlertScreen: View {
                                     alertData: alert,
                                     onDelete: { deletedAlert in
                                         handleAlertDeleted(deletedAlert)
-                                    }
+                                    },
+                                    onNavigateToSearch: { origin, destination, date, adults, children, cabinClass in
+                                                handleAlertSearchNavigation(
+                                                    fromCode: origin,
+                                                    toCode: destination,
+                                                    date: date,
+                                                    adults: adults,
+                                                    children: children,
+                                                    cabinClass: cabinClass,
+                                                    alert: alert
+                                                )
+                                            }
                                 )
                                 .padding(.horizontal)
                                 .padding(.vertical,6)
@@ -537,6 +548,36 @@ struct AlertScreen: View {
             print("❌ Failed to cache alerts: \(error)")
         }
     }
+    
+    // MARK: - Alert Search Navigation Handler
+
+    private func handleAlertSearchNavigation(
+        fromCode: String,
+        toCode: String,
+        date: Date,
+        adults: Int,
+        children: Int,
+        cabinClass: String,
+        alert: AlertResponse
+    ) {
+        print("🚨 Initiating search from alert: \(fromCode) → \(toCode)")
+        
+        // Use the extension method to navigate
+        SharedSearchDataStore.shared.executeSearchFromAlert(
+            fromLocationCode: fromCode,
+            fromLocationName: alert.route.origin_name,
+            toLocationCode: toCode,
+            toLocationName: alert.route.destination_name,
+            departureDate: date,
+            adultsCount: adults,
+            childrenCount: children,
+            selectedCabinClass: cabinClass
+        )
+        
+        // Navigate to explore tab
+        // Note: You may need to trigger tab navigation here depending on your navigation structure
+    }
+    
 }
 
 #Preview {
