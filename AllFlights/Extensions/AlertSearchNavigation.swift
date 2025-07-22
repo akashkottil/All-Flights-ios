@@ -3,8 +3,6 @@ import Foundation
 
 // MARK: - Alert Search Navigation Extension
 extension SharedSearchDataStore {
-    
-    /// Navigate from Alert to Explore with pre-filled data
     func executeSearchFromAlert(
         fromLocationCode: String,
         fromLocationName: String,
@@ -24,11 +22,12 @@ extension SharedSearchDataStore {
         self.fromIataCode = fromLocationCode
         self.toIataCode = toLocationCode
         self.selectedDates = [departureDate]
-        self.isRoundTrip = false // Default to one-way for alerts
-        self.selectedTab = 1 // One-way tab
-        self.adultsCount = adultsCount
-        self.childrenCount = childrenCount
-        self.selectedCabinClass = selectedCabinClass
+        self.isRoundTrip = false
+        self.selectedTab = 1
+        self.adultsCount = adultsCount           // UPDATED: Use actual values
+        self.childrenCount = childrenCount       // UPDATED: Use actual values
+        self.selectedCabinClass = selectedCabinClass  // UPDATED: Use actual values
+        self.childrenAges = Array(repeating: nil, count: childrenCount) // Generate appropriate array
         self.directFlightsOnly = false
         
         // Set navigation flags
@@ -38,6 +37,6 @@ extension SharedSearchDataStore {
         self.shouldNavigateToExplore = true
         self.searchTimestamp = Date()
         
-        print("🚨 Alert Search: Navigating to explore with \(fromLocationName) → \(toLocationName)")
+        print("🚨 Alert Search: \(fromLocationName) → \(toLocationName) with \(adultsCount + childrenCount) passengers (\(selectedCabinClass))")
     }
 }

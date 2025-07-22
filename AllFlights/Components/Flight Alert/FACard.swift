@@ -1,32 +1,31 @@
 import SwiftUI
 
 struct FACard: View {
-    // ADDED: Optional alert data for displaying API response
     let alertData: AlertResponse?
-    
-    // ADDED: Callback for delete action
     let onDelete: ((AlertResponse) -> Void)?
-    
-    // ADD: Navigation callback for search functionality
     let onNavigateToSearch: ((String, String, Date, Int, Int, String) -> Void)?
+    
+    @Binding var adultsCount: Int
+    @Binding var childrenCount: Int
+    @Binding var selectedCabinClass: String
+    
+    // Remove the @State variables for passenger data since they're now passed in
     
     init(
         alertData: AlertResponse? = nil,
         onDelete: ((AlertResponse) -> Void)? = nil,
-        onNavigateToSearch: ((String, String, Date, Int, Int, String) -> Void)? = nil
+        onNavigateToSearch: ((String, String, Date, Int, Int, String) -> Void)? = nil,
+        adultsCount: Binding<Int> = .constant(2),        // ✅ Binding<Int>
+        childrenCount: Binding<Int> = .constant(0),      // ✅ Binding<Int>
+        selectedCabinClass: Binding<String> = .constant("Economy") // ✅ Binding<String>
     ) {
         self.alertData = alertData
         self.onDelete = onDelete
         self.onNavigateToSearch = onNavigateToSearch
+        self._adultsCount = adultsCount          // ✅ Assign Binding to Binding
+        self._childrenCount = childrenCount      // ✅ Assign Binding to Binding
+        self._selectedCabinClass = selectedCabinClass // ✅ Assign Binding to Binding
     }
-    
-    
-    
-    // Add these state variables
-    @State private var showingPassengerSheet = false
-    @State private var tempAdultsCount = 2
-    @State private var tempChildrenCount = 0
-    @State private var tempCabinClass = "Economy"
     
     var body: some View {
         Button(action:{
@@ -155,7 +154,7 @@ struct FACard: View {
                                 .background(Color.black)
                             Image("cardpassenger")
                                 .frame(width: 18, height: 18)
-                            Text("2")
+                            Text("\(adultsCount + childrenCount)")
                                 .font(.system(size: 14))
                                 .fontWeight(.semibold)
                                 .foregroundColor(.black)
@@ -203,11 +202,12 @@ struct FACard: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         }
+        .buttonStyle(PlainButtonStyle())
     }
-        
+    
     
     // MARK: - Alert Navigation Helpers
-
+    
     private func handleSearchNavigation() {
         guard let alert = alertData,
               let flight = alert.cheapest_flight,
@@ -216,25 +216,19 @@ struct FACard: View {
             return
         }
         
-        // Parse departure date
         let departureDate = parseDepartureDate(departureDateTime) ?? Date()
         
-        // Use default passenger data (can be customized later)
-        let adultsCount = 2
-        let childrenCount = 0
-        let cabinClass = "Economy"
-        
-        // Trigger navigation callback
+        // UPDATED: Use the actual passenger data instead of hardcoded values
         onNavigateToSearch?(
             alert.route.origin,
             alert.route.destination,
             departureDate,
             adultsCount,
             childrenCount,
-            cabinClass
+            selectedCabinClass
         )
     }
-
+    
     private func parseDepartureDate(_ dateString: String) -> Date? {
         let formatter = DateFormatter()
         let formats = [
@@ -316,7 +310,7 @@ struct FACard: View {
             // Fallback to alert creation date if no flight date
             return formatAlertDate(alert.created_at)
         }
-        return "Fri 13 Jun" // Default fallback
+        return "Nill" // Default fallback
     }
     
     private func getCurrentPrice() -> String {
