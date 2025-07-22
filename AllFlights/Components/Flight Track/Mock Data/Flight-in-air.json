@@ -29,16 +29,16 @@
         }
       },
       "scheduled": {
-        "utc": "2025-07-18T06:15:00Z",
-        "local": "2025-07-18T11:45:00+05:30"
+        "utc": "2025-07-21T11:30:00Z",
+        "local": "2025-07-21T17:00:00+05:30"
       },
       "estimated": {
-        "utc": "2025-07-18T06:30:00Z",
-        "local": "2025-07-18T12:00:00+05:30"
+        "utc": "2025-07-21T11:35:00Z",
+        "local": "2025-07-21T17:05:00+05:30"
       },
       "actual": {
-        "utc": "2025-07-18T06:45:00Z",
-        "local": "2025-07-18T12:15:00+05:30"
+        "utc": "2025-07-21T11:42:00Z",
+        "local": "2025-07-21T17:12:00+05:30"
       },
       "terminal": "3",
       "gate": "B2",
@@ -66,30 +66,30 @@
         }
       },
       "scheduled": {
-        "utc": "2025-07-18T10:00:00Z",
-        "local": "2025-07-18T14:00:00+04:00"
+        "utc": "2025-07-21T15:15:00Z",
+        "local": "2025-07-21T19:15:00+04:00"
       },
       "estimated": {
-        "utc": "2025-07-18T10:10:00Z",
-        "local": "2025-07-18T14:10:00+04:00"
+        "utc": "2025-07-21T15:25:00Z",
+        "local": "2025-07-21T19:25:00+04:00"
       },
       "actual": null,
       "terminal": "1",
       "gate": "C12",
       "baggage_belt": "6"
     },
-    "last_updated": "2025-07-18T07:49:04Z",
+    "last_updated": "2025-07-21T14:10:00Z",
     "flight_iata": "EK531",
     "call_sign": "UAE531",
-    "status": "enroute",
+    "status": "en-route",
     "codeshare_status": null,
     "is_cargo": false,
     "aircraft": {
-      "hex": "ABC456",
+      "hex": "A6EQN1",
       "reg_number": "A6-EQN",
       "country": "United Arab Emirates",
       "built": 2021,
-      "engine": "GE90",
+      "engine": "GE90-115B",
       "engine_count": 2,
       "model": "Boeing 777-300ER",
       "manufacturer": "Boeing",
@@ -114,11 +114,29 @@
       "crashes_last_5y": 0
     },
     "current_position": {
-      "lat": 16.5,
-      "lng": 74.0,
+      "lat": 18.2150,
+      "lng": 64.8420,
       "altitude": 35000,
-      "speed": 450,
-      "bearing": 45
+      "speed": 485,
+      "bearing": 315,
+      "heading": "Northwest",
+      "ground_speed": 485,
+      "vertical_rate": 0,
+      "squawk": "2000",
+      "timestamp": "2025-07-21T14:11:00Z"
+    },
+    "progress": {
+      "percentage": 67.5,
+      "distance_traveled_km": 1876.5,
+      "distance_remaining_km": 903.5,
+      "estimated_time_remaining": "01:52:00"
+    },
+    "weather": {
+      "conditions": "Clear",
+      "temperature": -45,
+      "wind_speed": 35,
+      "wind_direction": 270,
+      "visibility": "Unlimited"
     }
   }
 }

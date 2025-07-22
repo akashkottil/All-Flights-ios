@@ -13,6 +13,7 @@ struct FACard: View {
         self.onDelete = onDelete
     }
     
+    
     var body: some View {
         VStack(spacing: 0) {
             // Top image section

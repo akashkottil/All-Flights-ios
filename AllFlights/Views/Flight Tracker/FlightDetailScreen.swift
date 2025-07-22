@@ -124,20 +124,27 @@ struct FlightMapView: UIViewRepresentable {
         let latDelta = abs(departure.latitude - arrival.latitude)
         let lngDelta = abs(departure.longitude - arrival.longitude)
         
-        let requiredLatSpan = max(latDelta * 1.4, 2.0)
-        let requiredLngSpan = max(lngDelta * 1.4, 2.0)
+        // Calculate the radius that includes both airports with padding
+        let maxDelta = max(latDelta, lngDelta)
+        let radiusPadding = max(maxDelta * 0.3, 1.0) // 30% padding or minimum 1 degree
         
-        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8)
+        // For 80% height, we need to account for the visible area being smaller
+        // Adjust the latitude span to ensure both airports are visible in the 80% area
+        let heightFactor = 0.8 // 80% of screen height
+        let adjustedLatSpan = max(latDelta + (2 * radiusPadding), 2.0) / heightFactor
+        let adjustedLngSpan = max(lngDelta + (2 * radiusPadding), 2.0)
+        
+        // Position the center slightly lower to account for the 80% height constraint
+        // This ensures both airports appear in the visible 80% area
+        let centerOffsetFactor = (1.0 - heightFactor) / 2 // Offset by 10% of span
+        let mapCenterLat = flightCenterLat - (adjustedLatSpan * centerOffsetFactor)
         let mapCenterLng = flightCenterLng
-        
-        let totalLatSpan = requiredLatSpan * 2.5
-        let totalLngSpan = requiredLngSpan * 1.8
         
         return MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: mapCenterLat, longitude: mapCenterLng),
             span: MKCoordinateSpan(
-                latitudeDelta: totalLatSpan,
-                longitudeDelta: totalLngSpan
+                latitudeDelta: adjustedLatSpan,
+                longitudeDelta: adjustedLngSpan
             )
         )
     }
@@ -210,7 +217,7 @@ struct FlightMapView: UIViewRepresentable {
             let current = arcPathPoints[0]
             let next = arcPathPoints[1]
             let angle = atan2(next.longitude - current.longitude, next.latitude - current.latitude) * 180 / .pi
-            print("🧭 First point rotation: \(angle)°")
+            
             return angle
         }
         
@@ -226,7 +233,6 @@ struct FlightMapView: UIViewRepresentable {
             let beforePoint = arcPathPoints[index - 1]
             let afterPoint = arcPathPoints[index + 1]
             let angle = atan2(afterPoint.longitude - beforePoint.longitude, afterPoint.latitude - beforePoint.latitude) * 180 / .pi
-            print("🧭 Mid point rotation: \(angle)°")
             return angle
         }
         
@@ -245,23 +251,23 @@ struct FlightMapView: UIViewRepresentable {
                 
                 if polyline.title == "complete_route" {
                     // Faint complete route outline
-                    renderer.strokeColor = UIColor.systemGray.withAlphaComponent(0.3)
+                    renderer.strokeColor = UIColor.white.withAlphaComponent(2.9)
                     renderer.lineWidth = 2
                     renderer.lineCap = .round
                     renderer.lineDashPattern = [2, 4] // Subtle dashed line
-                    print("🎨 Rendering complete route outline")
+                    
                 } else if polyline.title == "traveled" {
                     // Progressive traveled path with gradient effect
                     renderer.strokeColor = UIColor.systemPurple
                     renderer.lineWidth = 4
                     renderer.lineCap = .round
-                    print("🎨 Rendering progressive traveled path")
+                    
                 } else if polyline.title == "remaining" {
                     renderer.strokeColor = UIColor.systemBlue.withAlphaComponent(0.5)
                     renderer.lineWidth = 3
                     renderer.lineCap = .round
                     renderer.lineDashPattern = [5, 3]
-                    print("🎨 Rendering remaining path")
+                    
                 }
                 
                 return renderer
@@ -270,11 +276,11 @@ struct FlightMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            print("🏷️ Creating annotation view for: \(type(of: annotation))")
+            
             
             // Handle flight icon annotation
             if let flightAnnotation = annotation as? FlightMapIconAnnotation {
-                print("✈️ Creating flight icon annotation view")
+                
                 
                 let identifier = "FlightIcon"
                 var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
@@ -290,7 +296,7 @@ struct FlightMapView: UIViewRepresentable {
                 annotationView?.centerOffset = CGPoint(x: 0, y: 0)
                 annotationView?.annotation = annotation
                 
-                print("✅ Flight icon annotation view created successfully")
+                
                 return annotationView
             }
             
@@ -306,7 +312,7 @@ struct FlightMapView: UIViewRepresentable {
                 annotationView?.image = createAirportIcon(color: UIColor.black.withAlphaComponent(0.7), size: 12)
                 annotationView?.centerOffset = CGPoint(x: 0, y: 0)
                 
-                print("✅ Departure annotation created")
+                
                 return annotationView
             } else if annotation.title == "Arrival" {
                 let identifier = "Arrival"
@@ -319,7 +325,7 @@ struct FlightMapView: UIViewRepresentable {
                 annotationView?.image = createAirportIcon(color: UIColor.black.withAlphaComponent(0.7), size: 12)
                 annotationView?.centerOffset = CGPoint(x: 0, y: 0)
                 
-                print("✅ Arrival annotation created")
+                
                 return annotationView
             }
             
@@ -339,7 +345,7 @@ struct FlightMapView: UIViewRepresentable {
                 
                 // Try to load and draw the custom image
                 if let flightImage = UIImage(named: "FlyingFlight") {
-                    print("✅ Found FlyingFlight image")
+                    
                     
                     // Apply rotation with smooth interpolation
                     cgContext.saveGState()
@@ -357,7 +363,7 @@ struct FlightMapView: UIViewRepresentable {
                     flightImage.draw(in: CGRect(x: 0, y: 0, width: 20, height: 20))
                     cgContext.restoreGState()
                 } else {
-                    print("❌ FlyingFlight image not found, using fallback")
+                    
                     
                     // Smooth fallback airplane shape
                     cgContext.setFillColor(UIColor.white.cgColor)
@@ -489,36 +495,47 @@ struct FlightDetailScreen: View {
         self.date = date
         self.onFlightViewed = onFlightViewed
     }
+    
+    
 
     var body: some View {
         NavigationView {
-            ZStack {
-                if let departure = departureAnnotation?.coordinate,
-                   let arrival = arrivalAnnotation?.coordinate {
-                    FlightMapView(
-                        departure: departure,
-                        arrival: arrival,
-                        arcPathPoints: arcPathPoints,
-                        flightProgress: animatedFlightProgress, // Changed from flightPathProgress
-                        pathAnimationProgress: animatedPathProgress, // Changed from pathAnimationProgress
-                        showFlightPath: showFlightPath
-                    )
-                    .ignoresSafeArea()
-                } else {
-                    MapShimmerView()
-                }
+                GeometryReader { geometry in
+                    ZStack(alignment: .top) { // Add top alignment to ZStack
+                        if let departure = departureAnnotation?.coordinate,
+                           let arrival = arrivalAnnotation?.coordinate {
+                            FlightMapView(
+                                departure: departure,
+                                arrival: arrival,
+                                arcPathPoints: arcPathPoints,
+                                flightProgress: animatedFlightProgress,
+                                pathAnimationProgress: animatedPathProgress,
+                                showFlightPath: showFlightPath
+                            )
+                            .frame(height: geometry.size.height * 0.8) // Limit to 60% of screen height
+                            .frame(maxWidth: .infinity) // Keep full width
+                            .clipped() // Clip any overflow
+                        } else {
+                            MapShimmerView()
+                                .frame(height: geometry.size.height * 0.8) // Same height limit for shimmer
+                                .frame(maxWidth: .infinity)
+                                .clipped()
+                        }
 
-                
-                // Gradient overlay
-                GradientColor.FTHGradient
-                    .blendMode(.overlay)
-                    .allowsHitTesting(false)
-            }
-            .ignoresSafeArea()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                        // Gradient overlay - also limit to same height
+                        GradientColor.FTHGradient
+                            .frame(height: geometry.size.height * 0.8)
+                            .frame(maxWidth: .infinity)
+                            .blendMode(.overlay)
+                            .allowsHitTesting(false)
+                    }
+                    .ignoresSafeArea(.all, edges: .top) // Move ignoresSafeArea to the ZStack level
+                }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbar {
+                    // Your existing toolbar items...
+                    ToolbarItem(placement: .navigationBarLeading) {
                         Button(action: {
                             presentationMode.wrappedValue.dismiss()
                         }) {
@@ -526,83 +543,77 @@ struct FlightDetailScreen: View {
                                 .foregroundColor(.white)
                         }
                     }
-                
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 2) {
-                        if let flightDetail = flightDetail {
-                            Text("\(flightDetail.departure.airport.city ?? flightDetail.departure.airport.name) - \(flightDetail.arrival.airport.city ?? flightDetail.arrival.airport.name)")
-                                .font(.system(size: 18))
-                                .fontWeight(.bold)
-                        } else {
-                            Text("Flight Details")
-                                .font(.system(size: 18))
-                                .fontWeight(.bold)
-                        }
-                        Text(formatDateForDisplay(date))
-                            .font(.system(size: 14))
-                            .fontWeight(.semibold)
-                            .foregroundColor(.gray)
-                    }
-                    .foregroundColor(.white)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                                    Button(action: {
-                                        shareFlightDetails()
-                                    }) {
-                                        Image("FilterShare")
-                                    }
-                                }
-            }
-            .onAppear {
-//                MARK: mock data
-                FlightTrackNetworkManager.shared.useMockData = true
-// MARK: mock ends
-                Task {
-                    await fetchFlightDetails()
-                }
-            }
-            .onDisappear {
-//                MARK: mock data
-                FlightTrackNetworkManager.shared.useMockData = false
-// MARK: mock ends
-                
-                // Add flight to recently viewed when user leaves this screen
-                if let flightDetail = flightDetail, let onFlightViewed = onFlightViewed {
-                    addToRecentlyViewed(flightDetail)
-                }
-            }
-            .onChange(of: flightDetail?.flightIata) { _ in
-                if let flight = flightDetail {
-                    setupMapData(for: flight)
-                    // Immediate map loading with faster animation
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        withAnimation(.easeInOut(duration: 0.6)) {
-                            showMap = true
-                        }
-                        
-                        // Start animation much sooner
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            animateFlightPath()
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: .constant(true)) {
-                bottomSheetContent()
-                    .presentationDetents([.medium, .fraction(0.95)])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Color.white)
-                    .interactiveDismissDisabled(true)
-                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-                    .sheet(isPresented: $showShareSheet) {
-                                ShareSheet(items: shareItems)
-                                    .presentationDetents([.medium])
-                                    .presentationDragIndicator(.visible)
+                    
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 2) {
+                            if let flightDetail = flightDetail {
+                                Text("\(flightDetail.departure.airport.city ?? flightDetail.departure.airport.name) - \(flightDetail.arrival.airport.city ?? flightDetail.arrival.airport.name)")
+                                    .font(.system(size: 18))
+                                    .fontWeight(.bold)
+                            } else {
+                                Text("Flight Details")
+                                    .font(.system(size: 18))
+                                    .fontWeight(.bold)
                             }
+                            Text(formatDateForDisplay(date))
+                                .font(.system(size: 14))
+                                .fontWeight(.semibold)
+                                .foregroundColor(.gray)
+                        }
+                        .foregroundColor(.white)
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            shareFlightDetails()
+                        }) {
+                            Image("FilterShare")
+                        }
+                    }
+                }
+                // Rest of your existing code...
+                .onAppear {
+                    FlightTrackNetworkManager.shared.useMockData = true
+                    Task {
+                        await fetchFlightDetails()
+                    }
+                }
+                .onDisappear {
+                    FlightTrackNetworkManager.shared.useMockData = false
+                    
+                    if let flightDetail = flightDetail, let onFlightViewed = onFlightViewed {
+                        addToRecentlyViewed(flightDetail)
+                    }
+                }
+                .onChange(of: flightDetail?.flightIata) { _ in
+                    if let flight = flightDetail {
+                        setupMapData(for: flight)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            withAnimation(.easeInOut(duration: 0.6)) {
+                                showMap = true
+                            }
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                animateFlightPath()
+                            }
+                        }
+                    }
+                }
+                .sheet(isPresented: .constant(true)) {
+                    bottomSheetContent()
+                        .presentationDetents([.medium, .fraction(0.95)])
+                        .presentationDragIndicator(.visible)
+                        .presentationBackground(Color.white)
+                        .interactiveDismissDisabled(true)
+                        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                        .sheet(isPresented: $showShareSheet) {
+                            ShareSheet(items: shareItems)
+                                .presentationDetents([.medium])
+                                .presentationDragIndicator(.visible)
+                        }
+                }
             }
-            
-        }.navigationBarBackButtonHidden(true)
-    }
+            .navigationBarBackButtonHidden(true)    }
     
     // ADD: Share functionality
     private func shareFlightDetails() {
@@ -707,42 +718,26 @@ struct FlightDetailScreen: View {
         // Create flight route
         flightRoute = [departureCoordinate, arrivalCoordinate]
         
-        // FORCE coordinates to appear in top 50% by positioning map center much lower
-        let flightCenterLat = (departureCoordinate.latitude + arrivalCoordinate.latitude) / 2
-        let flightCenterLng = (departureCoordinate.longitude + arrivalCoordinate.longitude) / 2
-        
-        let latDelta = abs(departureCoordinate.latitude - arrivalCoordinate.latitude)
-        let lngDelta = abs(departureCoordinate.longitude - arrivalCoordinate.longitude)
-        
-        // Calculate required spans
-        let requiredLatSpan = max(latDelta * 1.4, 2.0)
-        let requiredLngSpan = max(lngDelta * 1.4, 2.0)
-        
-        // Position map center WAY BELOW the flight coordinates
-        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8)
-        
-        let region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: mapCenterLat, longitude: flightCenterLng),
-            span: MKCoordinateSpan(
-                latitudeDelta: requiredLatSpan * 2.5,
-                longitudeDelta: requiredLngSpan * 1.8
-            )
-        )
-        
+        // Calculate optimal region with dynamic zoom
+        let region = calculateOptimalRegionForBottomSheet()
         mapRegion = region
         
         // Calculate flight path and position
         calculateFlightProgress(for: flight)
         generateSmartArcPath(from: departureCoordinate, to: arrivalCoordinate)
         
-        print("✅ Map data setup complete - Flight coordinates forced to top 50%")
+        print("✅ Map data setup complete with dynamic zoom - Region: \(region)")
+        print("📍 Departure: \(departureCoordinate)")
+        print("📍 Arrival: \(arrivalCoordinate)")
+        print("📏 Distance: \(sqrt(pow(abs(departureCoordinate.latitude - arrivalCoordinate.latitude), 2) + pow(abs(departureCoordinate.longitude - arrivalCoordinate.longitude), 2))) degrees")
     }
 
+
     private func startSmoothFlightAnimation() {
-        print("🎬 Starting smooth coordinated flight and path animation")
+        
         
         // Much faster animation
-        let animationDuration: Double = 6.0 // Reduced from 6.0
+        let animationDuration: Double = 3.5 // Reduced from 6.0
         let frameRate: Double = 30.0
         let totalFrames = Int(animationDuration * frameRate)
         let targetProgress = flightPathProgress
@@ -759,7 +754,7 @@ struct FlightDetailScreen: View {
                 animatedPathDrawingProgress = targetProgress
                 timer.invalidate()
                 isInitialAnimationComplete = true
-                print("✅ Smooth coordinated animation completed at progress: \(targetProgress)")
+                
             } else {
                 // Use smooth easing
                 let easedProgress = easeInOut(progress)
@@ -788,7 +783,7 @@ struct FlightDetailScreen: View {
         }
     }
     private func animateFlightPath() {
-        print("🎬 Starting flight path animation")
+        print("🎬 Starting flight path animation with dynamic zoom")
         
         // Reset animation states
         animatedFlightProgress = 0.0
@@ -796,49 +791,79 @@ struct FlightDetailScreen: View {
         animatedPathDrawingProgress = 0.0
         isInitialAnimationComplete = false
         
-        let initialRegion = calculateOptimalRegionForBottomSheet()
+        let finalRegion = calculateOptimalRegionForBottomSheet()
         
-        // Start with a zoomed out version (much faster)
-        withAnimation(.easeInOut(duration: 0.8)) {
-            mapRegion = MKCoordinateRegion(
-                center: initialRegion.center,
-                span: MKCoordinateSpan(
-                    latitudeDelta: initialRegion.span.latitudeDelta * 1.2,
-                    longitudeDelta: initialRegion.span.longitudeDelta * 1.2
-                )
+        // Start with a wider view (zoom out first)
+        let initialRegion = MKCoordinateRegion(
+            center: finalRegion.center,
+            span: MKCoordinateSpan(
+                latitudeDelta: finalRegion.span.latitudeDelta * 1.8,
+                longitudeDelta: finalRegion.span.longitudeDelta * 1.8
             )
+        )
+        
+        // Set initial wide view
+        withAnimation(.easeOut(duration: 0.6)) {
+            mapRegion = initialRegion
         }
         
-        // Show the flight path container immediately
+        // Show the flight path container
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.easeInOut(duration: 0.8)) {
+            withAnimation(.easeInOut(duration: 0.5)) {
                 showFlightPath = true
-                animatedPathProgress = 1.0 // Show route outline immediately
+                animatedPathProgress = 1.0
             }
         }
         
-        // Zoom to final position quickly
+        // Zoom to optimal view smoothly
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            withAnimation(.easeInOut(duration: 1.0)) {
-                mapRegion = calculateOptimalRegionForBottomSheet()
+            withAnimation(.easeInOut(duration: 1.2)) {
+                mapRegion = finalRegion
             }
         }
         
-        // Start coordinated flight and path animation immediately after zoom
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        // Start flight animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             startSmoothFlightAnimation()
         }
         
-        // Animate flight icon pulsing immediately
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        // Start flight icon animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
                 isAnimating = true
             }
         }
         
-        print("🎬 Fast coordinated animation sequence started - will animate from 0 to \(flightPathProgress)")
+        print("🎬 Dynamic zoom animation sequence started")
+        print("📊 Initial span: lat=\(initialRegion.span.latitudeDelta), lng=\(initialRegion.span.longitudeDelta)")
+        print("📊 Final span: lat=\(finalRegion.span.latitudeDelta), lng=\(finalRegion.span.longitudeDelta)")
     }
 
+    private func validateAirportVisibility(region: MKCoordinateRegion, departure: CLLocationCoordinate2D, arrival: CLLocationCoordinate2D) -> Bool {
+        let heightFactor = 0.8
+        let visibleLatRange = region.span.latitudeDelta * heightFactor
+        let visibleLatMin = region.center.latitude - (visibleLatRange / 2)
+        let visibleLatMax = region.center.latitude + (visibleLatRange / 2)
+        
+        let visibleLngRange = region.span.longitudeDelta
+        let visibleLngMin = region.center.longitude - (visibleLngRange / 2)
+        let visibleLngMax = region.center.longitude + (visibleLngRange / 2)
+        
+        let departureVisible = departure.latitude >= visibleLatMin && departure.latitude <= visibleLatMax &&
+                              departure.longitude >= visibleLngMin && departure.longitude <= visibleLngMax
+        
+        let arrivalVisible = arrival.latitude >= visibleLatMin && arrival.latitude <= visibleLatMax &&
+                            arrival.longitude >= visibleLngMin && arrival.longitude <= visibleLngMax
+        
+        print("🔍 Airport visibility check:")
+        print("   Departure visible: \(departureVisible)")
+        print("   Arrival visible: \(arrivalVisible)")
+        print("   Visible lat range: \(visibleLatMin) to \(visibleLatMax)")
+        print("   Visible lng range: \(visibleLngMin) to \(visibleLngMax)")
+        
+        return departureVisible && arrivalVisible
+    }
+    
     // UPDATED: Bottom sheet aware region calculation with forced positioning
     private func calculateOptimalRegionForBottomSheet() -> MKCoordinateRegion {
         guard let departure = departureAnnotation?.coordinate,
@@ -852,21 +877,49 @@ struct FlightDetailScreen: View {
         let latDelta = abs(departure.latitude - arrival.latitude)
         let lngDelta = abs(departure.longitude - arrival.longitude)
         
-        // Calculate spans needed to show flight path
-        let requiredLatSpan = max(latDelta * 1.4, 2.0)
-        let requiredLngSpan = max(lngDelta * 1.4, 2.0)
+        // Dynamic radius calculation based on distance between airports
+        let distance = sqrt(pow(latDelta, 2) + pow(lngDelta, 2))
+        let radiusFactor = calculateRadiusFactor(for: distance)
         
-        // FORCE map center to be much lower than flight coordinates
-        let mapCenterLat = flightCenterLat - (requiredLatSpan * 0.8)
+        // Calculate required spans with dynamic padding
+        let requiredLatSpan = max(latDelta * radiusFactor, 2.0)
+        let requiredLngSpan = max(lngDelta * radiusFactor, 2.0)
+        
+        // For 80% height, adjust the center and span
+        let heightFactor = 0.8
+        let adjustedLatSpan = requiredLatSpan / heightFactor
+        
+        // Center adjustment to ensure both airports are visible in 80% area
+        let centerOffset = adjustedLatSpan * (1.0 - heightFactor) / 2
+        let mapCenterLat = flightCenterLat - centerOffset
         
         return MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: mapCenterLat, longitude: flightCenterLng),
             span: MKCoordinateSpan(
-                latitudeDelta: requiredLatSpan * 2.5,
-                longitudeDelta: requiredLngSpan * 1.8
+                latitudeDelta: adjustedLatSpan,
+                longitudeDelta: requiredLngSpan
             )
         )
     }
+    
+    private func calculateRadiusFactor(for distance: Double) -> Double {
+        // Dynamic radius factor based on the distance between airports
+        switch distance {
+        case 0..<1:
+            return 3.0  // Very close airports - zoom in more
+        case 1..<5:
+            return 2.5  // Close airports - moderate zoom
+        case 5..<15:
+            return 2.0  // Medium distance - normal zoom
+        case 15..<30:
+            return 1.8  // Long distance - zoom out slightly
+        case 30..<60:
+            return 1.6  // Very long distance - zoom out more
+        default:
+            return 1.4  // Transcontinental flights - maximum zoom out
+        }
+    }
+
     
     // MARK: - Enhanced Arc Path Generation with Smart Direction Based on Geography
     private func generateSmartArcPath(from departure: CLLocationCoordinate2D, to arrival: CLLocationCoordinate2D) {
