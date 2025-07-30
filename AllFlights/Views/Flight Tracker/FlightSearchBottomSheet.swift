@@ -116,28 +116,29 @@ struct trackLocationSheet: View {
             primarySearchField()
             
             // Show search results if available
-            // OPTIMIZED: Use search manager state
             if searchManager.isLoading {
                 loadingView()
-            } else if !searchText.isEmpty && (!searchManager.searchResults.airports.isEmpty || !searchManager.searchResults.airlines.isEmpty) {
+            } else if !searchText.isEmpty &&
+                        (!searchManager.searchResults.airports.isEmpty || !searchManager.searchResults.airlines.isEmpty) {
                 searchResultsView()
             } else if let error = searchManager.errorMessage {
                 errorView(error)
             } else if searchText.isEmpty {
                 defaultTrackedContent()
             }
-            
-            // Show additional fields based on selection - MODIFIED for progressive display
+
+            // Show additional fields based on selection
             if let searchType = selectedSearchType {
                 additionalFieldsView(for: searchType)
             }
-            
-            // ADDED: Auto-check completion when all fields are filled
-            if source == .trackedTab {
-                let _ = checkTrackedCompletion()
-            }
         }
+        .onChange(of: trackedFlightNumber) { checkTrackedCompletion() }
+        .onChange(of: trackedDepartureAirport) {  checkTrackedCompletion() }
+        .onChange(of: trackedArrivalAirport) { checkTrackedCompletion() }
+        .onChange(of: trackedSelectedDate) { checkTrackedCompletion() }
+        .onChange(of: trackedSearchType) { checkTrackedCompletion() }
     }
+
     
     // ADDED: Check if tracked search is complete and trigger API call
     private func checkTrackedCompletion() {

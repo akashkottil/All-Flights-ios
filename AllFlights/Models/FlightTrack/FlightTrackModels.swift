@@ -9,7 +9,7 @@ struct FlightTrackAirportResponse: Codable {
     let results: [FlightTrackAirport]
 }
 
-struct FlightTrackAirport: Codable, Identifiable {
+struct FlightTrackAirport: Codable, Identifiable, Equatable {
     let id = UUID() // For SwiftUI List identification
     let iataCode: String
     let icaoCode: String? // Make this optional since it can be null
@@ -33,13 +33,13 @@ struct FlightTrackAirport: Codable, Identifiable {
     }
 }
 
-struct FlightTrackLocation: Codable {
+struct FlightTrackLocation: Codable, Equatable {
     let lat: Double
     let lng: Double
 }
 
 // FIXED: Made timezone fields optional based on swagger documentation
-struct FlightTrackTimezone: Codable {
+struct FlightTrackTimezone: Codable, Equatable {
     let timezone: String
     let countryCode: String?        // FIXED: x-nullable: true
     let gmt: Double?               // FIXED: x-nullable: true
@@ -189,10 +189,10 @@ struct FlightDetailResponse: Codable {
 
 // FIXED: Made more fields optional based on swagger documentation
 struct FlightDetail: Codable {
-    let greatCircleDistance: GreatCircleDistance
+    let greatCircleDistance: GreatCircleDistance?
     let departure: FlightLocation
     let arrival: FlightLocation
-    let lastUpdated: String
+    let lastUpdated: String?
     let flightIata: String
     let callSign: String?
     let status: String?             // FIXED: x-nullable: true
