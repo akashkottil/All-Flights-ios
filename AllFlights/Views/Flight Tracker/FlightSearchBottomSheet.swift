@@ -359,6 +359,8 @@ struct trackLocationSheet: View {
             HStack {
                 TextField("Enter flight or airport", text: $searchText)
                     .padding()
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.never)
                     .onChange(of: searchText) { newValue in
                         // OPTIMIZED: Use debounced search
                         searchManager.performSearch(
@@ -509,6 +511,8 @@ struct trackLocationSheet: View {
             HStack {
                 TextField("Enter flight number (e.g., 6E 123)", text: $trackedFlightNumber)
                     .padding()
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.never)
                     .onChange(of: trackedFlightNumber) { newValue in
                         // ADDED: Notify parent about flight number entry
                         onFlightNumberEntered?(newValue)
@@ -536,6 +540,8 @@ struct trackLocationSheet: View {
             HStack {
                 TextField("Enter arrival airport", text: $arrivalAirportText)
                     .padding()
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.never)
                     .onChange(of: arrivalAirportText) { newValue in
                         // Search for arrival airports
                         if newValue.count >= 2 {
@@ -895,6 +901,8 @@ struct trackLocationSheet: View {
         HStack {
             TextField(getAirportSearchPlaceholder(), text: $searchText)
                 .padding()
+                .autocorrectionDisabled(true)
+                .textInputAutocapitalization(.never)
                 .onChange(of: searchText) { newValue in
                     searchManager.performSearch(query: newValue, shouldPerformMixed: false)
                 }
