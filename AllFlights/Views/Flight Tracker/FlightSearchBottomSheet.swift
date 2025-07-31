@@ -241,6 +241,12 @@ struct trackLocationSheet: View {
                 // Small delay to show success state before navigation
                 try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
                 
+                // Dismiss the sheet before navigating
+                isPresented = false
+                
+                // Small delay to ensure sheet dismissal animation starts
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
                 // Navigate to flight detail screen
                 onSearchCompleted?(searchType, flightNumber, departureAirport, arrivalAirport, date)
                 
@@ -261,6 +267,15 @@ struct trackLocationSheet: View {
                     isFlightDetailLoading = false
                     flightDetailError = nil
                 }
+                
+                // Small delay to show success state before navigation
+                try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+                
+                // Dismiss the sheet before navigating
+                isPresented = false
+                
+                // Small delay to ensure sheet dismissal animation starts
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
                 // Navigate to schedule results
                 onSearchCompleted?(searchType, flightNumber, departureAirport, arrivalAirport, date)
