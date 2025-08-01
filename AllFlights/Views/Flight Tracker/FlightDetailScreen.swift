@@ -829,8 +829,7 @@ struct FlightDetailScreen: View {
         ScrollView {
             VStack(spacing: 16) {
                 if isLoading {
-                    ProgressView("Loading flight details...")
-                        .padding()
+                    FlightDetailShimmerView()
                 } else if let error = error {
                     errorView(error)
                 } else if let flightDetail = flightDetail {
