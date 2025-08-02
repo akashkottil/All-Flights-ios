@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8C6564BD2E3D136000C651DE /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 8C6564BC2E3D136000C651DE /* Lottie */; };
 		DF498C4C2DDA56EE00F4AAA1 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = DF498C4B2DDA56EE00F4AAA1 /* Alamofire */; };
 		DFA3DC9F2DF73BAC003E1BE2 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = DFA3DC9E2DF73BAC003E1BE2 /* Kingfisher */; };
 /* End PBXBuildFile section */
@@ -72,6 +73,7 @@
 			files = (
 				DFA3DC9F2DF73BAC003E1BE2 /* Kingfisher in Frameworks */,
 				DF498C4C2DDA56EE00F4AAA1 /* Alamofire in Frameworks */,
+				8C6564BD2E3D136000C651DE /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -142,6 +144,7 @@
 			packageProductDependencies = (
 				DF498C4B2DDA56EE00F4AAA1 /* Alamofire */,
 				DFA3DC9E2DF73BAC003E1BE2 /* Kingfisher */,
+				8C6564BC2E3D136000C651DE /* Lottie */,
 			);
 			productName = AllFlights;
 			productReference = DB8932FE2DD4A75E00F45A43 /* AllFlights.app */;
@@ -228,6 +231,7 @@
 			packageReferences = (
 				DF498C492DDA568700F4AAA1 /* XCRemoteSwiftPackageReference "Alamofire" */,
 				DFA3DC9D2DF73B97003E1BE2 /* XCRemoteSwiftPackageReference "Kingfisher" */,
+				8C6564BB2E3D136000C651DE /* XCRemoteSwiftPackageReference "lottie-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DB8932FF2DD4A75E00F45A43 /* Products */;
@@ -601,6 +605,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		8C6564BB2E3D136000C651DE /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.5.2;
+			};
+		};
 		DF498C492DDA568700F4AAA1 /* XCRemoteSwiftPackageReference "Alamofire" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Alamofire/Alamofire.git";
@@ -620,6 +632,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		8C6564BC2E3D136000C651DE /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8C6564BB2E3D136000C651DE /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
 		DF498C4B2DDA56EE00F4AAA1 /* Alamofire */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = DF498C492DDA568700F4AAA1 /* XCRemoteSwiftPackageReference "Alamofire" */;

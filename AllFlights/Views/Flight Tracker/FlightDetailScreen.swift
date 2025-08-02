@@ -2030,29 +2030,34 @@ struct FlightDetailScreen: View {
 // MARK: - Map Support Models and Views
 // These are now handled by the new SwiftUI map implementation above
 
-// MARK: - UPDATED Map Shimmer View
 struct MapShimmerView: View {
     @State private var shimmerOffset: CGFloat = -200
-    
+
     var body: some View {
         ZStack {
-            // Map image that fills the entire screen (stretched or cropped)
-            Image("mapImg") // Replace with your actual map image or map view.
+            // Background Map
+            Image("mapImg")
                 .resizable()
-                .scaledToFill() // Ensures the image stretches or crops to fill the screen
-                .edgesIgnoringSafeArea(.all) // No space around the image, it will fill the screen
-                .blur(radius: 2) // Apply blur to the image
-            
-            // Gradient overlay that goes from top to bottom
+                .scaledToFill()
+                .edgesIgnoringSafeArea(.all)
+                .blur(radius: 2)
+
+            // Top-to-bottom gradient overlay
             LinearGradient(
                 gradient: Gradient(colors: [Color.black.opacity(0.6), Color.clear]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .edgesIgnoringSafeArea(.all) // Ensure the gradient covers the whole image
+            .edgesIgnoringSafeArea(.all)
+            
+            LottieView(animationName: "mapRotate")
+                .frame(width: 200, height: 200)
+                .offset(x: -80, y: -50) // Move left 30 points and up 50 points
+
         }
     }
 }
+
 
 
 
