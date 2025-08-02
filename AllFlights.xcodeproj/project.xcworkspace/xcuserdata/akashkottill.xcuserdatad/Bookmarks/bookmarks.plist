@@ -12,13 +12,13 @@
 					<key>EndingColumnNumber</key>
 					<string>0</string>
 					<key>EndingLineNumber</key>
-					<string>2090</string>
+					<string>2086</string>
 					<key>StartingColumnNumber</key>
 					<string>0</string>
 					<key>StartingLineNumber</key>
-					<string>2090</string>
+					<string>2085</string>
 					<key>Timestamp</key>
-					<string>775755266.110401</string>
+					<string>775819086.499531</string>
 				</dict>
 				<key>rebasable-url</key>
 				<dict>
@@ -34,13 +34,17 @@
 			<key>text-context</key>
 			<dict>
 				<key>focused</key>
-				<string></string>
+				<string>
+</string>
 				<key>leading</key>
-				<string>//    return FlightDetailScreen(flightNumber: "6E703", date: "20250618")
-//}
+				<string>    }
+}
 </string>
 				<key>trailing</key>
-				<string></string>
+				<string>//#Preview {
+//    FlightTrackNetworkManager.shared.useMockData = true
+//    return FlightDetailScreen(flightNumber: "6E703", date: "20250618")
+</string>
 			</dict>
 			<key>type</key>
 			<string>bookmark</string>

@@ -690,13 +690,13 @@ struct FlightDetailScreen: View {
                             .clipped()
                             .opacity(showMap ? 1 : 0)
                             .animation(.easeInOut(duration: 0.5), value: showMap)
+                            .ignoresSafeArea()
                         }
                         
                         // Loading view that fades out when map is ready
                         if !showMap {
                             MapShimmerView()
-                                .frame(height: geometry.size.height * 0.8)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .clipped()
                                 .opacity(showMap ? 0 : 1)
                                 .animation(.easeInOut(duration: 0.5), value: showMap)
@@ -2052,7 +2052,7 @@ struct MapShimmerView: View {
             
             LottieView(animationName: "mapRotate")
                 .frame(width: 200, height: 200)
-                .offset(x: -80, y: -50) // Move left 30 points and up 50 points
+                .offset(x: -200, y: -150)
 
         }
     }
