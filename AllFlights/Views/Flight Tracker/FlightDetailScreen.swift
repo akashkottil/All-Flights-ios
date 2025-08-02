@@ -2052,7 +2052,7 @@ struct MapShimmerView: View {
             
             LottieView(animationName: "mapRotate")
                 .frame(width: 200, height: 200)
-                .offset(x: -200, y: -150)
+                .offset(x: -195, y: -150)
 
         }
     }
