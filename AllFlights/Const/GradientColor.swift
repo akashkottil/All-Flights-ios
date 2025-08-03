@@ -74,5 +74,12 @@ struct GradientColor {
         endPoint: .bottom
     )
     
-    
+    static let BlueWhiteHorizontal = LinearGradient(
+        gradient: Gradient(colors: [
+                    Color(hex: "#7fa0ec"),
+                    Color(hex: "#5481E6"),
+                ]),
+        startPoint: .leading,
+        endPoint: .trailing
+    )
 }
