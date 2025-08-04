@@ -499,6 +499,7 @@ struct ExploreScreen: View {
                                         .zIndex(1)
                                         .edgesIgnoringSafeArea(.all)
                                         .background(Color(.systemBackground))
+                                        
                                     }
                                     else if !viewModel.hasSearchedFlights {
                                         exploreMainContent

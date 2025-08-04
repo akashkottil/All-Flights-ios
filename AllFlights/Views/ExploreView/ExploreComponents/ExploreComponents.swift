@@ -2927,6 +2927,8 @@ struct DetailedFlightCardWrapper: View {
                             
                             isRoundTrip: false
                         )
+                        
+                        
                     }
                 }
             }
